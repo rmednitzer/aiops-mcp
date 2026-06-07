@@ -67,3 +67,4 @@ XS, S, M, L.
 | BL-059 | Drift: escalate `UNEXPECTED` security-predicate findings; split multi-host Ansible subjects | S | open | 0012 |
 | BL-060 | Deploy and config: Helm health probes, systemd drop-in dedupe, pin `cyclonedx-bom`, strip whitespace `HTTP_HOST`, normalise compliance-map path citations | M | open | 0012 |
 | BL-061 | Test and fuzz wave: Postgres parity suite, evidence tamper matrix, host_type refusal per adapter, SSRF bypass tests, fuzz manifest/merkle/evidence | M | open | 0012 |
+| BL-062 | Route read tools (`query_facts`, `fact_history`, collector/skill reads) through the audited path, or formally document the deliberate exclusion; reconcile with invariant 1 wording | S | open | 0012 |

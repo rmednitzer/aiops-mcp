@@ -79,3 +79,25 @@ def test_assert_egress_allowed_raises_on_metadata() -> None:
     with pytest.raises(SSRFBlocked):
         assert_egress_allowed("http://169.254.169.254/latest/meta-data/")
     assert_egress_allowed("https://8.8.8.8/resolve")  # no raise
+
+
+def test_ssrf_blocks_obfuscated_ip_encodings() -> None:
+    # Decimal, hex, octal, short-dotted, and trailing-dot encodings of a blocked IP
+    # all canonicalise to the loopback/unspecified range (BL-042).
+    for host in ["2130706433", "0x7f000001", "0177.0.0.1", "127.1", "127.0.0.1.", "0"]:
+        assert is_blocked_address(host) is True, host
+    # The decimal encoding of a public IP is still allowed (no over-blocking).
+    assert is_blocked_address("134744072") is False  # 8.8.8.8
+
+
+def test_assert_egress_is_fail_closed_on_names_and_encodings() -> None:
+    # Fail-closed: an obfuscated loopback, a metadata name, and any unresolvable name
+    # are all refused; only a verifiably public IP literal is allowed (BL-042).
+    for url in [
+        "http://metadata.google.internal/latest/",
+        "http://2130706433/",
+        "http://example.com",
+    ]:
+        with pytest.raises(SSRFBlocked):
+            assert_egress_allowed(url)
+    assert_egress_allowed("https://8.8.8.8/resolve")  # public IP literal: allowed

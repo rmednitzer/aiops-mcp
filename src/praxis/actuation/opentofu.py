@@ -27,5 +27,9 @@ class OpenTofuAdapter(ActuationAdapter):
         chdir = params.get("chdir")
         prefix = ["tofu", f"-chdir={chdir}"] if isinstance(chdir, str) else ["tofu"]
         if dry_run:
-            return [*prefix, "plan", "-refresh-only"]
+            # A full plan, not -refresh-only: the preview must show exactly the
+            # changes the subsequent apply would make (invariant 6), not merely
+            # the drift a refresh detects. -refresh-only belongs to the drift
+            # engine (drift/sources.py), not to the actuation dry-run. (BL-043)
+            return [*prefix, "plan"]
         return [*prefix, "apply", "-auto-approve"]

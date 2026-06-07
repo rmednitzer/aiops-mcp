@@ -149,6 +149,25 @@ def test_exception_becomes_bounded_error(tmp_path: Path) -> None:
     assert "Traceback" not in result.error  # never a raw traceback
 
 
+def test_broken_exception_str_does_not_escape_run(tmp_path: Path) -> None:
+    # A hostile or broken __str__ on the raised exception must be contained, not
+    # allowed to raise out of the single audited path (invariant 1, BL-044).
+    ctx = _ctx(tmp_path)
+
+    class Hostile(Exception):
+        def __str__(self) -> str:
+            raise ValueError("str blew up")
+
+    def boom() -> str:
+        raise Hostile
+
+    result = run(_req(tool="collector", command="cat x", base_tier=Tier.T0), boom, context=ctx)
+    assert result.ok is False
+    assert result.error is not None
+    assert "Hostile" in result.error
+    assert "unprintable" in result.error
+
+
 def test_output_body_never_in_audit(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     secret_body = "uniqueoutputmarker-do-not-log"

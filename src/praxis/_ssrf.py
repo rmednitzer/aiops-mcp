@@ -9,27 +9,44 @@ multicast, reserved, and unspecified addresses are blocked.
 from __future__ import annotations
 
 import ipaddress
+import socket
 from urllib.parse import urlparse
 
 _CGNAT_V4 = ipaddress.ip_network("100.64.0.0/10")
 _BLOCKED_NAMES = frozenset({"localhost", "localhost.localdomain", "ip6-localhost"})
+
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 class SSRFBlocked(Exception):
     """Raised when an egress target resolves to a blocked range."""
 
 
-def is_blocked_address(host: str) -> bool:
-    """True if ``host`` (an IP literal or a known-local name) must be blocked."""
-    name = host.strip().strip("[]").lower()
-    if name in _BLOCKED_NAMES:
-        return True
+def _as_ip(name: str) -> _IPAddress | None:
+    """Parse ``name`` as an IP literal in any common encoding, else None.
+
+    Covers dotted-quad and IPv6, plus the legacy and obfuscated IPv4 forms an
+    attacker reaches for to dodge a naive string check: a bare 32-bit integer
+    (decimal, ``0x`` hex, or ``0`` octal), the short dotted forms (``127.1``),
+    and a single trailing dot (``127.0.0.1.``). ``inet_aton`` canonicalises the
+    numeric and short forms the same way the C resolver would, so an encoded
+    loopback or link-local address is recognised, not waved through. Returns
+    None for a genuine DNS name (decided, fail-closed, by the caller).
+    """
+    candidate = name.rstrip(".")
+    if not candidate:
+        return None
     try:
-        ip = ipaddress.ip_address(name)
+        return ipaddress.ip_address(candidate)
     except ValueError:
-        # A hostname that is not an IP literal: name-based resolution is out of
-        # scope for v0; only IP literals and known-local names are decided here.
-        return False
+        pass
+    try:
+        return ipaddress.IPv4Address(socket.inet_aton(candidate))
+    except (OSError, ValueError):
+        return None
+
+
+def _ip_is_blocked(ip: _IPAddress) -> bool:
     if ip.version == 4 and ip in _CGNAT_V4:
         return True
     return bool(
@@ -42,9 +59,45 @@ def is_blocked_address(host: str) -> bool:
     )
 
 
+def is_blocked_address(host: str) -> bool:
+    """True if ``host`` must be blocked.
+
+    Accepts an IP literal in any encoding (see ``_as_ip``) or a known-local
+    name. A bare DNS name returns False here; the egress decision for names is
+    made, fail-closed, by ``assert_egress_allowed`` (this predicate classifies
+    literals, it does not resolve names).
+    """
+    name = host.strip().strip("[]").lower()
+    if name in _BLOCKED_NAMES:
+        return True
+    ip = _as_ip(name)
+    if ip is None:
+        return False
+    return _ip_is_blocked(ip)
+
+
 def assert_egress_allowed(url: str) -> None:
-    """Raise SSRFBlocked if the URL's host is in a blocked range."""
+    """Raise SSRFBlocked unless the URL's host is a verifiably public IP literal.
+
+    Fail-closed (SEC-7, invariant 7). A blocked-range IP in any encoding is
+    refused, and so is a bare DNS name: v0 does not resolve names, and an
+    unresolved name cannot be proven to point outside the private fleet, so a
+    name is the easiest SSRF pivot and is denied rather than waved through. A
+    caller that must reach a named host resolves it itself and passes the
+    public IP literal.
+    """
     parsed = urlparse(url if "://" in url else f"//{url}")
     host = parsed.hostname or ""
-    if not host or is_blocked_address(host):
-        raise SSRFBlocked(f"egress to {host or url!r} is blocked by the SSRF filter")
+    name = host.strip().strip("[]").lower()
+    if not name:
+        raise SSRFBlocked(f"egress to {url!r} is blocked: no host")
+    if name in _BLOCKED_NAMES:
+        raise SSRFBlocked(f"egress to {host!r} is blocked by the SSRF filter")
+    ip = _as_ip(name)
+    if ip is None:
+        raise SSRFBlocked(
+            f"egress to hostname {host!r} is blocked: v0 does not resolve names; "
+            "pass a public IP literal"
+        )
+    if _ip_is_blocked(ip):
+        raise SSRFBlocked(f"egress to {host!r} is blocked by the SSRF filter")

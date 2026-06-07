@@ -1,10 +1,14 @@
 """Postgres + Apache AGE production store backend (ADR-0002; BL-006).
 
 Behind the same ``StoreProtocol`` as the SQLite default. Bitemporality and
-append-only are enforced at the storage layer by PL/pgSQL triggers and a partial
-unique index, mirroring the SQLite backend exactly. Timestamps are stored as TEXT
-(verbatim ISO 8601) and values as TEXT JSON, so a fact round-trips identically
-across both backends.
+append-only are enforced at the storage layer by per-table PL/pgSQL trigger
+functions and a partial unique index: deletion is blocked, every identity and
+provenance column is immutable, and the only legal UPDATE is the one-time supersede
+transition (the same guarantees as the SQLite backend). Table-wide ``TRUNCATE`` is
+not yet blocked here (row-level triggers do not fire for it); that needs a
+statement-level ``BEFORE TRUNCATE`` trigger plus a ``REVOKE``, tracked as BL-028.
+Timestamps are stored as TEXT (verbatim ISO 8601) and values as TEXT JSON, so a
+fact round-trips identically across both backends.
 
 ``psycopg`` is imported lazily; the package imports and type-checks with the driver
 absent. Install the ``postgres`` extra to use this backend. Native AGE graph
@@ -21,18 +25,54 @@ from typing import Any
 from praxis.clock import utc_now_iso
 from praxis.model.facts import Capability, Edge, Fact
 
-_APPEND_ONLY_FN = """
-CREATE OR REPLACE FUNCTION praxis_append_only() RETURNS trigger AS $$
+# Per-table functions: facts and edges have different identity columns, so a single
+# shared function would leave the per-table identity columns unguarded. The
+# `NEW.t_superseded IS NULL` guard blocks any UPDATE that leaves a row active: the
+# only legal write is the one-time supersede transition (which always sets
+# t_superseded), so a `t_invalid`-only or `superseded_actor`-only mutation cannot
+# retire a fact without the supersede provenance (BL-038, BL-039).
+_FACTS_APPEND_ONLY_FN = """
+CREATE OR REPLACE FUNCTION praxis_facts_append_only() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'append-only: deletion is blocked';
     END IF;
     IF OLD.t_superseded IS NOT NULL
+       OR NEW.t_superseded IS NULL
+       OR OLD.fact_id IS DISTINCT FROM NEW.fact_id
        OR OLD.subject IS DISTINCT FROM NEW.subject
+       OR OLD.predicate IS DISTINCT FROM NEW.predicate
+       OR OLD.fact_type IS DISTINCT FROM NEW.fact_type
        OR OLD.value IS DISTINCT FROM NEW.value
        OR OLD.t_valid IS DISTINCT FROM NEW.t_valid
        OR OLD.t_recorded IS DISTINCT FROM NEW.t_recorded
        OR OLD.actor IS DISTINCT FROM NEW.actor
+       OR OLD.reason IS DISTINCT FROM NEW.reason
+       OR OLD.seq IS DISTINCT FROM NEW.seq THEN
+        RAISE EXCEPTION 'append-only: only a one-time supersede/invalidate is allowed';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+_EDGES_APPEND_ONLY_FN = """
+CREATE OR REPLACE FUNCTION praxis_edges_append_only() RETURNS trigger AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'append-only: deletion is blocked';
+    END IF;
+    IF OLD.t_superseded IS NOT NULL
+       OR NEW.t_superseded IS NULL
+       OR OLD.edge_id IS DISTINCT FROM NEW.edge_id
+       OR OLD.subject IS DISTINCT FROM NEW.subject
+       OR OLD.relation IS DISTINCT FROM NEW.relation
+       OR OLD.target IS DISTINCT FROM NEW.target
+       OR OLD.value IS DISTINCT FROM NEW.value
+       OR OLD.t_valid IS DISTINCT FROM NEW.t_valid
+       OR OLD.t_recorded IS DISTINCT FROM NEW.t_recorded
+       OR OLD.actor IS DISTINCT FROM NEW.actor
+       OR OLD.reason IS DISTINCT FROM NEW.reason
        OR OLD.seq IS DISTINCT FROM NEW.seq THEN
         RAISE EXCEPTION 'append-only: only a one-time supersede/invalidate is allowed';
     END IF;
@@ -63,13 +103,14 @@ _SCHEMA = [
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS edges_active_unique ON edges (subject, relation, "
     "target) WHERE t_invalid IS NULL AND t_superseded IS NULL",
-    _APPEND_ONLY_FN,
+    _FACTS_APPEND_ONLY_FN,
+    _EDGES_APPEND_ONLY_FN,
     "DROP TRIGGER IF EXISTS facts_append_only ON facts",
     "CREATE TRIGGER facts_append_only BEFORE UPDATE OR DELETE ON facts "
-    "FOR EACH ROW EXECUTE FUNCTION praxis_append_only()",
+    "FOR EACH ROW EXECUTE FUNCTION praxis_facts_append_only()",
     "DROP TRIGGER IF EXISTS edges_append_only ON edges",
     "CREATE TRIGGER edges_append_only BEFORE UPDATE OR DELETE ON edges "
-    "FOR EACH ROW EXECUTE FUNCTION praxis_append_only()",
+    "FOR EACH ROW EXECUTE FUNCTION praxis_edges_append_only()",
 ]
 
 

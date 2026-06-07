@@ -33,6 +33,22 @@ def test_pem_block_redacted() -> None:
     assert "secretkeymaterial" not in redacted
 
 
+def test_credential_flags_and_urls_redacted() -> None:
+    # A space-separated CLI flag keeps the flag name but redacts the value (BL-041).
+    out = redact("mysql --password hunter2here --host db")
+    assert "hunter2here" not in out
+    assert "--password" in out
+    # The equals form: the secret is gone.
+    assert "abc123secret" not in redact("--token=abc123secret")
+    # Credentials embedded in a DSN/URL: user and host survive, the password does not.
+    dsn = redact("postgres://user:secretpw@dbhost:5432/app")
+    assert "secretpw" not in dsn
+    assert "user" in dsn and "dbhost" in dsn
+    # A bearer token, including the three-part "Authorization: Bearer <tok>" form.
+    assert "realtok" not in redact("Authorization: Bearer realtok.value.here")
+    assert "barevalue" not in redact("Bearer barevalue")
+
+
 def test_non_secret_passthrough() -> None:
     assert redact("just a normal line") == "just a normal line"
     out = redact_args({"count": 3, "flag": True})

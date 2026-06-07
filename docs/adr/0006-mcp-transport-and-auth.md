@@ -56,3 +56,15 @@ multi-operator deployment would externalize it.
 
 - A multi-operator or multi-tenant deployment (externalize consent and tokens).
 - A transport beyond stdio/HTTP is required.
+
+## Audit note (2026-06-07, ADR-0012)
+
+Decision 4 (the per-client consent registry) was specified here and presented as a
+delivered control in `SECURITY.md`, but it was never built: the v0 code has zero
+references to a consent registry (internal audit ADR-0012, finding BL-045).
+Decisions 1 to 3 (stdio default, the HTTP token plus non-loopback opt-in plus SSRF
+egress filter) and Decision 5 (tool annotations) are implemented and tested; the
+consent ceiling is not. This note records the gap without rewriting the decision
+(ADRs are immutable). Building the registry is a prerequisite for the multi-operator
+deployment named in the revisit triggers. This audit note, plus the known-gaps
+entry in `LIMITATIONS.md`, is the canonical record of the gap.

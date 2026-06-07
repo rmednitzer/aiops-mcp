@@ -122,8 +122,17 @@ def _is_multi_target(target: str | None) -> bool:
 
 
 def _bounded_error(exc: Exception) -> str:
-    """A bounded, secret-free error string. Never a raw traceback (invariant 1)."""
-    return f"{type(exc).__name__}: {redact(str(exc))}"[:500]
+    """A bounded, secret-free error string. Never a raw traceback (invariant 1).
+
+    The stringify is itself contained: a hostile or broken ``__str__`` on the
+    raised exception must not escape the audited path and become an unbounded
+    raise out of ``run`` (BL-044).
+    """
+    try:
+        detail = redact(str(exc))
+    except Exception:  # noqa: BLE001 - a broken __str__ must not break run()
+        detail = "<unprintable>"
+    return f"{type(exc).__name__}: {detail}"[:500]
 
 
 def _truncate(text: str, limit_bytes: int) -> str:

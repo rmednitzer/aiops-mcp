@@ -22,6 +22,7 @@ from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
 from praxis.execution.policy import Policy
+from praxis.execution.redaction import redact
 from praxis.execution.runner import ExecutionContext
 from praxis.store import open_store
 from praxis.tools import ToolRegistry, register_all
@@ -89,7 +90,7 @@ class StdioServer:
         try:
             text = self.registry.call(name, args, self.ctx)
         except Exception as exc:  # noqa: BLE001 - bounded; never a raw traceback to the client
-            return _tool_error(f"{type(exc).__name__}: {exc}")
+            return _tool_error(redact(f"{type(exc).__name__}: {exc}"))
         return {"content": [{"type": "text", "text": text}], "isError": False}
 
     def serve(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:

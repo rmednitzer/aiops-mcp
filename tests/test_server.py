@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 import praxis
 from praxis.config import Config
 from praxis.context import ServerContext
@@ -103,3 +105,19 @@ def test_run_action_dry_run_body_not_in_audit(tmp_path: Path) -> None:
     ctx.execution.audit.close()
     # The output preview body is never written to the audit log (SEC-9).
     assert "DRY_RUN preview" not in audit_path.read_text(encoding="utf-8")
+
+
+def test_tool_error_text_is_redacted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # An exception escaping the registry must not return a secret to the client; the
+    # bounded tool error string is redacted before it leaves the server (BL-041).
+    server, ctx = _server(tmp_path)
+
+    def boom(name: str, args: dict[str, object], ctx: ServerContext) -> str:
+        raise RuntimeError("connect failed password=supersecretvalue")
+
+    monkeypatch.setattr(server.registry, "call", boom)
+    resp = cast(dict[str, Any], server._call({"name": "query_facts", "arguments": {}}))
+    assert resp["isError"] is True
+    text = resp["content"][0]["text"]
+    assert "supersecretvalue" not in text
+    assert "RuntimeError" in text

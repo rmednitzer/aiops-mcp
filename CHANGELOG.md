@@ -101,6 +101,42 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   `validate_transport` rejects an out-of-range port (1-65535).
 - CodeQL tuned to the `security-extended` query suite (drops style/quality advisory
   noise already covered by ruff + mypy strict).
+- Internal deep-audit remediation (ADR-0012, BL-037 to BL-045); each fix ships with
+  a regression test:
+  - `verify_evidence` is fail-closed: it returns `ok=False` (never raises) on
+    malformed evidence, and rejects a checkpoint that under-covers or over-claims
+    the audit log, so a forged `tree_size` cannot hide records. `LocalStamper`
+    token forgeability is now documented (BL-037, with the anchored high-water-mark
+    tracked as BL-050).
+  - The Postgres append-only triggers are split per table and guard every identity
+    and provenance column (facts and edges), matching the SQLite backend; the
+    parity docstring is corrected (BL-038).
+  - Both store backends block any UPDATE that leaves a row active, so a `t_invalid`
+    or `superseded_actor` only mutation can no longer retire a fact without a
+    supersede actor and reason (BL-039).
+  - A recursive `chmod`/`chown` of `/` is now denied, and writes under `/etc/` via
+    `cp`/`mv`/`tee`/`truncate`/`chmod`/`chown`/`ln` classify at least T2 (the
+    word-boundary defect that let a space before `/etc/` fall to T0 is fixed).
+    `PATTERNS_VERSION` is bumped to 2 (BL-040).
+  - Redaction now covers space-separated credential flags (`--password VALUE`) and
+    URL or DSN embedded credentials (`scheme://user:SECRET@host`), and the stdio
+    server redacts exception text before returning it to the client (BL-041).
+  - The SSRF filter normalises obfuscated IPv4 forms (decimal, hex, octal,
+    short-dotted, trailing-dot) so an encoded loopback is recognised, and
+    `assert_egress_allowed` is fail-closed: a bare DNS name (which v0 does not
+    resolve) is refused rather than allowed (BL-042; rebinding-aware resolution
+    tracked as BL-046).
+  - OpenTofu DRY_RUN runs a full `tofu plan` (not `plan -refresh-only`) so the
+    preview scope matches the `apply` scope (BL-043).
+  - `_bounded_error` contains a hostile or broken `__str__`, so `run()` always
+    writes exactly one audit record and never raises out of the audited path
+    (BL-044).
+- Documentation honesty (BL-045): an ADR-0006 audit note records that the
+  per-client consent registry was specified but never built; `SECURITY.md`,
+  `LIMITATIONS.md`, and the STPA docs are qualified accordingly; the STPA SEC-7
+  source path is corrected to `src/praxis/_ssrf.py`; and the read-tool audit claim
+  is corrected (read tools read the store directly and are not individually
+  audit-logged in v0, tracked as BL-062).
 
 ### Changed
 - `ingest_observation` is annotated `read_only=false`: it writes (append-only)

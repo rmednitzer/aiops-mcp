@@ -69,7 +69,8 @@ WHEN (
     OLD.actor      IS NOT NEW.actor      OR
     OLD.reason     IS NOT NEW.reason     OR
     OLD.seq        IS NOT NEW.seq        OR
-    OLD.t_superseded IS NOT NULL
+    OLD.t_superseded IS NOT NULL OR
+    NEW.t_superseded IS NULL
 )
 BEGIN
     SELECT RAISE(ABORT,
@@ -116,7 +117,8 @@ WHEN (
     OLD.actor      IS NOT NEW.actor      OR
     OLD.reason     IS NOT NEW.reason     OR
     OLD.seq        IS NOT NEW.seq        OR
-    OLD.t_superseded IS NOT NULL
+    OLD.t_superseded IS NOT NULL OR
+    NEW.t_superseded IS NULL
 )
 BEGIN
     SELECT RAISE(ABORT,

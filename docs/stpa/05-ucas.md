@@ -45,5 +45,8 @@ that action. The covering constraint is in `07-security-constraints.md`.
 ## Coverage note
 
 Read-only control actions (T0 collectors, queries, skill reads) are not state
-changing and are not enumerated here, but they still flow through the single
-audited path (SC-1) and their feedback is treated as untrusted (SC-4).
+changing and are not enumerated here. In v0 the read tools (`query_facts`,
+`fact_history`) read the store directly and are not individually audit-logged; the
+single audited path (SC-1) covers the execution and actuation tools. Their feedback
+is still treated as untrusted (SC-4). Routing reads through the audited path is
+tracked as BL-062 (ADR-0012).

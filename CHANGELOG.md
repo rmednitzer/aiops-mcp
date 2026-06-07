@@ -29,3 +29,12 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   a pure-Python vector search; a Postgres+AGE backend behind the same Protocol
   (lazy `psycopg`; skip-tested where no live PG exists). Tests cover round-trip,
   bitemporal history, and append-only (SEC-10).
+- Collectors (BL-007) under `praxis.collectors`: a pure-parser `Collector` base
+  plus osquery, AIDE, a generic command probe, and talos collectors that
+  normalize untrusted telemetry into observed facts.
+- Drift engine (BL-008) under `praxis.drift`: a read-only `diff` (missing /
+  changed / unexpected, with severity escalation for security predicates),
+  desired-state sources (known-good snapshot, `tofu plan`, `ansible --check`),
+  and human-gated `converge` (a finding never auto-fixes; SEC-6). A frozen
+  snapshot-vs-known-good regression fixture under `evaluation/drift/` guards the
+  diff (DoD).

@@ -1,0 +1,22 @@
+[
+  {
+    "subject": "host:axiom",
+    "predicate": "os_version",
+    "value": {"name": "Ubuntu", "version": "24.04"}
+  },
+  {
+    "subject": "host:axiom",
+    "predicate": "ssh_config",
+    "value": {"PermitRootLogin": "no", "PasswordAuthentication": "no"}
+  },
+  {
+    "subject": "host:axiom",
+    "predicate": "file_integrity",
+    "value": {"clean": true}
+  },
+  {
+    "subject": "host:axiom",
+    "predicate": "service:ufw",
+    "value": {"state": "active"}
+  }
+]

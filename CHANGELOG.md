@@ -68,3 +68,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   + checkpoint chain + token, fail-closed), a session header binding the
   server-binary hash into the trail (wired into server startup), and a
   `scripts/verify_audit.py` CLI.
+- CI (BL-013): hardened workflows with SHA-pinned actions and least-privilege
+  permissions: `ci` (3.12/3.13 matrix running `make ci-success`), `codeql`,
+  `dependency-review`, `sbom` (CycloneDX), and a nightly `fuzz` job driving
+  `scripts/fuzz.py` (20k+ iterations over classify/policy/redaction, asserting the
+  load-bearing invariants). A `ci-success` aggregate gate depends on the matrix.

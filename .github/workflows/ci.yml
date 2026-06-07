@@ -13,19 +13,23 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
-      # BL-013: pin all actions to immutable commit SHAs before merge.
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - name: Install dev dependencies
         run: python -m pip install -e ".[dev]"
-      - name: make check
-        run: make check
+      - name: ci-success (lint + type-check + test + schema-drift + eval)
+        run: make ci-success
 
-  # BL-013 adds: codeql, sbom, dependency-review, and a nightly fuzz workflow,
-  # then a ci-success aggregate gate that requires all of them.
+  # Aggregate gate: branch protection requires this single check, which depends on
+  # the full matrix. The security workflows (codeql, dependency-review, sbom, fuzz)
+  # run alongside and are required via branch protection.
   ci-success:
     needs: [check]
     runs-on: ubuntu-latest

@@ -1,0 +1,19 @@
+apiVersion: v2
+name: praxis
+description: >-
+  Hardened deployment of praxis, the unified AI-operations MCP server.
+  Secure-by-default: PSA restricted, default-deny NetworkPolicy, per-component
+  ServiceAccount with no token automount, digest-pinned image.
+type: application
+version: 0.1.0
+appVersion: "0.0.0"
+kubeVersion: ">=1.27.0-0"
+keywords:
+  - mcp
+  - aiops
+  - security
+home: https://github.com/rmednitzer/aiops-mcp
+sources:
+  - https://github.com/rmednitzer/aiops-mcp
+maintainers:
+  - name: Roman Mednitzer

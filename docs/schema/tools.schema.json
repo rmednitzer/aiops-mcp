@@ -1,0 +1,168 @@
+{
+  "title": "RegisteredTools",
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Compute drift findings: observed facts versus the known-good baseline.",
+      "inputSchema": {
+        "properties": {
+          "subject": {
+            "description": "Restrict the scan to one subject.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "drift_scan"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Return the full recorded (bitemporal) history of facts for a subject.",
+      "inputSchema": {
+        "properties": {
+          "predicate": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "type": "object"
+      },
+      "name": "fact_history"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Parse captured host telemetry into observed facts.",
+      "inputSchema": {
+        "properties": {
+          "collector": {
+            "enum": [
+              "osquery",
+              "aide",
+              "probe",
+              "talos"
+            ],
+            "type": "string"
+          },
+          "predicate": {
+            "type": "string"
+          },
+          "raw": {
+            "description": "Raw tool output captured by a T0 read.",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "collector",
+          "subject",
+          "raw"
+        ],
+        "type": "object"
+      },
+      "name": "ingest_observation"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List active fleet-state facts; filter by subject and/or fact_type.",
+      "inputSchema": {
+        "properties": {
+          "fact_type": {
+            "description": "Filter to observed/desired/drift/known_good.",
+            "type": "string"
+          },
+          "subject": {
+            "description": "Filter to one subject, e.g. host:axiom.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "query_facts"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Run a tier-gated actuation via an adapter (DRY_RUN, approve, execute).",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "adapter": {
+            "enum": [
+              "ansible",
+              "opentofu",
+              "runbook",
+              "ssh",
+              "talosctl"
+            ],
+            "type": "string"
+          },
+          "approval_token": {
+            "type": "string"
+          },
+          "dry_run": {
+            "default": true,
+            "type": "boolean"
+          },
+          "endpoints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "host": {
+            "type": "string"
+          },
+          "host_type": {
+            "enum": [
+              "ubuntu",
+              "talos",
+              "windows",
+              "cloud"
+            ],
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ssh_alias": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "host",
+          "host_type",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "run_action"
+    }
+  ]
+}

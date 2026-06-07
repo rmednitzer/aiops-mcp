@@ -1,0 +1,30 @@
+name: sbom
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"  # weekly, Monday 04:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+      - name: Install project and SBOM tool
+        run: |
+          python -m pip install -e .
+          python -m pip install cyclonedx-bom
+      - name: Generate CycloneDX SBOM
+        run: cyclonedx-py environment --output-format JSON --outfile sbom.cdx.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json

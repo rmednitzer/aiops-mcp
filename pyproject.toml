@@ -14,7 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest"]
-# postgres = ["psycopg[binary]"]   # production store backend (BL-006)
+postgres = ["psycopg[binary]"]      # production store backend (BL-006)
 # http = []                         # streamable-HTTP transport (BL-012)
 
 [project.scripts]
@@ -32,13 +32,26 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "W", "UP", "B", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# S101: asserts are the point in tests. S105/S106: tests use literal tokens and
+# confirmation strings to exercise the approval and redaction machinery; they are
+# not real secrets.
+"tests/**" = ["S101", "S105", "S106"]
+# S608: the store backends build WHERE clauses from a fixed, internal set of
+# column predicates; every value is bound as a parameter (?, %s) and table names
+# are literals (see _next_seq). The interpolated parts carry no caller input.
+"src/praxis/store/sqlite.py" = ["S608"]
+"src/praxis/store/postgres.py" = ["S608"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
 files = ["src", "tests"]
+
+# psycopg is an optional extra (BL-006); the package must type-check without it.
+[[tool.mypy.overrides]]
+module = ["psycopg.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

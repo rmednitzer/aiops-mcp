@@ -1,0 +1,31 @@
+[Unit]
+Description=praxis unified AI-operations MCP server
+Documentation=https://github.com/rmednitzer/aiops-mcp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Run as a dedicated unprivileged user created out of band.
+User=praxis
+Group=praxis
+ExecStart=/opt/praxis/.venv/bin/python -m praxis
+Restart=on-failure
+RestartSec=5
+
+# Configuration (PRAXIS_*). stdio default; for a host service use a socket/HTTP
+# per ADR-0006. Secrets come from an EnvironmentFile with mode 0600, not here.
+Environment=PRAXIS_MODE=guarded
+EnvironmentFile=-/etc/praxis/praxis.env
+
+# Hardening drop-ins (see praxis.service.d/hardening.conf for the full set).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/praxis
+StateDirectory=praxis
+
+[Install]
+WantedBy=multi-user.target

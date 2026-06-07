@@ -1,0 +1,19 @@
+kind: ZarfPackageConfig
+metadata:
+  name: praxis
+  description: >-
+    Airgap package for praxis (the unified AI-operations MCP server): the hardened
+    Helm chart plus the digest-pinned container image.
+  version: "0.1.0"
+
+components:
+  - name: praxis
+    required: true
+    images:
+      # Digest-pinned for airgap reproducibility (set to the published digest).
+      - "ghcr.io/rmednitzer/praxis@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    charts:
+      - name: praxis
+        namespace: praxis
+        localPath: helm/praxis
+        version: "0.1.0"

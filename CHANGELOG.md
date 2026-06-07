@@ -45,3 +45,12 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   talosctl (Talos only), and runbook adapters; a `CredentialBroker` with scoped,
   revocable grants and a kill switch (invariant 9). Tests use PATH-shimmed fakes
   and prove SEC-5.
+- MCP server surface (BL-012): `praxis.config` (PRAXIS_ env bound at import) with a
+  fail-closed transport guard; `praxis._ssrf` (egress filter blocking loopback,
+  link-local, RFC1918, CGNAT; SEC-7); `praxis.context.ServerContext` with the
+  lethal-trifecta gate (SEC-4) and classification filtering; a self-contained
+  stdio JSON-RPC server (`praxis.server`) with a transport-agnostic tool registry;
+  and the tool surface (`query_facts`, `fact_history`, `ingest_observation`,
+  `drift_scan`, `run_action`) with accurate readOnly/destructive annotations. The
+  CLI (`python -m praxis`) runs over stdio against SQLite with no external
+  services and refuses unsafe HTTP binds. All nine invariants now have tests.

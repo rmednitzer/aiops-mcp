@@ -1,12 +1,24 @@
-"""praxis CLI entry point (stub; implemented in BL-012)."""
+"""praxis CLI entry point: env -> config -> store -> context -> MCP server.
+
+Defaults to stdio against the SQLite store with no external services. HTTP requires
+the opt-in invariants and fails closed otherwise (ADR-0006).
+"""
 
 from __future__ import annotations
 
+import sys
+
+from praxis.config import CONFIG, TransportError
+from praxis.server import serve
+
 
 def main() -> None:
-    raise SystemExit(
-        "praxis is not yet implemented; see docs/first-session.md for the build brief."
-    )
+    try:
+        serve(CONFIG)
+    except TransportError as exc:
+        raise SystemExit(f"praxis: refusing to start: {exc}") from exc
+    except KeyboardInterrupt:  # pragma: no cover - interactive
+        sys.exit(0)
 
 
 if __name__ == "__main__":

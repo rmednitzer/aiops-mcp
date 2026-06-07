@@ -17,7 +17,7 @@ XS, S, M, L.
 | BL-009 | Actuation adapters (ssh/opentofu/ansible/runbook/talosctl/redfish/cloud) with DRY_RUN -> approve -> execute | L | resolved | 0004, 0005 |
 | BL-010 | Skills engine: manifest, registry, routing-chain dispatcher; eval gate + schema guard | M | pending | 0010 |
 | BL-011 | Tamper-evident audit + evidence: supervisor writer, Merkle, RFC 3161, optional Rekor | M | pending | 0008 |
-| BL-012 | MCP server surface: config, transport guards (stdio/http, SSRF egress, consent), tools with annotations | L | pending | 0006 |
+| BL-012 | MCP server surface: config, transport guards (stdio/http, SSRF egress, consent), tools with annotations | L | resolved | 0006 |
 | BL-013 | CI workflows (codeql, sbom, dependency-review, fuzz; pinned SHAs; least-privilege) + ci-success aggregate | M | pending | 0001 |
 | BL-014 | Hardened deploy: Helm chart, systemd units, optional zarf | M | pending | 0006 |
 | BL-015 | Compliance map: complete EU AI Act / NIS2 / CRA / GDPR / ISO 27001 mapping to controls | S | pending | 0009 |

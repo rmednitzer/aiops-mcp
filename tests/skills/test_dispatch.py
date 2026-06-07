@@ -80,3 +80,32 @@ def test_parse_frontmatter_without_block() -> None:
     meta, body = parse_frontmatter("# just markdown\ntext")
     assert meta == {}
     assert "just markdown" in body
+
+
+def test_frontmatter_requires_exact_fence() -> None:
+    # A near-fence (----) or a decorated fence (--- foo) is not a frontmatter fence.
+    meta, _ = parse_frontmatter("----\nname: x\n----\nbody")
+    assert meta == {}
+    meta2, _ = parse_frontmatter("--- meta\nname: x\n---\nbody")
+    assert meta2 == {}
+
+
+def test_frontmatter_rejects_duplicate_key() -> None:
+    # A duplicate key would let a bundle show one value and route under another;
+    # the whole header is refused, not silently last-wins (BL-057).
+    meta, _ = parse_frontmatter("---\nname: shown\nname: actual\nkind: tool\n---\nbody")
+    assert meta == {}
+
+
+def test_frontmatter_ignores_indented_keys() -> None:
+    meta, _ = parse_frontmatter("---\nname: x\n  nested: y\n---\nbody")
+    assert meta == {"name": "x"}
+    assert "nested" not in meta
+
+
+def test_load_skill_rejects_non_utf8(tmp_path: Path) -> None:
+    bundle = tmp_path / "s"
+    bundle.mkdir()
+    # Invalid UTF-8 bytes must be a clean load failure, not an uncaught decode crash.
+    (bundle / "SKILL.md").write_bytes(b"---\nname: s\ndescription: \xff\xfe\nkind: tool\n---\n")
+    assert load_skill(bundle / "SKILL.md") is None

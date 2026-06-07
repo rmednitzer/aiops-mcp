@@ -19,6 +19,10 @@ from praxis.collectors import (
 from praxis.context import ServerContext
 from praxis.tools.registry import ToolRegistry, ToolSpec
 
+# Collected telemetry is attacker-influenced; bound it before a collector parses it
+# so a hostile or runaway probe cannot drive the parser to exhaust memory (BL-058).
+_MAX_RAW_CHARS = 4 * 1024 * 1024
+
 _SCHEMA: dict[str, object] = {
     "type": "object",
     "properties": {
@@ -49,6 +53,10 @@ def _ingest(args: dict[str, object], ctx: ServerContext) -> str:
     predicate = predicate_arg if isinstance(predicate_arg, str) else kind
     if not subject:
         return json.dumps({"error": "subject is required"})
+    if len(raw) > _MAX_RAW_CHARS:
+        # Refuse oversized telemetry rather than parse it; nothing is ingested, so
+        # the trifecta gate is not armed (BL-058).
+        return json.dumps({"error": f"raw exceeds {_MAX_RAW_CHARS} chars; refused"})
 
     facts = _build_collector(kind, predicate).parse(raw, subject=subject)
     for fact in facts:

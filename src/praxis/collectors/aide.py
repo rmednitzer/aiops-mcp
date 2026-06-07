@@ -31,11 +31,19 @@ class AideCollector(Collector):
     def parse(self, raw: str, *, subject: str, actor: str = "collector") -> list[Fact]:
         summary = _SUMMARY.search(raw)
         added, removed, changed = self._collect_paths(raw)
+        has_diff = bool(added or removed or changed)
+        # A run is "complete" only if it produced a parseable summary or at least an
+        # entry section. Empty or unparseable output (a failed probe, a timeout) is
+        # NOT a clean host: a clean verdict requires positive evidence of a finished
+        # run, never the mere absence of parsed diffs, so a broken collector cannot
+        # masquerade as file-integrity-clean (BL-058).
+        complete = summary is not None or has_diff
         value: dict[str, object] = {
             "added": added,
             "removed": removed,
             "changed": changed,
-            "clean": not (added or removed or changed),
+            "complete": complete,
+            "clean": complete and not has_diff,
         }
         if summary is not None:
             value["totals"] = {

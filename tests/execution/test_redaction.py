@@ -54,6 +54,44 @@ def test_credential_flags_and_urls_redacted() -> None:
     assert "barevalue" not in redact("Bearer barevalue")
 
 
+def test_provider_token_shapes_redacted() -> None:
+    # Structurally-anchored provider secret shapes are redacted even bare (not behind
+    # a key), so a raw command carrying one does not reach the audit log. Each sample
+    # is assembled from fragments so this source file never contains a contiguous
+    # token literal (which secret scanning would flag); the redactor sees the full
+    # string only at runtime.
+    body = "A1b2C3d4E5f6G7h8I9j0KLMN"  # 24 placeholder chars, clearly not a real secret
+    cases = [
+        "github_" + "pat_" + body + "OPQRstuvwx",
+        "gl" + "pat-" + body,
+        "AIza" + body + "OPQRstuvwxyz123",
+        "sk-" + "proj-" + body,
+        "rk_" + "live_" + body,
+    ]
+    for secret in cases:
+        assert secret not in redact(f"value {secret} trailing"), secret
+
+
+def test_authorization_value_fully_redacted_including_sigv4() -> None:
+    # The whole header value is redacted to end-of-line, so a comma-separated SigV4
+    # credential cannot leak its Signature field while only the access-key id is hit.
+    line = (
+        "Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/x, "
+        "SignedHeaders=host, Signature=deadbeefcafef00dba5eba11c0ffee99"
+    )
+    out = redact(line)
+    assert "deadbeefcafef00dba5eba11c0ffee99" not in out
+    assert "Authorization" in out  # the header name is preserved as context
+
+
+def test_authorization_quoted_value_leaves_no_dangling_quote() -> None:
+    # A quoted header value is redacted whole, with no trailing quote left behind.
+    out = redact('Authorization: "Bearer secrettoken"')
+    assert "secrettoken" not in out
+    assert '"' not in out
+    assert out == "Authorization: [REDACTED]"
+
+
 def test_non_secret_passthrough() -> None:
     assert redact("just a normal line") == "just a normal line"
     out = redact_args({"count": 3, "flag": True})

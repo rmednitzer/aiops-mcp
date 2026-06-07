@@ -2,8 +2,11 @@
 
 **praxis**, the unified AI-operations MCP.
 
-> Status: bootstrapping. This repository was scaffolded governance-first. The
-> implementation is built by following `docs/first-session.md` (the build brief).
+> Status: v0 implemented and gated. `make ci-success` is green (ruff + mypy strict
+> + pytest + the schema-drift guard + the dispatch eval gate), and each of the nine
+> invariants has a passing test. The repository is now in iterative security
+> hardening (audit waves ADR-0011 through ADR-0013; open items in
+> `docs/backlog.md`). The original build brief is `docs/first-session.md`.
 
 ## What it is
 
@@ -34,11 +37,21 @@ of manual markdown baselines into a queryable bitemporal store, scattered state
 unified, and flat skills given a real registry and router. Security-first, for
 real production deployments.
 
-## Quickstart (for the first build session)
+## Quickstart
 
-Open a Claude Code session in this repository and follow `docs/first-session.md`.
-It is self-sufficient and lays out the nine non-negotiable invariants, the
-architecture, the layout, and an ordered build sequence.
+`praxis` is self-contained: the default path is the SQLite store over stdio with no
+external services.
+
+```bash
+uv sync --extra dev          # add --extra postgres for the production store backend
+make check                   # ruff + mypy strict + pytest
+make ci-success              # the above plus the schema-drift guard and eval gate
+python -m praxis             # serve over stdio (JSON-RPC 2.0); refuses unsafe HTTP binds
+```
+
+Configuration is `PRAXIS_`-prefixed and bound once at import (`src/praxis/config.py`).
+For the design rationale, the nine non-negotiable invariants, and the build sequence,
+read `docs/first-session.md`.
 
 ## Layout
 
@@ -59,5 +72,4 @@ adapters), `src/praxis/tools/` (the MCP surface), and `docs/{adr,stpa}/` plus
 
 ## License
 
-Apache-2.0 (see `LICENSE`; full text added as `BL-001` in the first build session)
-and `NOTICE`.
+Apache-2.0 (see `LICENSE`) and `NOTICE`.

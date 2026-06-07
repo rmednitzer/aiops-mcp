@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -68,6 +69,7 @@ class AuditLogger:
         self._seq = 0
         self._prev_hash = GENESIS
         self._sink: TextIO
+        self._file: TextIO | None = None
         self._degraded = False
         # Recover the chain head from an existing file so restarts continue the
         # same chain. Any failure here degrades but never raises (SEC-8).
@@ -75,13 +77,33 @@ class AuditLogger:
             try:
                 self._recover(path)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                self._sink = path.open("a", encoding="utf-8")
+                self._file = self._open_appendonly(path)
+                self._sink = self._file
             except OSError as exc:  # pragma: no cover - exercised via stderr test
                 self._degrade(f"audit sink unavailable ({exc}); degraded to stderr")
         else:
             self._sink = sys.stderr
 
+    @staticmethod
+    def _open_appendonly(path: Path) -> TextIO:
+        """Open the sink append-only (``O_APPEND``) and owner-only (``0o600``).
+
+        ``O_APPEND`` at the OS level keeps the writer compatible with an append-only
+        hardened file (``chattr +a``). The explicit ``0o600`` mode, plus a
+        best-effort chmod of any pre-existing file, keeps the audit log, which holds
+        redacted parameters, unreadable by other local users (SEC-9).
+        """
+        fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        handle = os.fdopen(fd, "a", encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:  # pragma: no cover - best effort on a pre-existing file
+            pass
+        return handle
+
     def _degrade(self, message: str) -> None:
+        # Writes go to stderr from here on; ``_file`` (if any) is kept only so
+        # ``close`` can release it. The sink is never silently reopened (BL-055).
         self._degraded = True
         self._sink = sys.stderr
         print(f"[praxis.audit] {message}", file=sys.stderr)
@@ -90,11 +112,21 @@ class AuditLogger:
         if not path.exists():
             return
         last_line = ""
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                stripped = line.strip()
-                if stripped:
-                    last_line = stripped
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    stripped = line.strip()
+                    if stripped:
+                        last_line = stripped
+        except UnicodeDecodeError:
+            # A non-UTF-8 (corrupted or poisoned) audit file: treat it as a corrupt
+            # tail and resume at genesis (visible seam), the same as an unparseable
+            # JSON tail. UnicodeDecodeError is a ValueError, not an OSError, so it
+            # would otherwise escape __init__ and break "construction never raises"
+            # (SEC-8, invariant 3).
+            self._seq = 0
+            self._prev_hash = GENESIS
+            return
         if not last_line:
             return
         try:
@@ -102,9 +134,13 @@ class AuditLogger:
             self._seq = int(last["seq"]) + 1
             self._prev_hash = str(last["entry_hash"])
         except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-            # Corrupt tail: do not raise, do not truncate. verify() will expose
-            # the discontinuity rather than the writer hiding it.
-            self._degrade(f"could not recover audit chain head from {path}")
+            # Corrupt tail: do not raise, do not truncate, and do NOT drop the sink.
+            # Resume at genesis (seq 0, GENESIS prev) and keep writing to the file:
+            # the seq reset is a visible seam that verify_chain reports (the security
+            # signal), whereas degrading to stderr would lose the record entirely,
+            # which is worse (BL-055).
+            self._seq = 0
+            self._prev_hash = GENESIS
 
     @property
     def degraded(self) -> bool:
@@ -164,11 +200,14 @@ class AuditLogger:
                     pass
 
     def close(self) -> None:
-        if self._path is not None and not self._degraded:
+        # Release the real file if one was ever opened, even after a later degrade
+        # (BL-055); never close stderr.
+        if self._file is not None:
             try:
-                self._sink.close()
+                self._file.close()
             except OSError:  # pragma: no cover - defensive
                 pass
+            self._file = None
 
 
 @dataclass(frozen=True)

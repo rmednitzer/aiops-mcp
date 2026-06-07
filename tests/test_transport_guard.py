@@ -50,6 +50,16 @@ def test_nonnumeric_port_degrades_to_default_not_raise() -> None:
     assert cfg.http_port == 8765
 
 
+def test_http_host_whitespace_is_stripped() -> None:
+    # A stray-whitespace loopback host is still recognised as loopback, not treated
+    # as a non-loopback bind that would demand the opt-in (BL-060).
+    cfg = load_config({"PRAXIS_HTTP_HOST": " 127.0.0.1\n"})
+    assert cfg.http_host == "127.0.0.1"
+    assert cfg.http_is_loopback is True
+    # A whitespace-only host defaults to loopback (the safest bind), never empty.
+    assert load_config({"PRAXIS_HTTP_HOST": "   "}).http_host == "127.0.0.1"
+
+
 def test_http_rejects_out_of_range_port() -> None:
     with pytest.raises(TransportError):
         validate_transport(Config(transport="http", http_token="t", http_port=70000))

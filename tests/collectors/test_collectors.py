@@ -45,11 +45,32 @@ def test_aide_parses_change_summary() -> None:
     assert len(facts) == 1
     value = facts[0].value
     assert value["clean"] is False
+    assert value["complete"] is True
     assert "/etc/passwd" in value["changed"]  # type: ignore[operator]
     assert "/etc/newfile" in value["added"]  # type: ignore[operator]
     totals = value["totals"]
     assert isinstance(totals, dict)
     assert totals["changed"] == 2
+
+
+def test_aide_empty_output_is_not_clean() -> None:
+    # A failed/empty probe must NOT be reported as a clean host (BL-058): clean
+    # requires positive evidence of a completed run, not the absence of diffs.
+    for raw in ("", "   \n  \n"):
+        value = AideCollector().parse(raw, subject="host:axiom")[0].value
+        assert value["complete"] is False
+        assert value["clean"] is False
+
+
+def test_aide_clean_report_is_clean() -> None:
+    clean = (
+        "AIDE found NO differences between database and filesystem. Looks okay!!\n\n"
+        "Summary:\n  Total number of entries:  4242\n  Added entries:            0\n"
+        "  Removed entries:          0\n  Changed entries:          0\n"
+    )
+    value = AideCollector().parse(clean, subject="host:axiom")[0].value
+    assert value["complete"] is True
+    assert value["clean"] is True
 
 
 def test_probe_parses_key_value() -> None:

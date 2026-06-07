@@ -22,6 +22,11 @@ from praxis.store.base import StoreProtocol
 
 _TASK = re.compile(r"^TASK \[(?P<task>.+?)\]")
 _CHANGED = re.compile(r"^changed: \[(?P<host>[^\]]+)\]")
+# A check run also reports task failures and unreachable hosts. These are stronger
+# signals than a would-change and must not be dropped (BL-034). Ansible renders both
+# as a `fatal:` line tagged FAILED! or UNREACHABLE!; a bare `failed:` is the summary.
+_FATAL = re.compile(r"^fatal: \[(?P<host>[^\]]+)\][^:]*: (?P<why>UNREACHABLE|FAILED)")
+_FAILED = re.compile(r"^failed: \[(?P<host>[^\]]+)\]")
 
 
 def known_good_from_store(store: StoreProtocol, *, subject: str | None = None) -> list[Fact]:
@@ -71,22 +76,58 @@ def parse_ansible_check(output: str) -> list[DriftFinding]:
     """
     findings: list[DriftFinding] = []
     current_task = "unknown"
-    for line in output.splitlines():
-        task = _TASK.match(line.strip())
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        task = _TASK.match(line)
         if task is not None:
             current_task = task.group("task")
             continue
-        changed = _CHANGED.match(line.strip())
+        changed = _CHANGED.match(line)
         if changed is not None:
-            host = changed.group("host")
             findings.append(
-                DriftFinding(
-                    subject=f"host:{host}",
-                    predicate=current_task,
-                    kind=DriftKind.CHANGED,
-                    severity=DriftSeverity.WARNING,
-                    observed={"would_change": True},
-                    desired={"task": current_task, "compliant": True},
+                _ansible_finding(
+                    changed.group("host"),
+                    current_task,
+                    DriftSeverity.WARNING,
+                    {"would_change": True},
+                )
+            )
+            continue
+        fatal = _FATAL.match(line)
+        if fatal is not None:
+            why = fatal.group("why").upper()
+            # A failed or unreachable host during a check is critical: the desired
+            # state could not even be evaluated, which is worse than a known change.
+            findings.append(
+                _ansible_finding(
+                    fatal.group("host"),
+                    current_task,
+                    DriftSeverity.CRITICAL,
+                    {"failed": why == "FAILED", "unreachable": why == "UNREACHABLE"},
+                )
+            )
+            continue
+        failed = _FAILED.match(line)
+        if failed is not None:
+            findings.append(
+                _ansible_finding(
+                    failed.group("host"),
+                    current_task,
+                    DriftSeverity.CRITICAL,
+                    {"failed": True},
                 )
             )
     return findings
+
+
+def _ansible_finding(
+    host: str, task: str, severity: DriftSeverity, observed: dict[str, object]
+) -> DriftFinding:
+    return DriftFinding(
+        subject=f"host:{host}",
+        predicate=task,
+        kind=DriftKind.CHANGED,
+        severity=severity,
+        observed=observed,
+        desired={"task": task, "compliant": True},
+    )

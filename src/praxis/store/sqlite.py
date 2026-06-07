@@ -315,11 +315,18 @@ class SqliteStore:
             )
 
     def similar(self, vector: Sequence[float], *, k: int = 10) -> list[tuple[str, float]]:
-        query = list(vector)
+        query = [float(x) for x in vector]
+        if not _all_finite(query):
+            raise ValueError("query vector must be finite (no NaN/inf)")
         rows = self._conn.execute("SELECT fact_id, vector FROM embeddings").fetchall()
         scored: list[tuple[str, float]] = []
         for row in rows:
-            stored = [float(x) for x in json.loads(row["vector"])]
+            stored = _finite_vector(json.loads(row["vector"]))
+            if stored is None:
+                # A stored vector with a non-finite or non-numeric component is
+                # skipped rather than allowed to poison the ranking with a NaN
+                # score (BL-054). Untrusted/corrupted embeddings cannot rank.
+                continue
             scored.append((str(row["fact_id"]), _cosine(query, stored)))
         scored.sort(key=lambda pair: pair[1], reverse=True)
         return scored[:k]
@@ -375,6 +382,30 @@ def _row_to_edge(row: sqlite3.Row) -> Edge:
     )
 
 
+def _all_finite(vector: Sequence[float]) -> bool:
+    return all(math.isfinite(x) for x in vector)
+
+
+def _finite_vector(raw: object) -> list[float] | None:
+    """Coerce a stored vector to a list of finite floats, or None if it cannot be.
+
+    A non-list, a non-numeric component, or a NaN/inf component yields None so the
+    caller can skip a corrupted embedding rather than rank on a poisoned score.
+    """
+    if not isinstance(raw, list):
+        return None
+    out: list[float] = []
+    for item in raw:
+        try:
+            value = float(item)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(value):
+            return None
+        out.append(value)
+    return out
+
+
 def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -383,4 +414,5 @@ def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
     norm_b = math.sqrt(sum(y * y for y in b))
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
-    return dot / (norm_a * norm_b)
+    result = dot / (norm_a * norm_b)
+    return result if math.isfinite(result) else 0.0

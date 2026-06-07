@@ -16,14 +16,18 @@ from praxis.model.facts import Fact
 SeverityFn = Callable[[str, DriftKind], DriftSeverity]
 
 
+_SECURITY_PREDICATES = frozenset({"file_integrity", "listening_ports", "ssh_config", "users"})
+
+
 def default_severity(predicate: str, kind: DriftKind) -> DriftSeverity:
     """A conservative default: missing/changed are warnings, unexpected is info.
 
-    Security-relevant predicates escalate to critical so they cannot be lost in
-    the noise (these names match the seed osquery/AIDE collectors).
+    Any drift on a security-relevant predicate escalates to critical, including an
+    UNEXPECTED one: an unexpected listening port or an unexpected user account is a
+    backdoor signal, not noise, so it must never rank below a changed/missing one
+    (these names match the seed osquery/AIDE collectors; BL-059).
     """
-    security_predicates = {"file_integrity", "listening_ports", "ssh_config", "users"}
-    if predicate in security_predicates and kind is not DriftKind.UNEXPECTED:
+    if predicate in _SECURITY_PREDICATES:
         return DriftSeverity.CRITICAL
     if kind is DriftKind.UNEXPECTED:
         return DriftSeverity.INFO

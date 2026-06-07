@@ -84,3 +84,21 @@ def test_clean_session_t1_real_run_is_not_gated(
     # or without a token.
     body = json.loads(_run_action(_t1_args(dry_run=False), ctx))
     assert "ok" in body
+
+
+def test_trifecta_denial_is_audited(tmp_path: Path) -> None:
+    # Invariant 3: every denial is audited, including a trifecta refusal raised out
+    # of the tool handler before it reaches the executor (BL-018).
+    ctx = _ctx(tmp_path)
+    ctx.mark_untrusted_ingested()
+    with pytest.raises(TrifectaViolation):
+        _run_action(_t1_args(dry_run=False), ctx)
+    ctx.execution.audit.close()
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "a.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    denials = [r for r in records if r["decision"] == "denied"]
+    assert denials, "the trifecta refusal left no audit trail"
+    assert any("trifecta" in (r.get("error") or "").lower() for r in denials)

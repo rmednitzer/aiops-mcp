@@ -33,16 +33,32 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), REDACTED),  # AWS access key id
     (re.compile(r"\bASIA[0-9A-Z]{16}\b"), REDACTED),  # AWS temporary access key id
-    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), REDACTED),  # GitHub tokens
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), REDACTED),  # GitHub classic tokens
+    (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"), REDACTED),  # GitHub fine-grained PAT
+    (re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}\b"), REDACTED),  # GitLab PAT
+    (re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"), REDACTED),  # npm token
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), REDACTED),  # Slack tokens
+    (re.compile(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{16,}"), REDACTED),  # OpenAI scoped
+    (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), REDACTED),  # OpenAI / generic sk- key
+    (re.compile(r"\b[sr]k_(?:live|test|prod)_[A-Za-z0-9]{10,}"), REDACTED),  # Stripe
+    (re.compile(r"\bAIza[A-Za-z0-9_\-]{35,}"), REDACTED),  # Google API key
+    (re.compile(r"\bya29\.[A-Za-z0-9._\-]{20,}"), REDACTED),  # Google OAuth token
     (
         re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b"),
         REDACTED,
     ),  # JWT
-    # bearer/authorization inline in a string. Handles "Bearer <tok>",
-    # "Authorization: <tok>", and the three-part "Authorization: Bearer <tok>"
-    # so the token itself is redacted, not merely the scheme word.
-    (re.compile(r"(?i)\b(?:bearer|authorization)\b[:=]?\s+(?:bearer\s+)?\S+"), REDACTED),
+    # Authorization / Proxy-Authorization header: keep the header name, redact the
+    # whole value to end-of-line or a closing quote. Stopping at EOL rather than at
+    # the first space keeps a comma-separated AWS SigV4 credential
+    # (Credential=..., SignedHeaders=..., Signature=<hex>) from leaking its signature.
+    # The trailing `"?` consumes a closing quote so a quoted value leaves no dangling
+    # quote behind.
+    (
+        re.compile(r"(?i)\b((?:proxy-)?authorization)\b\s*[:=]\s*\"?[^\"\r\n]+\"?"),
+        r"\1: " + REDACTED,
+    ),
+    # A bare bearer token not behind an Authorization key.
+    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]+"), REDACTED),
     # key=value or key: value where the key looks secret
     (
         re.compile(

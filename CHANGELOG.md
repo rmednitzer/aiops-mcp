@@ -38,3 +38,10 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   and human-gated `converge` (a finding never auto-fixes; SEC-6). A frozen
   snapshot-vs-known-good regression fixture under `evaluation/drift/` guards the
   diff (DoD).
+- Actuation adapters (BL-009) under `praxis.actuation`: an `ActuationAdapter` base
+  that wraps a tool, enforces host_type as a HARD audited precondition (SEC-5),
+  and routes through the executor (DRY_RUN -> approve -> execute); ssh (never
+  Talos), ansible (native `--check` dry run), opentofu (native `plan` dry run),
+  talosctl (Talos only), and runbook adapters; a `CredentialBroker` with scoped,
+  revocable grants and a kill switch (invariant 9). Tests use PATH-shimmed fakes
+  and prove SEC-5.

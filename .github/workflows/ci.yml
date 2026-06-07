@@ -34,4 +34,4 @@ jobs:
     needs: [check]
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ci-success: required checks passed"
+      - run: echo "ci-success required checks passed"

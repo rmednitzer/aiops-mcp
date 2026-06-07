@@ -102,6 +102,15 @@ def test_scrubbed_env_suppresses_prompts() -> None:
     assert env["PATH"]  # always populated
 
 
+def test_scrubbed_env_overrides_empty_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    # An explicitly-empty PATH must be replaced (not left empty), or tool discovery
+    # via shutil.which / the subprocess PATH lookup would break.
+    monkeypatch.setenv("PATH", "")
+    env = scrubbed_env()
+    assert env["PATH"]
+    assert "/usr/bin" in env["PATH"]
+
+
 def test_run_subprocess_kills_process_group_on_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

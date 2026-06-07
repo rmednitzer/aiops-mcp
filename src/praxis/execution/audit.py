@@ -112,11 +112,21 @@ class AuditLogger:
         if not path.exists():
             return
         last_line = ""
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                stripped = line.strip()
-                if stripped:
-                    last_line = stripped
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    stripped = line.strip()
+                    if stripped:
+                        last_line = stripped
+        except UnicodeDecodeError:
+            # A non-UTF-8 (corrupted or poisoned) audit file: treat it as a corrupt
+            # tail and resume at genesis (visible seam), the same as an unparseable
+            # JSON tail. UnicodeDecodeError is a ValueError, not an OSError, so it
+            # would otherwise escape __init__ and break "construction never raises"
+            # (SEC-8, invariant 3).
+            self._seq = 0
+            self._prev_hash = GENESIS
+            return
         if not last_line:
             return
         try:

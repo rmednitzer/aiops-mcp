@@ -52,7 +52,10 @@ def scrubbed_env() -> dict[str, str]:
     copy and augment rather than strip: only the prompt-suppressing knobs are forced.
     """
     env = dict(os.environ)
-    env.setdefault("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+    # Override a missing OR empty PATH: an explicit PATH="" would otherwise survive
+    # setdefault and break tool discovery (shutil.which / the subprocess PATH lookup).
+    if not env.get("PATH"):
+        env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     env.setdefault("LANG", "C.UTF-8")
     env["DEBIAN_FRONTEND"] = "noninteractive"
     env["GIT_TERMINAL_PROMPT"] = "0"

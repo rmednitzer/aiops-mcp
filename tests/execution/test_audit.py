@@ -102,6 +102,20 @@ def test_corrupt_tail_keeps_writing_to_file_as_visible_seam(tmp_path: Path) -> N
     assert verify_chain(log).ok is False
 
 
+def test_non_utf8_tail_does_not_raise_on_construction(tmp_path: Path) -> None:
+    # A corrupted/poisoned audit file with invalid UTF-8 bytes must not crash
+    # construction (UnicodeDecodeError is a ValueError, not an OSError); the logger
+    # resumes at genesis and keeps recording (SEC-8, "construction never raises").
+    log = tmp_path / "audit.jsonl"
+    log.write_bytes(b"\xff\xfe not valid utf-8 \x80\x81\n")
+    logger = AuditLogger(log)  # must not raise
+    rec = logger.record(
+        tool="a", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
+    logger.close()
+    assert rec.seq == 0  # resumed at genesis after the unreadable tail
+
+
 def test_audit_file_is_owner_only(tmp_path: Path) -> None:
     if sys.platform.startswith("win"):  # pragma: no cover - POSIX mode bits only
         return

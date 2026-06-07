@@ -51,8 +51,10 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # whole value to end-of-line or a closing quote. Stopping at EOL rather than at
     # the first space keeps a comma-separated AWS SigV4 credential
     # (Credential=..., SignedHeaders=..., Signature=<hex>) from leaking its signature.
+    # The trailing `"?` consumes a closing quote so a quoted value leaves no dangling
+    # quote behind.
     (
-        re.compile(r"(?i)\b((?:proxy-)?authorization)\b\s*[:=]\s*\"?[^\"\r\n]+"),
+        re.compile(r"(?i)\b((?:proxy-)?authorization)\b\s*[:=]\s*\"?[^\"\r\n]+\"?"),
         r"\1: " + REDACTED,
     ),
     # A bare bearer token not behind an Authorization key.

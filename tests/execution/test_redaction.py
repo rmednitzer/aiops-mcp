@@ -84,6 +84,14 @@ def test_authorization_value_fully_redacted_including_sigv4() -> None:
     assert "Authorization" in out  # the header name is preserved as context
 
 
+def test_authorization_quoted_value_leaves_no_dangling_quote() -> None:
+    # A quoted header value is redacted whole, with no trailing quote left behind.
+    out = redact('Authorization: "Bearer secrettoken"')
+    assert "secrettoken" not in out
+    assert '"' not in out
+    assert out == "Authorization: [REDACTED]"
+
+
 def test_non_secret_passthrough() -> None:
     assert redact("just a normal line") == "just a normal line"
     out = redact_args({"count": 3, "flag": True})

@@ -59,8 +59,10 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         ),
         r"\1\2" + REDACTED,
     ),
-    # credentials embedded in a URL or DSN: scheme://user:SECRET@host
-    (re.compile(r"(?i)\b([a-z][a-z0-9+.\-]*://[^\s:/@]+:)[^\s:/@]+@"), r"\1" + REDACTED + "@"),
+    # credentials embedded in a URL or DSN: scheme://user:SECRET@host. The password
+    # runs up to the delimiting @ and may itself contain colons (a DSN password is
+    # not colon-free), so the secret segment excludes only @, /, and whitespace.
+    (re.compile(r"(?i)\b([a-z][a-z0-9+.\-]*://[^\s:/@]+:)[^\s@/]+@"), r"\1" + REDACTED + "@"),
 )
 
 

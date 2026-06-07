@@ -44,6 +44,11 @@ def test_credential_flags_and_urls_redacted() -> None:
     dsn = redact("postgres://user:secretpw@dbhost:5432/app")
     assert "secretpw" not in dsn
     assert "user" in dsn and "dbhost" in dsn
+    # A DSN password may itself contain colons; the whole secret is still redacted.
+    colon_dsn = redact("postgres://user:pa:ss:word@dbhost/db")
+    assert "pa:ss:word" not in colon_dsn
+    assert "word" not in colon_dsn  # the password tail does not survive
+    assert "dbhost" in colon_dsn
     # A bearer token, including the three-part "Authorization: Bearer <tok>" form.
     assert "realtok" not in redact("Authorization: Bearer realtok.value.here")
     assert "barevalue" not in redact("Bearer barevalue")

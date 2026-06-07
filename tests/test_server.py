@@ -121,3 +121,25 @@ def test_tool_error_text_is_redacted(tmp_path: Path, monkeypatch: pytest.MonkeyP
     text = resp["content"][0]["text"]
     assert "supersecretvalue" not in text
     assert "RuntimeError" in text
+
+
+def test_tool_error_with_broken_str_does_not_raise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A hostile/broken __str__ on an exception escaping the registry must not raise
+    # out of _call and break the JSON-RPC loop; it is contained (BL-044, server path).
+    server, _ = _server(tmp_path)
+
+    class Hostile(Exception):
+        def __str__(self) -> str:
+            raise ValueError("str blew up")
+
+    def boom(name: str, args: dict[str, object], ctx: ServerContext) -> str:
+        raise Hostile
+
+    monkeypatch.setattr(server.registry, "call", boom)
+    resp = cast(dict[str, Any], server._call({"name": "query_facts", "arguments": {}}))
+    assert resp["isError"] is True
+    text = resp["content"][0]["text"]
+    assert "Hostile" in text
+    assert "unprintable" in text

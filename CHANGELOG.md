@@ -8,9 +8,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ### Added
 - Governance-first bootstrap scaffold: repository layout, `CLAUDE.md`,
   `AGENTS.md`, `README.md`, `SECURITY.md`, `LIMITATIONS.md`, `CONTRIBUTING.md`.
-- `docs/first-session.md` (the build brief), ADR-0001 and the ADR index,
-  the `docs/stpa/` skeleton, `docs/backlog.md` seed, the compliance-map skeleton,
-  and a seed fleet inventory example.
+- ADR-0001 and the ADR index, the `docs/stpa/` skeleton, `docs/backlog.md` seed,
+  the compliance-map skeleton, and a seed fleet inventory example.
 - Baseline `pyproject.toml`, `Makefile`, `.gitignore`, and a CI workflow skeleton.
 - Governance step 0 (BL-001, BL-002, BL-003): full Apache-2.0 `LICENSE` text;
   ADR-0002 through ADR-0010 (store strategy, bitemporal facts, tiered authority,
@@ -182,3 +181,10 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 - `ingest_observation` is annotated `read_only=false`: it writes (append-only)
   observed facts to the model, so the MCP annotation now reflects that. The
   generated `docs/schema/tools.schema.json` is regenerated accordingly.
+
+### Removed
+- Retired `docs/first-session.md` (the one-time build brief, now that v0 is built).
+  Its durable content (the mission, the strict layering, the repository layout, and
+  the trusted external sources) moved to a current-tense `docs/architecture.md`;
+  `CLAUDE.md`, `AGENTS.md`, `README.md`, and the ADR index point there. The nine
+  invariants remain in `CLAUDE.md`.

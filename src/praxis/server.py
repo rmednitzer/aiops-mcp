@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TextIO
 
 from praxis import __version__
+from praxis.audit import bind_session
 from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
@@ -32,6 +33,8 @@ _SERVER_INFO: dict[str, object] = {"name": "praxis", "version": __version__}
 def build_context(config: Config) -> ServerContext:
     store = open_store(config.store_dsn)
     audit = AuditLogger(Path(config.audit_path)) if config.audit_path else AuditLogger()
+    # Bind the server-binary hash into the trail as the first record (ADR-0008).
+    bind_session(audit)
     execution = ExecutionContext(policy=Policy(config.mode), audit=audit)
     return ServerContext(
         execution=execution,

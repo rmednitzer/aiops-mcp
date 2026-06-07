@@ -61,3 +61,10 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   dispatch P@1/MRR eval gate (`make eval`, `scripts/eval.py`) and a JSON-Schema
   drift guard (`make schema` / `scripts/gen_schema.py --check`, `docs/schema/`),
   both also run by the suite and aggregated into `ci-success`.
+- Tamper-evident evidence (BL-011) under `praxis.audit`: an RFC 6962 Merkle tree
+  (domain-separated), periodic Merkle checkpoints chained over the audit log, RFC
+  3161 stamping behind a fail-closed `Stamper` interface (self-contained
+  `LocalStamper` default; real TSA staged), `verify_evidence` (hash chain + Merkle
+  + checkpoint chain + token, fail-closed), a session header binding the
+  server-binary hash into the trail (wired into server startup), and a
+  `scripts/verify_audit.py` CLI.

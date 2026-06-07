@@ -1,0 +1,60 @@
+# Example fleet inventory (TEMPLATE; addresses are documentation-range placeholders).
+#
+# The real inventory lives at config/inventory.yaml and is gitignored. This file
+# shows the schema only. Addresses use RFC 5737 (192.0.2.0/24) and CGNAT
+# (100.64.0.0/10) documentation placeholders, not real hosts. Inventory is DATA,
+# never hardcoded in code. host_type drives which actuation path is legal.
+
+version: 1
+
+hosts:
+  - name: gateway-01
+    host_type: ubuntu          # ubuntu | talos | windows
+    role: mcp-gateway
+    os: "Ubuntu 24.04 LTS"
+    always_on: true
+    addressing:
+      public_ip: 192.0.2.10
+      tailscale_ip: 100.64.0.10
+    routing:
+      ssh_alias: null          # local (the gateway itself)
+    actuation_paths: [shell]
+    posture: { ssh: key-only, firewall: true }
+
+  - name: compute-01
+    host_type: ubuntu
+    role: compute
+    os: "Ubuntu 24.04 LTS"
+    always_on: true
+    addressing:
+      lan_ip: 192.0.2.25
+      tailscale_ip: 100.64.0.25
+    routing:
+      ssh_alias: compute-01
+    actuation_paths: [ssh, ansible, redfish]
+    posture: { ssh: hardened, firewall: true, apparmor: true }
+
+  - name: k8s-01
+    host_type: talos           # API-only, immutable: NEVER ssh
+    role: kubernetes
+    os: "Talos Linux"
+    always_on: false
+    addressing:
+      tailscale_ip: 100.64.0.30
+    routing:
+      endpoints: [100.64.0.30] # talosctl --endpoints (control-plane IPs)
+      nodes: [100.64.0.30]     # talosctl --nodes (request target)
+    actuation_paths: [talosctl]
+    posture: { api_mtls: true, pod_security: restricted }
+
+  - name: workstation-01
+    host_type: windows
+    role: workstation
+    os: "Windows 11 Pro"
+    always_on: false
+    addressing:
+      tailscale_ip: 100.64.0.40
+    routing:
+      ssh_alias: workstation-01   # OpenSSH for Windows
+    actuation_paths: [winrm, ssh]
+    posture: { bitlocker: true, defender: true }

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+# real inventory and local state are never committed
+config/inventory.yaml
+*.db
+*.sqlite
+*.sqlite3
+.env

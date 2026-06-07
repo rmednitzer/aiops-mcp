@@ -1,0 +1,43 @@
+# praxis Helm values. Secure-by-default; do not weaken these without an ADR.
+
+image:
+  repository: ghcr.io/rmednitzer/praxis
+  # Digest-pinned (ADR-0001 supply-chain posture). Set to the published digest;
+  # a tag is intentionally not used so the deployed bytes are immutable.
+  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Transport. stdio is the default elsewhere; an in-cluster Deployment uses HTTP,
+# which requires a bearer token (from the secret below) and, for any non-loopback
+# bind, the explicit opt-in. See ADR-0006 and SECURITY.md.
+transport: http
+mode: guarded            # open | guarded | readonly
+http:
+  host: "0.0.0.0"        # in-cluster; gated by NetworkPolicy + token + opt-in
+  port: 8765
+  allowAny: true         # required for a non-loopback bind (deliberate)
+  allowRestricted: false # default-deny restricted output over HTTP
+  # The bearer token is read from a Secret; never inline it in values.
+  existingSecret: praxis-http-token
+  secretKey: token
+
+storeDsn: ""             # empty -> SQLite (ephemeral); set a postgresql:// DSN for prod
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# A hardened runtimeClassName for the code-executing plane (for example gVisor).
+runtimeClassName: ""
+
+networkPolicy:
+  enabled: true
+  # CIDRs the server is allowed to egress to (the managed fleet). Default empty:
+  # only DNS is permitted, everything else is denied (default-deny).
+  egressCIDRs: []

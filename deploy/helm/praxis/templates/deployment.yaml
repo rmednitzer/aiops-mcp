@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "praxis.fullname" . }}
+  labels:
+    {{- include "praxis.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "praxis.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "praxis.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "praxis.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      # PSA restricted at the pod level.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: praxis
+          image: {{ include "praxis.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-m", "praxis"]
+          command: ["python"]
+          # PSA restricted at the container level.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PRAXIS_TRANSPORT
+              value: {{ .Values.transport | quote }}
+            - name: PRAXIS_MODE
+              value: {{ .Values.mode | quote }}
+            - name: PRAXIS_HTTP_HOST
+              value: {{ .Values.http.host | quote }}
+            - name: PRAXIS_HTTP_PORT
+              value: {{ .Values.http.port | quote }}
+            {{- if .Values.http.allowAny }}
+            - name: PRAXIS_HTTP_ALLOW_ANY
+              value: "yes-i-understand-the-risk"
+            {{- end }}
+            - name: PRAXIS_ALLOW_RESTRICTED
+              value: {{ .Values.http.allowRestricted | quote }}
+            {{- if .Values.storeDsn }}
+            - name: PRAXIS_STORE_DSN
+              value: {{ .Values.storeDsn | quote }}
+            {{- end }}
+            - name: PRAXIS_HTTP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.http.existingSecret | quote }}
+                  key: {{ .Values.http.secretKey | quote }}
+          ports:
+            - name: mcp-http
+              containerPort: {{ .Values.http.port }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/praxis
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

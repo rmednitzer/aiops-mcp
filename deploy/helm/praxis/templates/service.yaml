@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "praxis.fullname" . }}
+  labels:
+    {{- include "praxis.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "praxis.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: mcp-http
+      port: {{ .Values.http.port }}
+      targetPort: mcp-http
+      protocol: TCP

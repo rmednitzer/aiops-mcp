@@ -73,3 +73,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   `dependency-review`, `sbom` (CycloneDX), and a nightly `fuzz` job driving
   `scripts/fuzz.py` (20k+ iterations over classify/policy/redaction, asserting the
   load-bearing invariants). A `ci-success` aggregate gate depends on the matrix.
+- Deploy (BL-014): a hardened Helm chart under `deploy/helm/praxis` (PSA
+  restricted, default-deny NetworkPolicy, ServiceAccount with no token automount,
+  digest-pinned image, optional hardened runtimeClassName); a `systemd` unit with
+  a comprehensive hardening drop-in; and a `zarf.yaml` airgap package. HTTP serving
+  is staged behind the enforced transport guard (see `deploy/README.md`).

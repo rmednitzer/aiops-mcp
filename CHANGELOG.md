@@ -137,6 +137,46 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   source path is corrected to `src/praxis/_ssrf.py`; and the read-tool audit claim
   is corrected (read tools read the store directly and are not individually
   audit-logged in v0, tracked as BL-062).
+- Third audit-wave hardening (ADR-0013, BL-018/020/021/034/047/048/054/055/057/058/
+  059 resolved, BL-063 to BL-067 new); each fix ships with a regression test:
+  - SSH actuation now forces a host-key policy and `BatchMode=yes` into the argv
+    (`StrictHostKeyChecking=accept-new` by default, refusing a changed key;
+    `ConnectTimeout`), and refuses a target that is not alphanumeric-leading so a
+    `-oProxyCommand=...` host can never be parsed as an ssh option (BL-020).
+  - The actuation subprocess runs in its own session (`start_new_session=True`)
+    with stdin detached (`DEVNULL`) and a scrubbed environment
+    (`GIT_TERMINAL_PROMPT=0`, `DEBIAN_FRONTEND=noninteractive`, neutralised
+    `*_ASKPASS`), and on timeout the whole process group is killed, so a wrapped
+    tool cannot read the MCP stdio stream, hang on a prompt, or leak a grandchild
+    tree (BL-021, BL-063).
+  - talosctl enforces the T3 one-target-at-a-time rule on the actual `host.nodes`
+    (a multi-node reset/upgrade is refused), and constrains the leading verb to an
+    allowlist instead of tokenising a free-form action (BL-047, BL-048).
+  - A trifecta refusal now writes a `denied` audit record before it raises, so the
+    refusal is never silent (BL-018).
+  - The audit logger keeps writing to the file on a corrupt tail (resuming at
+    genesis, a visible seam the verifier reports) instead of dropping the sink to
+    stderr, never reopens after a degrade, releases the handle on close, and creates
+    the log `O_APPEND` and owner-only (`0o600`) (BL-055, BL-064).
+  - Vector search skips a non-finite (`NaN`/`inf`) stored embedding and refuses a
+    non-finite query, so a poisoned vector cannot poison the ranking (BL-054).
+  - The SKILL.md frontmatter parser requires an exact `---` fence, caps the header
+    and file size, ignores indented keys, refuses a duplicate key, and treats
+    non-UTF-8 bytes as a clean load failure (BL-057).
+  - An empty or unparseable AIDE report is no longer reported as a clean host
+    (`clean` requires positive evidence of a completed run), and the ingest tool
+    bounds collected telemetry before a collector parses it (BL-058).
+  - `parse_ansible_check` surfaces `FAILED`/`UNREACHABLE` hosts (critical), not only
+    `changed:` (BL-034); an `UNEXPECTED` drift on a security predicate (a rogue port
+    or user) escalates to critical instead of info (BL-059).
+  - Redaction covers more provider token shapes (`github_pat_`, `glpat-`, `npm_`,
+    `AIza`, `ya29.`, Stripe, OpenAI scoped) and redacts the whole `Authorization`
+    value to end-of-line, so a comma-separated AWS SigV4 signature no longer leaks
+    (BL-065).
+  - `PRAXIS_HTTP_HOST` is whitespace-stripped so a `"127.0.0.1\n"` value is still
+    recognised as loopback by the transport guard (BL-067).
+- Self-containment (BL-066): removed the out-of-tree prototype reference from
+  `context.py`; praxis names no sibling repository in code or docs (ADR-0001).
 
 ### Changed
 - `ingest_observation` is annotated `read_only=false`: it writes (append-only)

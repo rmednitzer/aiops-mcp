@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import stat
+import sys
 from pathlib import Path
 
 from praxis.execution.audit import EMPTY_SHA256, AuditLogger, sha256_text, verify_chain
@@ -71,6 +73,46 @@ def test_chain_continues_across_restart(tmp_path: Path) -> None:
     result = verify_chain(log)
     assert result.ok is True
     assert result.count == 2
+
+
+def test_corrupt_tail_keeps_writing_to_file_as_visible_seam(tmp_path: Path) -> None:
+    # A corrupt tail must NOT drop the sink to stderr (which would lose the record);
+    # the logger resumes at genesis and keeps writing to the file. The seq reset is a
+    # visible seam verify_chain reports, which is the security signal (BL-055).
+    log = tmp_path / "audit.jsonl"
+    first = AuditLogger(log)
+    first.record(
+        tool="a", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
+    first.close()
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write("{ this is not valid json\n")
+
+    second = AuditLogger(log)
+    assert second.degraded is False  # sink stayed on the file, not stderr
+    second.record(
+        tool="b", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
+    second.close()
+
+    lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    last = json.loads(lines[-1])
+    assert last["tool"] == "b"  # the new record reached the file, not stderr
+    # The corruption is exposed by verification, not hidden by the writer.
+    assert verify_chain(log).ok is False
+
+
+def test_audit_file_is_owner_only(tmp_path: Path) -> None:
+    if sys.platform.startswith("win"):  # pragma: no cover - POSIX mode bits only
+        return
+    log = tmp_path / "audit.jsonl"
+    logger = AuditLogger(log)
+    logger.record(
+        tool="a", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
+    logger.close()
+    # The audit log holds redacted parameters; it must not be world/group readable.
+    assert stat.S_IMODE(log.stat().st_mode) == 0o600
 
 
 def test_logger_never_raises(tmp_path: Path) -> None:

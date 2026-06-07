@@ -41,7 +41,11 @@ def test_ssh_executes_via_path_shim(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     # "uptime" is T1: no approval required; run for real against the shim.
     result = SSHAdapter().actuate(ubuntu, "uptime", context=ctx, dry_run=False)
     assert result.ok is True
-    assert "FAKE-SSH axiom uptime" in result.output
+    # Host-key policy and BatchMode are forced into the argv (BL-020); the target
+    # and action still arrive at the end.
+    assert "BatchMode=yes" in result.output
+    assert "StrictHostKeyChecking=accept-new" in result.output
+    assert "axiom uptime" in result.output
 
 
 def test_ansible_dry_run_runs_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -41,6 +41,12 @@ feedback is still treated as untrusted (invariant 8).
 9. Least privilege; scoped, independently revocable credentials; kill switch; no
    NOPASSWD: ALL.
 
+Privileged-execution and audit hardening (the SSH host-key policy plus
+option-injection target guard, subprocess process-group isolation with a scrubbed
+environment and detached stdin, the talosctl verb allowlist and node-aware T3 gate,
+audited trifecta refusals, the owner-only audit-log file mode, and broader secret
+redaction) is recorded in ADR-0013. Each control has a regression test.
+
 ## Evidence integrity
 
 Beyond the per-entry hash chain, the audit log is periodically committed to a

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import math
+
+import pytest
+
 from praxis.model import OBSERVED, Capability, Edge, Fact
 from praxis.store import SqliteStore, open_store
 
@@ -61,3 +66,26 @@ def test_vector_search_orders_by_similarity() -> None:
     store.upsert_embedding("f_y", [0.0, 1.0])
     result = store.similar([0.9, 0.1], k=1)
     assert result[0][0] == "f_x"
+
+
+def test_vector_search_skips_non_finite_stored_vector() -> None:
+    # A corrupted/poisoned embedding (NaN component) must not rank; it is skipped
+    # rather than dragging a NaN score into the ordering (BL-054).
+    store = SqliteStore()
+    store.upsert_embedding("good", [1.0, 0.0])
+    # Write a NaN-bearing vector directly (json.dumps emits NaN, json.loads reads it).
+    store._conn.execute(
+        "INSERT INTO embeddings (fact_id, vector) VALUES (?, ?)",
+        ("poison", json.dumps([math.nan, 1.0])),
+    )
+    result = store.similar([0.9, 0.1], k=10)
+    names = {fact_id for fact_id, _ in result}
+    assert "good" in names
+    assert "poison" not in names
+
+
+def test_vector_search_rejects_non_finite_query() -> None:
+    store = SqliteStore()
+    store.upsert_embedding("good", [1.0, 0.0])
+    with pytest.raises(ValueError, match="finite"):
+        store.similar([math.inf, 0.0])

@@ -73,9 +73,14 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     # default-denied over HTTP unless explicitly enabled.
     restricted_default = "true" if transport == "stdio" else "false"
 
+    # Strip stray whitespace so a value like "127.0.0.1\n" is still recognised as
+    # loopback by the transport guard; an empty/whitespace host defaults to loopback,
+    # the safest bind (BL-060).
+    http_host = (get("HTTP_HOST", "127.0.0.1") or "127.0.0.1").strip() or "127.0.0.1"
+
     return Config(
         transport=transport,
-        http_host=get("HTTP_HOST", "127.0.0.1") or "127.0.0.1",
+        http_host=http_host,
         http_port=_safe_int(get("HTTP_PORT", "8765"), 8765),
         http_token=get("HTTP_TOKEN"),
         allow_any=(get("HTTP_ALLOW_ANY") == ALLOW_ANY_TOKEN),

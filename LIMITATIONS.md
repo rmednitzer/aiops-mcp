@@ -4,9 +4,13 @@ This file states what `praxis` is not, and the known gaps at the current phase.
 
 ## Phase
 
-Bootstrapping. The repository is scaffolded governance-first; the implementation
-is built by following `docs/first-session.md`. Treat every component as "planned"
-until its tests exist and pass.
+v0 implemented and gated, in iterative security hardening. The execution core,
+store (SQLite default, Postgres+AGE optional), collectors, drift engine, actuation
+adapters, skills engine, tamper-evident audit, and the MCP stdio surface are built
+and tested; `make ci-success` is green and each of the nine invariants has a passing
+test. Hardening proceeds through the audit waves (ADR-0011 through ADR-0013); the
+open items in `docs/backlog.md` (notably the HTTP transport, hostname-resolving
+SSRF, credential wiring, and CI/deploy gating) are tracked, not yet delivered.
 
 ## Scope boundaries
 

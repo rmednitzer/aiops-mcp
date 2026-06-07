@@ -104,8 +104,14 @@ def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
                     )
                     approved = True
                 except ApprovalError as exc:
-                    raise TrifectaViolation(f"trifecta containment: {exc}") from exc
-        ctx.guard_actuation(tier=decision.tier, approved=approved)
+                    reason = f"trifecta containment: {exc}"
+                    ctx.audit_trifecta_denial(
+                        tool=request.tool, target=host.name, tier=decision.tier, reason=reason
+                    )
+                    raise TrifectaViolation(reason) from exc
+        ctx.guard_actuation(
+            tier=decision.tier, approved=approved, tool=request.tool, target=host.name
+        )
 
     result = adapter.actuate(
         host, action, context=ctx.execution, dry_run=dry_run, approval=approval

@@ -54,6 +54,15 @@ def test_security_predicate_escalates_to_critical() -> None:
     assert findings[0].severity is DriftSeverity.CRITICAL
 
 
+def test_unexpected_security_predicate_is_critical() -> None:
+    # An unexpected listening port (or user) is a backdoor signal: an UNEXPECTED on a
+    # security predicate escalates to critical, not info (BL-059).
+    observed = [_fact("listening_ports", {"port": 4444}, OBSERVED)]
+    findings = diff(observed, [], flag_unexpected=True)
+    assert findings[0].kind is DriftKind.UNEXPECTED
+    assert findings[0].severity is DriftSeverity.CRITICAL
+
+
 def test_findings_record_as_drift_facts() -> None:
     observed = [_fact("os", {"v": "22.04"}, OBSERVED)]
     desired = [_fact("os", {"v": "24.04"}, DESIRED)]

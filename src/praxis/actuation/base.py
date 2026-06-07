@@ -14,7 +14,9 @@ runbooks) return a non-executing preview string (SEC-6).
 
 from __future__ import annotations
 
+import os
 import shutil
+import signal
 import subprocess  # noqa: S404 - actuation wraps real tools; calls are tier-gated and audited
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
@@ -40,25 +42,78 @@ class HostInfo:
     nodes: tuple[str, ...] = ()
 
 
+def scrubbed_env() -> dict[str, str]:
+    """The server environment, augmented so a wrapped tool cannot hang on a prompt.
+
+    An MCP tool call has no controlling TTY, so a tool that drops to an interactive
+    credential or confirmation prompt would block the server indefinitely. The
+    operator's scoped secret material (an SSH agent socket, a TALOSCONFIG path) is
+    injected into the server environment out of band (see ``credentials.py``), so we
+    copy and augment rather than strip: only the prompt-suppressing knobs are forced.
+    """
+    env = dict(os.environ)
+    env.setdefault("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+    env.setdefault("LANG", "C.UTF-8")
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_ASKPASS"] = ""
+    env["SSH_ASKPASS"] = ""
+    return env
+
+
+def _kill_process_group(proc: subprocess.Popen[str]) -> None:
+    """SIGKILL the child's whole process group, then the child as a fallback.
+
+    ``start_new_session=True`` puts the child in its own group, so a tool that forks
+    grandchildren (a runbook that backgrounds work) is reaped as a tree on timeout
+    rather than leaking orphans that keep the server's descriptors open (BL-021).
+    """
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        proc.kill()
+    except (ProcessLookupError, OSError):
+        pass
+
+
 def run_subprocess(argv: list[str], *, preview: bool, timeout_s: int = _DEFAULT_TIMEOUT_S) -> str:
     """Run a wrapped tool, or return a non-executing preview under dry-run.
 
     Output is returned for the executor to hash and truncate; it is never logged as
-    a body (SEC-9). A missing binary raises, which the executor turns into a
-    bounded error.
+    a body (SEC-9). A missing binary raises, which the executor turns into a bounded
+    error. The child runs in its own session (``start_new_session=True``) with stdin
+    detached from the server's stdio transport (``stdin=DEVNULL``) so it can neither
+    read the MCP wire protocol nor block on a prompt; on timeout the whole process
+    group is killed (BL-021).
     """
     if preview:
         return f"DRY_RUN preview (not executed): {' '.join(argv)}"
     if shutil.which(argv[0]) is None:
         raise FileNotFoundError(f"actuation tool not found on PATH: {argv[0]}")
-    completed = subprocess.run(  # noqa: S603 - argv is a list (no shell); tool is gated
+    proc = subprocess.Popen(  # noqa: S603 - argv is a list (no shell); tool is gated
         argv,
-        capture_output=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=timeout_s,
-        check=False,
+        env=scrubbed_env(),
+        start_new_session=True,
     )
-    return (completed.stdout or "") + (completed.stderr or "")
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _kill_process_group(proc)
+        # Reap so no zombie remains; the group is already signalled.
+        try:
+            proc.communicate(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        # A bounded, argv-free message: the executor wraps it as a bounded error.
+        raise TimeoutError(f"actuation timed out after {timeout_s}s: {argv[0]}") from None
+    return (stdout or "") + (stderr or "")
 
 
 class ActuationAdapter(ABC):

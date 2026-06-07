@@ -27,13 +27,18 @@ from, any other repository.
 
 ## Strict layering
 
-The surface is layered MCP tools then skills then services then store and executor.
-Each layer has one responsibility and a stable contract:
+The surface is layered: MCP tools, then skills, then services (the collectors, the
+drift engine, the actuation adapters, and the evidence layer), then the store and
+the execution core. Each layer has one responsibility and a stable contract:
 
-- MCP server surface (`src/praxis/server.py`, `src/praxis/tools/`): stdio by default
-  plus a hardened streamable-HTTP opt-in. Tools are grouped state/query (read),
-  drift (read), skills (read), and actuation (tier-gated), each carrying accurate
-  `readOnly`/`destructive` annotations. The registry is transport-agnostic.
+- MCP server surface (`src/praxis/server.py`, `src/praxis/tools/`): stdio is the v0
+  transport. A streamable-HTTP transport is staged behind an enforced guard (a bearer
+  token plus an explicit non-loopback opt-in plus the SSRF egress filter); the server
+  validates that guard and fails closed on an unsafe HTTP bind, but HTTP serving
+  itself is not yet implemented (it raises `NotImplementedError`), so v0 serves stdio
+  only. Tools are grouped state/query (read), drift (read), skills (read), and
+  actuation (tier-gated), each carrying accurate `readOnly`/`destructive`
+  annotations. The registry is transport-agnostic.
 - Skills (`src/praxis/skills/`): a manifest plus a registry plus a routing-chain
   dispatcher. Host-knowledge skills ("what is") and tool skills ("how to operate").
   Untrusted bundles load inert (`allow_contract=False`); a dispatch P@1/MRR eval gate

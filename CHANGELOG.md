@@ -78,3 +78,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   digest-pinned image, optional hardened runtimeClassName); a `systemd` unit with
   a comprehensive hardening drop-in; and a `zarf.yaml` airgap package. HTTP serving
   is staged behind the enforced transport guard (see `deploy/README.md`).
+- Governance docs (BL-015, BL-016): a complete compliance map (EU AI Act, NIS2 /
+  NISG 2026, CRA, GDPR, ISO 27001) tracing each article through a SEC constraint to
+  the enforcing code; a migration note for importing the prototype's host-knowledge
+  and known-good baselines into the model; and operate + periodic self-audit
+  runbooks under `docs/runbooks/`.

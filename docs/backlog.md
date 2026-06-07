@@ -20,5 +20,5 @@ XS, S, M, L.
 | BL-012 | MCP server surface: config, transport guards (stdio/http, SSRF egress, consent), tools with annotations | L | resolved | 0006 |
 | BL-013 | CI workflows (codeql, sbom, dependency-review, fuzz; pinned SHAs; least-privilege) + ci-success aggregate | M | resolved | 0001 |
 | BL-014 | Hardened deploy: Helm chart, systemd units, optional zarf | M | resolved | 0006 |
-| BL-015 | Compliance map: complete EU AI Act / NIS2 / CRA / GDPR / ISO 27001 mapping to controls | S | pending | 0009 |
-| BL-016 | Migration note: import prototype host-knowledge and known-good baselines into the model | S | pending | 0007 |
+| BL-015 | Compliance map: complete EU AI Act / NIS2 / CRA / GDPR / ISO 27001 mapping to controls | S | resolved | 0009 |
+| BL-016 | Migration note: import prototype host-knowledge and known-good baselines into the model | S | resolved | 0007 |

@@ -6,9 +6,9 @@ XS, S, M, L.
 
 | ID | Item | Size | Status | Source ADR |
 |----|------|------|--------|-----------|
-| BL-001 | Add full Apache-2.0 LICENSE text and NOTICE | XS | pending | 0001 |
-| BL-002 | Write ADR-0002 (store strategy) and complete `pyproject.toml` + `Makefile` | S | pending | 0002 |
-| BL-003 | Complete STPA artifacts 01..07 (losses, hazards, constraints, control structure, UCAs, loss scenarios, security constraints) | M | pending | 0009 |
+| BL-001 | Add full Apache-2.0 LICENSE text and NOTICE | XS | resolved | 0001 |
+| BL-002 | Write ADR-0002..0010 and complete `pyproject.toml` + `Makefile` | S | resolved | 0002 |
+| BL-003 | Complete STPA artifacts 01..07 (losses, hazards, constraints, control structure, UCAs, loss scenarios, security constraints) | M | resolved | 0009 |
 | BL-004 | Execution core: patterns/policy/redaction/audit/contract/runner (vendored + fused), with invariant tests | L | pending | 0004, 0005 |
 | BL-005 | StoreProtocol + ladder; SQLite default backend (bitemporal, append-only trigger, active-fact constraint, sqlite-vec) | L | pending | 0002, 0003 |
 | BL-006 | Postgres+AGE+pgvector production backend behind the same Protocol | M | pending | 0002, 0003 |

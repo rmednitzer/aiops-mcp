@@ -15,16 +15,13 @@ import json
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
+from praxis.clock import utc_now_iso
+
 GENESIS = "0" * 64
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
-
-
-def utc_now_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def sha256_text(text: str) -> str:

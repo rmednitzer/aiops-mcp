@@ -9,9 +9,9 @@ XS, S, M, L.
 | BL-001 | Add full Apache-2.0 LICENSE text and NOTICE | XS | resolved | 0001 |
 | BL-002 | Write ADR-0002..0010 and complete `pyproject.toml` + `Makefile` | S | resolved | 0002 |
 | BL-003 | Complete STPA artifacts 01..07 (losses, hazards, constraints, control structure, UCAs, loss scenarios, security constraints) | M | resolved | 0009 |
-| BL-004 | Execution core: patterns/policy/redaction/audit/contract/runner (vendored + fused), with invariant tests | L | pending | 0004, 0005 |
-| BL-005 | StoreProtocol + ladder; SQLite default backend (bitemporal, append-only trigger, active-fact constraint, sqlite-vec) | L | pending | 0002, 0003 |
-| BL-006 | Postgres+AGE+pgvector production backend behind the same Protocol | M | pending | 0002, 0003 |
+| BL-004 | Execution core: patterns/policy/redaction/audit/contract/runner (vendored + fused), with invariant tests | L | resolved | 0004, 0005 |
+| BL-005 | StoreProtocol + ladder; SQLite default backend (bitemporal, append-only trigger, active-fact constraint, sqlite-vec) | L | resolved | 0002, 0003 |
+| BL-006 | Postgres+AGE+pgvector production backend behind the same Protocol | M | resolved | 0002, 0003 |
 | BL-007 | Fact model + host_type; osquery and AIDE collectors (read-only) | M | pending | 0007 |
 | BL-008 | Drift engine: desired-state sources (tofu plan, ansible check, known-good) + findings | L | pending | 0007 |
 | BL-009 | Actuation adapters (ssh/opentofu/ansible/runbook/talosctl/redfish/cloud) with DRY_RUN -> approve -> execute | L | pending | 0004, 0005 |

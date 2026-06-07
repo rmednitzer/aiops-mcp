@@ -18,3 +18,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   audit, STPA method, skills architecture), all Accepted; the complete STPA
   analysis `docs/stpa/01..07` with the SEC-1..SEC-10 traceability table mapping
   every security constraint to an enforcement mechanism and a proving test.
+- Execution core (BL-004): the single audited execution path under
+  `praxis.execution` (patterns, policy, redaction, audit, contract, runner) with
+  invariant tests for SEC-1/2/3/8/9.
+- Bitemporal fact model (BL-005) under `praxis.model`: `Fact`, `Edge`, the
+  `HostType` enum, and the four timestamps (ADR-0003).
+- Store (BL-005, BL-006): `StoreProtocol` plus an extension ladder
+  (`VectorStore`); a default SQLite backend with storage-layer append-only
+  triggers, the active-fact unique index, supersession with actor and reason, and
+  a pure-Python vector search; a Postgres+AGE backend behind the same Protocol
+  (lazy `psycopg`; skip-tested where no live PG exists). Tests cover round-trip,
+  bitemporal history, and append-only (SEC-10).

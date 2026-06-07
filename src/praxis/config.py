@@ -42,6 +42,19 @@ def _truthy(value: str | None) -> bool:
     return value is not None and value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _safe_int(value: str | None, default: int) -> int:
+    """Parse an int, falling back to ``default`` so import-time config never raises.
+
+    A non-numeric value degrades to the default; an out-of-range numeric value is
+    surfaced later by ``validate_transport`` through the fail-closed path."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 def load_config(env: Mapping[str, str] | None = None) -> Config:
     """Read PRAXIS_ environment into a Config. Pure given an explicit ``env``."""
     src = env if env is not None else os.environ
@@ -63,7 +76,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     return Config(
         transport=transport,
         http_host=get("HTTP_HOST", "127.0.0.1") or "127.0.0.1",
-        http_port=int(get("HTTP_PORT", "8765") or "8765"),
+        http_port=_safe_int(get("HTTP_PORT", "8765"), 8765),
         http_token=get("HTTP_TOKEN"),
         allow_any=(get("HTTP_ALLOW_ANY") == ALLOW_ANY_TOKEN),
         allow_restricted=_truthy(get("ALLOW_RESTRICTED", restricted_default)),
@@ -81,6 +94,8 @@ def validate_transport(config: Config) -> None:
         raise TransportError(f"unknown transport: {config.transport!r}")
     if not config.http_token:
         raise TransportError("HTTP transport requires PRAXIS_HTTP_TOKEN (no token, no bind)")
+    if not 1 <= config.http_port <= 65535:
+        raise TransportError(f"HTTP port out of range (1-65535): {config.http_port}")
     if not config.http_is_loopback and not config.allow_any:
         raise TransportError(
             "non-loopback HTTP bind requires PRAXIS_HTTP_ALLOW_ANY="

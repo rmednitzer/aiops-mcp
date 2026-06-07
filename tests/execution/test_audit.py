@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from praxis.execution.audit import EMPTY_SHA256, AuditLogger, sha256_text, verify_chain
+from praxis.execution.patterns import PATTERNS_VERSION
 
 
 def test_no_body_only_hash_and_len(tmp_path: Path) -> None:
@@ -19,7 +20,7 @@ def test_no_body_only_hash_and_len(tmp_path: Path) -> None:
         args={"host": "axiom"},
         output_sha256=sha256_text(body),
         output_len=len(body),
-        patterns_version=1,
+        patterns_version=PATTERNS_VERSION,
     )
     logger.close()
     text = log.read_text(encoding="utf-8")
@@ -35,7 +36,11 @@ def test_chain_verifies_and_detects_tamper(tmp_path: Path) -> None:
     logger = AuditLogger(log)
     for i in range(3):
         logger.record(
-            tool=f"tool{i}", tier="T0", decision="allowed", args={"i": i}, patterns_version=1
+            tool=f"tool{i}",
+            tier="T0",
+            decision="allowed",
+            args={"i": i},
+            patterns_version=PATTERNS_VERSION,
         )
     logger.close()
     assert verify_chain(log).ok is True
@@ -54,10 +59,14 @@ def test_chain_verifies_and_detects_tamper(tmp_path: Path) -> None:
 def test_chain_continues_across_restart(tmp_path: Path) -> None:
     log = tmp_path / "audit.jsonl"
     first = AuditLogger(log)
-    first.record(tool="a", tier="T0", decision="allowed", args={}, patterns_version=1)
+    first.record(
+        tool="a", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
     first.close()
     second = AuditLogger(log)
-    second.record(tool="b", tier="T0", decision="allowed", args={}, patterns_version=1)
+    second.record(
+        tool="b", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
     second.close()
     result = verify_chain(log)
     assert result.ok is True
@@ -73,5 +82,7 @@ def test_logger_never_raises(tmp_path: Path) -> None:
     logger = AuditLogger(impossible)
     assert logger.degraded is True
     # Recording still works (degraded to stderr) and does not raise.
-    record = logger.record(tool="t", tier="T0", decision="allowed", args={}, patterns_version=1)
+    record = logger.record(
+        tool="t", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
     assert record.output_sha256 == EMPTY_SHA256

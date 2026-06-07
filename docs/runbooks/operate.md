@@ -24,13 +24,18 @@ deliberate T3 with a typed token.
 
 ## Actuate (DRY_RUN, then approve, then execute)
 
-1. Call `run_action` with `dry_run: true` to preview. T2+ needs no approval for a
-   dry run.
-2. Review the preview, then re-issue with `dry_run: false` and an
-   `approval_token`. For T2 the token is `APPROVE-<action_id>`; for T3 it is
-   `CONFIRM-<target>` and exactly one target is allowed.
+1. Call `run_action` with `dry_run: true` to preview. A dry run needs no approval;
+   its response carries the `action_id` and the exact `approval_token` to use next.
+2. Review the preview, then re-issue with `dry_run: false` and that `approval_token`.
+   For T2 the token is `APPROVE-<action_id>`; for T3 it is `CONFIRM-<target>` and
+   exactly one target is allowed.
 3. Each call writes one audit record (allow, deny, or error). Output bodies are
    never logged, only their SHA-256 and length.
+
+Trifecta note (SEC-4): once a session has ingested untrusted content (any
+`ingest_observation` or feed), even a sub-T2 act requires a validated, single-use
+`approval_token`; a bare token string is rejected. The dry-run response surfaces
+the token to use.
 
 ## Stop everything
 

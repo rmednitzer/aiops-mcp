@@ -43,7 +43,7 @@
     {
       "annotations": {
         "destructiveHint": false,
-        "readOnlyHint": true
+        "readOnlyHint": false
       },
       "description": "Parse captured host telemetry into observed facts.",
       "inputSchema": {

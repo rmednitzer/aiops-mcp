@@ -18,8 +18,10 @@ from praxis.actuation import (
     TalosctlAdapter,
 )
 from praxis.actuation.base import ActuationAdapter, HostInfo
-from praxis.context import ServerContext
-from praxis.execution.contract import Approval
+from praxis.context import ServerContext, TrifectaViolation
+from praxis.execution.contract import Approval, ApprovalError
+from praxis.execution.patterns import Tier
+from praxis.execution.runner import expected_token
 from praxis.model.facts import HostType
 from praxis.tools.registry import ToolRegistry, ToolSpec
 
@@ -83,24 +85,45 @@ def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
         Approval(action_id=request.action_id(), token=token) if isinstance(token, str) else None
     )
 
-    # Trifecta containment (SEC-4): once untrusted content is in the session,
-    # actuation needs the human gate even below T2.
-    ctx.guard_actuation(tier=decision.tier, approved=approval is not None)
+    # Trifecta containment (SEC-4) applies to a real run only: a DRY_RUN is a
+    # non-executing preview, and it is the step that yields the approval token.
+    if not dry_run:
+        approved = approval is not None
+        if ctx.untrusted_ingested and decision.tier < Tier.T2:
+            # Sub-T2 actions are not approval-gated by the executor, so the trifecta
+            # gate validates and consumes the approval itself. Token presence alone
+            # never satisfies the human gate: a caller-supplied, unvalidated string
+            # cannot stand in for a confirmation (closes the bypass).
+            approved = False
+            if approval is not None:
+                try:
+                    ctx.execution.approvals.consume(
+                        approval,
+                        expected_action_id=request.action_id(),
+                        expected_token=expected_token(request, decision.tier),
+                    )
+                    approved = True
+                except ApprovalError as exc:
+                    raise TrifectaViolation(f"trifecta containment: {exc}") from exc
+        ctx.guard_actuation(tier=decision.tier, approved=approved)
 
     result = adapter.actuate(
         host, action, context=ctx.execution, dry_run=dry_run, approval=approval
     )
-    return json.dumps(
-        {
-            "ok": result.ok,
-            "tier": result.decision.tier.label,
-            "error": result.error,
-            "output_sha256": result.output_sha256,
-            "output_len": result.output_len,
-            "output": result.output,
-        },
-        sort_keys=True,
-    )
+    body: dict[str, object] = {
+        "ok": result.ok,
+        "tier": result.decision.tier.label,
+        "error": result.error,
+        "output_sha256": result.output_sha256,
+        "output_len": result.output_len,
+        "output": result.output,
+    }
+    if dry_run:
+        # Surface exactly what the operator must supply to approve the real run, so
+        # the DRY_RUN -> approve -> execute flow is operable over MCP (SEC-6).
+        body["action_id"] = request.action_id()
+        body["approval_token"] = expected_token(request, decision.tier)
+    return json.dumps(body, sort_keys=True)
 
 
 def register(registry: ToolRegistry) -> None:

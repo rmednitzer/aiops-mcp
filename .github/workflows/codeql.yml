@@ -24,6 +24,8 @@ jobs:
         uses: github/codeql-action/init@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
         with:
           languages: python
-          queries: security-and-quality
+          # security-extended keeps full security coverage without the quality/style
+          # rules already enforced by ruff + mypy strict (reduces advisory noise).
+          queries: security-extended
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9

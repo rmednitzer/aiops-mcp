@@ -63,7 +63,9 @@ def register(registry: ToolRegistry) -> None:
         ToolSpec(
             name="ingest_observation",
             description="Parse captured host telemetry into observed facts.",
-            read_only=True,
+            # Writes (append-only) facts to the store, so it is not read-only; it is
+            # additive, not destructive.
+            read_only=False,
             destructive=False,
             input_schema=_SCHEMA,
             handler=_ingest,

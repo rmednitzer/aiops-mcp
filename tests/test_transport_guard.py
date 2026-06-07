@@ -43,6 +43,20 @@ def test_load_config_http_defaults_restricted_off() -> None:
     assert cfg.allow_restricted is False  # default-deny restricted over HTTP
 
 
+def test_nonnumeric_port_degrades_to_default_not_raise() -> None:
+    # A bad PRAXIS_HTTP_PORT must not raise at import time and bypass the fail-closed
+    # transport path; it falls back to the default and is validated later.
+    cfg = load_config({"PRAXIS_HTTP_PORT": "not-a-port"})
+    assert cfg.http_port == 8765
+
+
+def test_http_rejects_out_of_range_port() -> None:
+    with pytest.raises(TransportError):
+        validate_transport(Config(transport="http", http_token="t", http_port=70000))
+    with pytest.raises(TransportError):
+        validate_transport(Config(transport="http", http_token="t", http_port=0))
+
+
 def test_ssrf_blocks_private_ranges() -> None:
     blocked = [
         "127.0.0.1",

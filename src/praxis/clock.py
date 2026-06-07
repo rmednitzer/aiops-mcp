@@ -10,5 +10,5 @@ from datetime import UTC, datetime
 
 
 def utc_now_iso() -> str:
-    """Current time as an ISO 8601 UTC string with millisecond precision."""
+    """Current time as an ISO 8601 UTC string with microsecond precision (%f)."""
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")

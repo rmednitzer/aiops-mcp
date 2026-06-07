@@ -83,3 +83,26 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   the enforcing code; a migration note for importing the prototype's host-knowledge
   and known-good baselines into the model; and operate + periodic self-audit
   runbooks under `docs/runbooks/`.
+
+### Security
+- Trifecta gate (SEC-4) on `run_action` now requires a VALIDATED, single-use
+  approval for a sub-T2 act after untrusted ingestion: the handler validates and
+  consumes the `approval_token` against `expected_token` rather than treating mere
+  token presence as the human gate. A bare, caller-supplied string can no longer
+  bypass containment. A dry run surfaces the `action_id` and the exact
+  `approval_token`, so the DRY_RUN -> approve -> execute flow stays operable. New
+  `tests/test_actuate_trifecta.py` proves the closed bypass and single-use replay.
+- `ServerContext.filter_restricted` now also drops rows whose `classification` sits
+  nested inside the fact `value` payload (the shape the state tools emit), and
+  `fact_history` applies the filter, so restricted facts cannot leak over HTTP with
+  `allow_restricted=false`.
+- `PRAXIS_HTTP_PORT` is parsed defensively (`_safe_int`) so a non-numeric value can
+  no longer raise at import and bypass the fail-closed transport path;
+  `validate_transport` rejects an out-of-range port (1-65535).
+- CodeQL tuned to the `security-extended` query suite (drops style/quality advisory
+  noise already covered by ruff + mypy strict).
+
+### Changed
+- `ingest_observation` is annotated `read_only=false`: it writes (append-only)
+  observed facts to the model, so the MCP annotation now reflects that. The
+  generated `docs/schema/tools.schema.json` is regenerated accordingly.

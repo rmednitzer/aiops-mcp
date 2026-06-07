@@ -15,6 +15,15 @@ from praxis.execution.patterns import Tier
 from praxis.execution.runner import ExecutionContext
 from praxis.store.base import StoreProtocol
 
+_RESTRICTED = "restricted"
+
+
+def _is_restricted(row: dict[str, object]) -> bool:
+    if row.get("classification") == _RESTRICTED:
+        return True
+    value = row.get("value")
+    return isinstance(value, dict) and value.get("classification") == _RESTRICTED
+
 
 class TrifectaViolation(Exception):
     """Raised when actuation is attempted in a session that holds untrusted content
@@ -48,7 +57,11 @@ class ServerContext:
 
     def filter_restricted(self, rows: list[dict[str, object]]) -> list[dict[str, object]]:
         """Drop classification=restricted rows over a transport that may not see
-        them (HTTP, unless explicitly allowed). Mirrors the isms-mcp pattern."""
+        them (HTTP, unless explicitly allowed). Mirrors the isms-mcp pattern.
+
+        Classification may sit at the row level or nested inside the fact ``value``
+        dict (the shape the state tools emit), so both are checked.
+        """
         if self.allow_restricted:
             return rows
-        return [row for row in rows if row.get("classification") != "restricted"]
+        return [row for row in rows if not _is_restricted(row)]

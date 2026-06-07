@@ -48,7 +48,7 @@ def _fact_history(args: dict[str, object], ctx: ServerContext) -> str:
     if not isinstance(subject, str):
         return json.dumps({"error": "subject is required"})
     history = ctx.store.history(subject, predicate if isinstance(predicate, str) else None)
-    rows = [
+    rows: list[dict[str, object]] = [
         {
             "predicate": f.predicate,
             "value": f.value,
@@ -57,6 +57,7 @@ def _fact_history(args: dict[str, object], ctx: ServerContext) -> str:
         }
         for f in history
     ]
+    rows = ctx.filter_restricted(rows)
     return json.dumps({"count": len(rows), "history": rows}, sort_keys=True)
 
 

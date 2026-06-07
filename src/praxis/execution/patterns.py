@@ -24,7 +24,7 @@ from enum import IntEnum
 # Bump on EVERY change to the pattern sets below. The audit record stamps this
 # value so a reviewer can tie a classification to the exact ruleset that produced
 # it (SEC-3).
-PATTERNS_VERSION = 1
+PATTERNS_VERSION = 2
 
 
 class Tier(IntEnum):
@@ -55,7 +55,7 @@ DENY: tuple[re.Pattern[str], ...] = _compile(
         r"\bdd\b[^\n]*\bof=/dev/(sd|nvme|vd|hd)",  # dd onto a raw disk
         r"\bwipefs\b.*/dev/",
         r">\s*/dev/(sd|nvme|vd|hd)\w*",  # redirect onto a raw disk
-        r"\b(chmod|chown)\s+-[a-z]*R[a-z]*\s+/\s*($|\s)",  # recursive perms on /
+        r"\b(chmod|chown)\b[^\n]*-[a-zA-Z]*R[a-zA-Z]*[^\n]*\s/\s*($|\s)",  # recursive perms on /
         r"\bgit\b.*\bpush\b.*--force.*\b(main|master)\b",  # force-push to trunk
     ]
 )
@@ -106,7 +106,7 @@ TIER2: tuple[re.Pattern[str], ...] = _compile(
         r"\b(iptables|nft|ufw|firewall-cmd)\b[^\n]*\b(add|insert|delete|deny|allow|drop|reject)\b",
         r"\b(useradd|usermod|groupadd|passwd)\b",
         r"\bgit\b[^\n]*\bpush\b",
-        r"\b(cp|mv|tee|truncate|chmod|chown|ln)\b[^\n]*\b/etc/\b",  # write under /etc
+        r"\b(cp|mv|tee|truncate|chmod|chown|ln)\b[^\n]*/etc/",  # touch a path under /etc
         r">\s*/etc/\b",
     ]
 )

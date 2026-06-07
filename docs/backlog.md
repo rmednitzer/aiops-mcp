@@ -42,3 +42,29 @@ XS, S, M, L.
 | BL-034 | Multi-severity `parse_ansible_check` (FAILED to ERROR, unreachable to CRITICAL, ok to known-good) | S | open | 0011 |
 | BL-035 | Documented audit/evidence retention tiers bound in config (NIS2 Art. 23, ISO 27001 A.8.15) | S | open | 0011 |
 | BL-036 | Governance hygiene bundle (module back-citation headers, agent hard-rules, values-prod overlay plus version-bump checklist, namespace default-deny NetworkPolicy, regulatory-deadline data, empty-string-not-loopback test) | M | open | 0011 |
+| BL-037 | `verify_evidence` fail-closed (return, never raise) and require checkpoints to cover the full log; document `LocalStamper` forgeability | M | resolved | 0012 |
+| BL-038 | Postgres append-only trigger: guard all identity columns, split per-table (facts vs edges), correct the parity docstring | M | resolved | 0012 |
+| BL-039 | Store triggers: block any `t_invalid`/`t_superseded`/`superseded_actor` mutation that leaves a row active (supersede-without-actor bypass) | S | resolved | 0012 |
+| BL-040 | Patterns: fix the `chmod`/`chown -R /` deny and the `/etc/` write tier (`\b`-before-`/` defect); bump `PATTERNS_VERSION` | S | resolved | 0012 |
+| BL-041 | Redaction: cover space-separated credential flags and URL/DSN credentials; redact the stdio server error path | S | resolved | 0012 |
+| BL-042 | SSRF: normalise decimal/hex/octal/trailing-dot IP forms; `assert_egress_allowed` fail-closed on a non-IP host | S | resolved | 0012 |
+| BL-043 | OpenTofu DRY_RUN uses a full `tofu plan` so the preview scope matches the apply scope | XS | resolved | 0012 |
+| BL-044 | `_bounded_error` never raises, so `run()` always writes exactly one audit record | XS | resolved | 0012 |
+| BL-045 | Docs honesty: ADR-0006 consent audit note; qualify `SECURITY.md`/`LIMITATIONS.md`; fix STPA `_ssrf.py` path and read-tool audit claim | S | resolved | 0012 |
+| BL-046 | SSRF: resolve hostnames and check every resolved IP (rebinding-aware); wire the filter into the egress path | M | open | 0012 |
+| BL-047 | talosctl: enforce the T3 single-target rule on `host.nodes`, not only `host.name` | S | open | 0012 |
+| BL-048 | talosctl: replace `action.split()` with a verb allowlist; pass structured params | S | open | 0012 |
+| BL-049 | Wire `CredentialBroker` into the actuation path (scoped, revocable enforcement) | M | open | 0012 |
+| BL-050 | Audit hash chain: anchored high-water-mark to detect tail truncation | M | open | 0012 |
+| BL-051 | Helm NetworkPolicy: restrict ingress with a `from:` selector | S | open | 0012 |
+| BL-052 | CI: make CodeQL/fuzz/sbom/dependency-review required gates, not branch-protection-external | S | open | 0012 |
+| BL-053 | Add coverage tooling and a `cov-fail-under` gate | S | open | 0012 |
+| BL-054 | Store: `_cosine` finite-input guard; `seq` uniqueness or identity column to remove the `MAX(seq)+1` race | S | open | 0012 |
+| BL-055 | Audit logger: do not reopen the file after `_degrade`; close the sink on degraded close | S | open | 0012 |
+| BL-056 | stdio server: bound the per-line read; correct JSON-RPC notification and batch handling | S | open | 0012 |
+| BL-057 | Manifest parser: exact `---` fence, size cap, reject indented keys, reject duplicate keys | S | open | 0012 |
+| BL-058 | Collectors: AIDE empty output is not clean; per-collector size caps; finite numeric parse (with BL-026) | S | open | 0012 |
+| BL-059 | Drift: escalate `UNEXPECTED` security-predicate findings; split multi-host Ansible subjects | S | open | 0012 |
+| BL-060 | Deploy and config: Helm health probes, systemd drop-in dedupe, pin `cyclonedx-bom`, strip whitespace `HTTP_HOST`, normalise compliance-map path citations | M | open | 0012 |
+| BL-061 | Test and fuzz wave: Postgres parity suite, evidence tamper matrix, host_type refusal per adapter, SSRF bypass tests, fuzz manifest/merkle/evidence | M | open | 0012 |
+| BL-062 | Route read tools (`query_facts`, `fact_history`, collector/skill reads) through the audited path, or formally document the deliberate exclusion; reconcile with invariant 1 wording | S | open | 0012 |

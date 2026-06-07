@@ -75,3 +75,46 @@ def test_verify_is_fail_closed_on_invalid_token(tmp_path: Path) -> None:
     assert result.ok is False
     assert result.reason is not None
     assert "token" in result.reason
+
+
+def test_verify_rejects_undercovering_checkpoint(tmp_path: Path) -> None:
+    # A checkpoint taken over an empty log, then records appended: the checkpoint
+    # now under-covers the log. Fail-closed: the uncovered tail is detected so a
+    # forged tree_size cannot hide later records (BL-037). This was reproduced:
+    # before the fix a tree_size=0 checkpoint verified ok over a non-empty log.
+    audit = tmp_path / "audit.jsonl"
+    AuditLogger(audit).close()  # an empty log: tree_size 0
+    evidence = tmp_path / "evidence.jsonl"
+    make_checkpoint(audit, evidence)
+    logger = AuditLogger(audit)
+    for i in range(3):
+        logger.record(tool=f"t{i}", tier="T0", decision="allowed", args={}, patterns_version=1)
+    logger.close()
+    result = verify_evidence(audit, evidence)
+    assert result.ok is False
+    assert result.reason is not None
+    assert "cover" in result.reason
+
+
+def test_verify_rejects_checkpoint_claiming_more_than_the_log(tmp_path: Path) -> None:
+    # A checkpoint may not claim more lines than the log holds (BL-037).
+    audit = _log(tmp_path, n=3)
+    evidence = tmp_path / "evidence.jsonl"
+    make_checkpoint(audit, evidence)  # tree_size 3
+    lines = audit.read_text(encoding="utf-8").splitlines()
+    audit.write_text(lines[0] + "\n", encoding="utf-8")  # truncate to one record
+    result = verify_evidence(audit, evidence)
+    assert result.ok is False
+    assert result.reason is not None
+    assert "range" in result.reason
+
+
+def test_verify_fail_closed_on_malformed_evidence(tmp_path: Path) -> None:
+    # An unreadable evidence line returns ok=False, never raises (BL-037).
+    audit = _log(tmp_path)
+    evidence = tmp_path / "evidence.jsonl"
+    evidence.write_text("this is not json\n", encoding="utf-8")
+    result = verify_evidence(audit, evidence)
+    assert result.ok is False
+    assert result.reason is not None
+    assert "unreadable" in result.reason

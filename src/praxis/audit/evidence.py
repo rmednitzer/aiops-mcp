@@ -4,8 +4,18 @@ A checkpoint records the RFC 6962 Merkle root over the first ``tree_size`` audit
 lines, stamps it (RFC 3161 interface; LocalStamper by default), and chains to the
 previous checkpoint. ``verify_evidence`` is fail-closed: it re-verifies the
 per-entry hash chain, recomputes each checkpoint's root from the log, checks the
-checkpoint chain, and requires every timestamp token to validate. Any break is
-reported.
+checkpoint chain, requires every timestamp token to validate, and requires the
+checkpoints to cover the full log (the last ``tree_size`` equals the line count and
+sizes are non-decreasing) so a checkpoint cannot under-cover the log. Any break,
+or any unreadable evidence line, returns ``ok=False`` (never raises).
+
+Threat boundary: ``LocalStamper`` (the default) is self-contained, not qualified
+external time, and its token is forgeable by anyone who can write the evidence
+file. Tamper-evidence against an attacker who can rewrite both the audit log and
+the evidence file therefore requires a non-forgeable stamper (a real RFC 3161 TSA)
+and an out-of-band write-once store; without those, an attacker who truncates the
+audit log to empty and writes a matching empty checkpoint cannot be detected here
+(tracked as BL-050, an anchored high-water-mark). See LIMITATIONS and ADR-0008.
 """
 
 from __future__ import annotations
@@ -115,23 +125,40 @@ def verify_evidence(
     prev = GENESIS_CHECKPOINT
     expected_seq = 0
     count = 0
-    for line in evidence_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        cp = json.loads(line)
-        if cp.get("prev") != prev:
-            return EvidenceVerifyResult(False, count, "checkpoint chain broken")
-        if cp.get("seq") != expected_seq:
-            return EvidenceVerifyResult(False, count, "checkpoint seq discontinuity")
-        payload = {k: cp[k] for k in ("seq", "tree_size", "root_sha256", "ts", "token", "prev")}
-        if _checkpoint_hash(payload) != cp.get("checkpoint_hash"):
-            return EvidenceVerifyResult(False, count, "checkpoint hash mismatch")
-        recomputed = merkle_root_hex(leaves[: int(cp["tree_size"])])
-        if recomputed != cp.get("root_sha256"):
-            return EvidenceVerifyResult(False, count, "merkle root mismatch (tamper detected)")
-        if not active_stamper.verify(str(cp["root_sha256"]), cp["token"]):
-            return EvidenceVerifyResult(False, count, "timestamp token invalid (fail-closed)")
-        prev = str(cp["checkpoint_hash"])
-        expected_seq += 1
-        count += 1
+    last_tree_size = 0
+    try:
+        for line in evidence_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            cp = json.loads(line)
+            if cp.get("prev") != prev:
+                return EvidenceVerifyResult(False, count, "checkpoint chain broken")
+            if cp.get("seq") != expected_seq:
+                return EvidenceVerifyResult(False, count, "checkpoint seq discontinuity")
+            payload = {k: cp[k] for k in ("seq", "tree_size", "root_sha256", "ts", "token", "prev")}
+            if _checkpoint_hash(payload) != cp.get("checkpoint_hash"):
+                return EvidenceVerifyResult(False, count, "checkpoint hash mismatch")
+            tree_size = int(cp["tree_size"])
+            # A checkpoint covers a non-decreasing prefix of the log and can never
+            # claim more lines than exist; this defeats a forged under-covering
+            # checkpoint (for example tree_size=0 over a non-empty log).
+            if tree_size < last_tree_size or tree_size > len(leaves):
+                return EvidenceVerifyResult(False, count, "checkpoint tree_size out of range")
+            recomputed = merkle_root_hex(leaves[:tree_size])
+            if recomputed != cp.get("root_sha256"):
+                return EvidenceVerifyResult(False, count, "merkle root mismatch (tamper detected)")
+            if not active_stamper.verify(str(cp["root_sha256"]), cp["token"]):
+                return EvidenceVerifyResult(False, count, "timestamp token invalid (fail-closed)")
+            prev = str(cp["checkpoint_hash"])
+            expected_seq += 1
+            count += 1
+            last_tree_size = tree_size
+    except Exception as exc:  # noqa: BLE001 - fail-closed: any unreadable evidence is a failure
+        return EvidenceVerifyResult(
+            False, count, f"evidence unreadable (fail-closed): {type(exc).__name__}"
+        )
+    if count > 0 and last_tree_size != len(leaves):
+        return EvidenceVerifyResult(
+            False, count, "checkpoints do not cover the full audit log (uncovered tail)"
+        )
     return EvidenceVerifyResult(True, count, None)

@@ -26,3 +26,12 @@ until its tests exist and pass.
   is single-operator with scoped credentials.
 - Windows actuation depth (beyond observation) is staged after the Linux and
   Talos paths.
+- The per-client consent ceiling named in ADR-0006 (Decision 4) is specified but
+  not implemented in v0 (ADR-0012, BL-045). The transport guard, SSRF filter,
+  token requirement, and non-loopback opt-in are in place; the consent registry
+  is not.
+- Read-only tools (`query_facts`, `fact_history`, collector and skill reads) read
+  the store directly and are not individually written to the audit log in v0.
+  Invariant 1's single audited path covers the execution and actuation tools;
+  routing reads through it is tracked as BL-062. Read feedback is still treated as
+  untrusted (invariant 8).

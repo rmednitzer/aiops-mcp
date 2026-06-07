@@ -18,6 +18,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0009](0009-stpa-as-requirements-method.md) | STPA/STPA-Sec as the requirements-derivation method | Accepted |
 | [0010](0010-skills-architecture.md) | Skills architecture (host-knowledge vs tool skills; registry; eval gate) | Accepted |
 | [0011](0011-external-fleet-audit-2026-06.md) | External fleet-repository audit (2026-06) and validated hardening backlog (BL-017..BL-036) | Accepted |
+| [0012](0012-internal-audit-2026-06.md) | Internal deep audit (2026-06) and remediation wave (BL-037..BL-061) | Accepted |
 
 ADRs 0002-0010 were written before the code that depends on each (build-sequence
 step 0 in `docs/first-session.md`) and accepted as the basis for that code.

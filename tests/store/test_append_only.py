@@ -72,6 +72,42 @@ def test_supersede_requires_actor_and_reason() -> None:
     assert store.get_active("host:axiom", "os_version", OBSERVED) is None
 
 
+def test_silent_invalidate_without_supersede_is_blocked(tmp_path: Path) -> None:
+    # Setting t_invalid on an active row while leaving it un-superseded would retire a
+    # fact without the supersede actor/reason provenance. The trigger blocks any UPDATE
+    # that leaves the row active (NEW.t_superseded IS NULL) (BL-039).
+    db = tmp_path / "store.db"
+    store = SqliteStore(db)
+    store.put_fact(_fact({"version": "24.04"}))
+    store.close()
+
+    conn = sqlite3.connect(db)
+    try:
+        with pytest.raises(sqlite3.Error):
+            conn.execute("UPDATE facts SET t_invalid = '2026-06-07T01:00:00.000000Z'")
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def test_tampering_a_superseded_row_is_blocked(tmp_path: Path) -> None:
+    # The supersede transition is one-time: a second UPDATE (here rewriting the
+    # supersede provenance) is refused (OLD.t_superseded IS NOT NULL) (BL-039).
+    db = tmp_path / "store.db"
+    store = SqliteStore(db)
+    store.put_fact(_fact({"version": "24.04"}))
+    store.supersede("host:axiom", "os_version", OBSERVED, actor="operator", reason="decom")
+    store.close()
+
+    conn = sqlite3.connect(db)
+    try:
+        with pytest.raises(sqlite3.Error):
+            conn.execute("UPDATE facts SET superseded_reason = 'rewritten'")
+            conn.commit()
+    finally:
+        conn.close()
+
+
 def test_store_satisfies_protocol() -> None:
     store = SqliteStore()
     assert isinstance(store, StoreProtocol)

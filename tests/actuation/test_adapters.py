@@ -75,3 +75,17 @@ def test_ansible_apply_requires_then_consumes_approval(
     applied = adapter.actuate(ubuntu, "site.yml", context=ctx, dry_run=False, approval=approval)
     assert applied.ok is True
     assert "FAKE-ANSIBLE" in applied.output
+
+
+def test_opentofu_dry_run_is_a_full_plan() -> None:
+    # The dry-run preview must show the changes apply would make, not a -refresh-only
+    # drift report, so the human approves what will actually run (invariant 6, BL-043).
+    from praxis.actuation.opentofu import OpenTofuAdapter
+
+    adapter = OpenTofuAdapter()
+    host = HostInfo(name="cloud", host_type=HostType.CLOUD)
+    dry = adapter.build_argv(host, "apply", {}, dry_run=True)
+    assert dry == ["tofu", "plan"]
+    assert "-refresh-only" not in dry
+    real = adapter.build_argv(host, "apply", {}, dry_run=False)
+    assert real == ["tofu", "apply", "-auto-approve"]

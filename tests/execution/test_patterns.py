@@ -34,6 +34,30 @@ def test_deny_catches_root_wipe_and_forkbomb() -> None:
     assert deny_match("rm -rf /var/tmp/build") is None
 
 
+def test_deny_catches_recursive_perms_on_root() -> None:
+    # A recursive chmod/chown of / is unrecoverable; it is a global deny (BL-040).
+    assert deny_match("chmod -R 777 /") is not None
+    assert deny_match("chmod 777 -R /") is not None
+    assert deny_match("chown -R root:root /") is not None
+    # A scoped recursive chmod is not the root deny.
+    assert deny_match("chmod -R 755 /var/www") is None
+
+
+def test_etc_writes_are_at_least_t2() -> None:
+    # A write under /etc reconfigures the host; it must not classify as a T0 read
+    # (the reproduced bug: a space before /etc/ slipped past the old word boundary)
+    # (BL-040).
+    for cmd in (
+        "chmod 777 /etc/shadow",
+        "cp evil /etc/passwd",
+        "tee /etc/hosts",
+        "echo x > /etc/hosts",
+    ):
+        assert command_tier(cmd) >= Tier.T2, cmd
+    # A read of a path under /etc stays T0.
+    assert command_tier("cat /etc/os-release") == Tier.T0
+
+
 def test_patterns_version_is_tracked() -> None:
     assert isinstance(PATTERNS_VERSION, int)
     assert PATTERNS_VERSION >= 1

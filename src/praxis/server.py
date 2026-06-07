@@ -22,7 +22,7 @@ from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
 from praxis.execution.policy import Policy
-from praxis.execution.runner import ExecutionContext
+from praxis.execution.runner import ExecutionContext, bounded_error
 from praxis.store import open_store
 from praxis.tools import ToolRegistry, register_all
 
@@ -89,7 +89,9 @@ class StdioServer:
         try:
             text = self.registry.call(name, args, self.ctx)
         except Exception as exc:  # noqa: BLE001 - bounded; never a raw traceback to the client
-            return _tool_error(f"{type(exc).__name__}: {exc}")
+            # Reuse the audited path's container: redacts, bounds, and survives a
+            # hostile/broken __str__ so _call never raises out of the JSON-RPC loop.
+            return _tool_error(bounded_error(exc))
         return {"content": [{"type": "text", "text": text}], "isError": False}
 
     def serve(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:

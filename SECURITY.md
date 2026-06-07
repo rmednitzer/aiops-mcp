@@ -28,9 +28,16 @@ unguarded session.
    target at a time.
 7. stdio by default; HTTP requires a bearer token AND an explicit non-loopback
    opt-in AND an SSRF egress filter (block link-local and RFC1918); no token
-   passthrough; per-client consent registry.
+   passthrough. (The per-client consent registry named in ADR-0006 Decision 4 is
+   specified but not yet built in v0; see `LIMITATIONS.md` and ADR-0012.)
 8. Lethal-trifecta containment; read tools separable from act tools; human gate
    between observation and actuation.
+
+Invariant 1 (single audited execution path) governs the execution and actuation
+tools. In v0 the read-only tools (`query_facts`, `fact_history`, and the collector
+and skill reads) read the store directly and are not individually written to the
+audit log; routing them through the audited path is tracked as BL-062. Their
+feedback is still treated as untrusted (invariant 8).
 9. Least privilege; scoped, independently revocable credentials; kill switch; no
    NOPASSWD: ALL.
 

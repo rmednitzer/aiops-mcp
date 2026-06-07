@@ -121,9 +121,19 @@ def _is_multi_target(target: str | None) -> bool:
     return any(ch in _MULTI_TARGET for ch in target.strip()) or not target.strip()
 
 
-def _bounded_error(exc: Exception) -> str:
-    """A bounded, secret-free error string. Never a raw traceback (invariant 1)."""
-    return f"{type(exc).__name__}: {redact(str(exc))}"[:500]
+def bounded_error(exc: Exception) -> str:
+    """A bounded, secret-free error string. Never a raw traceback (invariant 1).
+
+    Shared by the audited path and the stdio server's tool-error path so both
+    contain an exception identically. The stringify is itself contained: a
+    hostile or broken ``__str__`` on the raised exception must not escape and
+    become an unbounded raise (BL-044).
+    """
+    try:
+        detail = redact(str(exc))
+    except Exception:  # noqa: BLE001 - a broken __str__ must not break the caller
+        detail = "<unprintable>"
+    return f"{type(exc).__name__}: {detail}"[:500]
 
 
 def _truncate(text: str, limit_bytes: int) -> str:
@@ -227,7 +237,7 @@ def run(
     try:
         output = execute()
     except Exception as exc:  # noqa: BLE001 - bounded and audited, by design
-        error = _bounded_error(exc)
+        error = bounded_error(exc)
         output = ""
 
     # 5. Hash + length over the FULL output (tamper-evidence proof), then keep only

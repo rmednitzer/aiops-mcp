@@ -1,0 +1,10 @@
+[
+  {"query": "talos health check and etcd snapshot", "expected": "talos-operations"},
+  {"query": "upgrade a talos node with talosctl", "expected": "talos-operations"},
+  {"query": "prioritize configuration drift findings", "expected": "drift-triage"},
+  {"query": "observed versus desired convergence for drift", "expected": "drift-triage"},
+  {"query": "expected ssh hardening baseline posture", "expected": "ssh-hardening"},
+  {"query": "verify the audit log hash chain integrity", "expected": "audit-verification"},
+  {"query": "recompute the merkle root of the audit log", "expected": "audit-verification"},
+  {"query": "which host_type for each host in the fleet inventory", "expected": "fleet-inventory"}
+]

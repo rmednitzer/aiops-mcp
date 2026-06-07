@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test schema eval ci-success
+.PHONY: check lint format type-check test schema schema-check eval ci-success
 
 check: lint type-check test
 
@@ -16,11 +16,19 @@ type-check:
 test:
 > pytest
 
+# Regenerate the committed JSON Schemas under docs/schema/.
 schema:
-> @echo "schema generation not yet implemented (see BL-010)"
+> python scripts/gen_schema.py
 
+# Fail if the committed schemas drift from the code (also covered by the suite).
+schema-check:
+> python scripts/gen_schema.py --check
+
+# The dispatch P@1/MRR regression gate.
 eval:
-> @echo "dispatch eval gate not yet implemented (see BL-010)"
+> python scripts/eval.py
 
-ci-success: check
+# The aggregate gate CI requires: lint + type-check + test, plus the schema-drift
+# guard and the eval gate (DoD).
+ci-success: check schema-check eval
 > @echo "ci-success: all gates green"

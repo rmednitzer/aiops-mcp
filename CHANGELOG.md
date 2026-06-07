@@ -54,3 +54,10 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   `drift_scan`, `run_action`) with accurate readOnly/destructive annotations. The
   CLI (`python -m praxis`) runs over stdio against SQLite with no external
   services and refuses unsafe HTTP binds. All nine invariants now have tests.
+- Skills engine (BL-010) under `praxis.skills`: a self-contained SKILL.md
+  frontmatter parser (no YAML dependency), a code-free registry (untrusted bundles
+  load inert, `allow_contract=False`), and a routing-chain dispatcher (exact then
+  lexical, per-link failure containment). Five seed bundles under `skills/`. A
+  dispatch P@1/MRR eval gate (`make eval`, `scripts/eval.py`) and a JSON-Schema
+  drift guard (`make schema` / `scripts/gen_schema.py --check`, `docs/schema/`),
+  both also run by the suite and aggregated into `ci-success`.

@@ -6,6 +6,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- ADR-0015 (Proposed): deep security and architecture review (2026-06) and the
+  proposed remediation wave BL-072..BL-090. Records two architectural proposals
+  for ratification (a human-binding, server-issued approval nonce in place of the
+  deterministic token; a T2 tier floor for free-form shell, runbook, and exec
+  actuation), the latent-control wiring set (`CredentialBroker`, `BudgetTracker`,
+  the kill-switch actuator, runtime audit anchoring), and the STPA and
+  compliance-map traceability gaps. Documentation-only; no code or control was
+  changed.
 - Governance-first bootstrap scaffold: repository layout, `CLAUDE.md`,
   `AGENTS.md`, `README.md`, `SECURITY.md`, `LIMITATIONS.md`, `CONTRIBUTING.md`.
 - ADR-0001 and the ADR index, the `docs/stpa/` skeleton, `docs/backlog.md` seed,

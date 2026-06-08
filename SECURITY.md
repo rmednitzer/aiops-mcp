@@ -67,13 +67,17 @@ redaction) is recorded in ADR-0013. Each control has a regression test.
 ## Evidence integrity
 
 At runtime the audit log is a per-entry, append-only hash chain (each record commits
-to the previous record's hash), written to an owner-only `O_APPEND` file. A periodic
+to the previous record's hash). When `PRAXIS_AUDIT_PATH` is set (the recommended
+operational config) the sink is an owner-only `O_APPEND` file; with no audit path the
+logger writes to stderr, and it degrades to stderr if the file sink cannot be opened.
+A periodic
 Merkle root (RFC 6962 domain separation), an RFC 3161 timestamp, and an optional
 transparency-log anchor (Rekor) are the designed evidence layer and a verifiable
 library (`audit/evidence.py`), but in v0 the running server does not produce
 checkpoints automatically, the default `LocalStamper` is keyless self-attestation,
 and the real RFC 3161 backend is not implemented. So v0 tamper-evidence rests on the
-hash chain plus operating-system append-only storage (`chattr +a` or WORM); wiring
+hash chain plus, when an audit file is configured, operating-system append-only
+storage (`chattr +a` or WORM); wiring
 runtime anchoring and a non-forgeable stamper is tracked as BL-076 (with BL-050 for
 tail-truncation detection). See ADR-0008 and ADR-0015.
 

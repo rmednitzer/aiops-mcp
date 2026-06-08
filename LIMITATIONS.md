@@ -73,7 +73,9 @@ here for honesty and tracked in the backlog:
   chain and the session header, but never invokes Merkle checkpointing or RFC 3161
   stamping; the default `LocalStamper` is keyless self-attestation and the real TSA
   raises `NotImplementedError`. v0 tamper-evidence rests on the hash chain plus
-  operating-system append-only storage (`chattr +a` or WORM); wiring runtime
+  operating-system append-only storage when an audit file is configured
+  (`PRAXIS_AUDIT_PATH`; with no path, or on a file-open failure, records go to
+  stderr); wiring runtime
   anchoring and a non-forgeable stamper is tracked as BL-076 (with BL-050 for
   tail-truncation detection).
 - The SQLite store file is created with the default umask, not `0o600`, so

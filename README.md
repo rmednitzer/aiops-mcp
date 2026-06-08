@@ -69,8 +69,9 @@ server. The honest current state:
 - Scoped credentials, per-session budgets, an operator kill-switch actuator, and
   runtime Merkle/RFC 3161 audit anchoring are implemented or specified but not yet
   wired into the server (BL-049, BL-074, BL-075, BL-076). At runtime the audit
-  trail is a keyless hash chain plus an operating-system append-only file; external
-  cryptographic anchoring is not produced automatically.
+  trail is a keyless hash chain (written to an owner-only append-only file when
+  `PRAXIS_AUDIT_PATH` is set, otherwise to stderr); external cryptographic anchoring
+  is not produced automatically.
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

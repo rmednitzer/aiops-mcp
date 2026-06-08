@@ -74,7 +74,8 @@ the execution core. Each layer has one responsibility and a stable contract:
   server-binary hash into the trail. The Merkle and RFC 3161 layer is built and
   verifiable, but the running server does not produce checkpoints in v0 (the default
   stamper is keyless; the real TSA is unimplemented), so runtime tamper-evidence is
-  the hash chain plus operating-system append-only storage (BL-076).
+  the hash chain plus operating-system append-only storage when an audit file is
+  configured (`PRAXIS_AUDIT_PATH`; otherwise audit records go to stderr) (BL-076).
 
 ## Repository layout
 

@@ -43,6 +43,11 @@ notes below mark the v0 gaps.
    specified but not yet built in v0; see `LIMITATIONS.md` and ADR-0012.)
 8. Lethal-trifecta containment; read tools separable from act tools; human gate
    between observation and actuation.
+9. Least privilege; scoped, independently revocable credentials; kill switch; no
+   NOPASSWD: ALL. (v0 gap: the `CredentialBroker` and `BudgetTracker` are
+   implemented and tested but not wired into the actuation path, and the kill switch
+   is enforced in the runner but has no operator-facing actuator; tracked as
+   BL-049, BL-074, BL-075.)
 
 Invariant 1 (single audited execution path) governs the execution and actuation
 tools. In v0 the read tools (`query_facts`, `fact_history`, and the collector and
@@ -52,11 +57,6 @@ the audit log; `ingest_observation` is `read_only=False` and arms the trifecta
 latch, so the one untrusted-driven state write is currently unaudited. Routing them
 through the audited path is tracked as BL-017, BL-062, and BL-085. Their feedback is
 still treated as untrusted (invariant 8).
-9. Least privilege; scoped, independently revocable credentials; kill switch; no
-   NOPASSWD: ALL. (v0 gap: the `CredentialBroker` and `BudgetTracker` are
-   implemented and tested but not wired into the actuation path, and the kill switch
-   is enforced in the runner but has no operator-facing actuator; tracked as
-   BL-049, BL-074, BL-075.)
 
 Privileged-execution and audit hardening (the SSH host-key policy plus
 option-injection target guard, subprocess process-group isolation with a scrubbed
@@ -70,16 +70,15 @@ At runtime the audit log is a per-entry, append-only hash chain (each record com
 to the previous record's hash). When `PRAXIS_AUDIT_PATH` is set (the recommended
 operational config) the sink is an owner-only `O_APPEND` file; with no audit path the
 logger writes to stderr, and it degrades to stderr if the file sink cannot be opened.
-A periodic
-Merkle root (RFC 6962 domain separation), an RFC 3161 timestamp, and an optional
-transparency-log anchor (Rekor) are the designed evidence layer and a verifiable
-library (`audit/evidence.py`), but in v0 the running server does not produce
-checkpoints automatically, the default `LocalStamper` is keyless self-attestation,
-and the real RFC 3161 backend is not implemented. So v0 tamper-evidence rests on the
-hash chain plus, when an audit file is configured, operating-system append-only
-storage (`chattr +a` or WORM); wiring
-runtime anchoring and a non-forgeable stamper is tracked as BL-076 (with BL-050 for
-tail-truncation detection). See ADR-0008 and ADR-0015.
+A periodic Merkle root (RFC 6962 domain separation), an RFC 3161 timestamp, and an
+optional transparency-log anchor (Rekor) are the designed evidence layer and a
+verifiable library (`audit/evidence.py`), but in v0 the running server does not
+produce checkpoints automatically, the default `LocalStamper` is keyless
+self-attestation, and the real RFC 3161 backend is not implemented. So v0
+tamper-evidence rests on the hash chain plus, when an audit file is configured,
+operating-system append-only storage (`chattr +a` or WORM); wiring runtime anchoring
+and a non-forgeable stamper is tracked as BL-076 (with BL-050 for tail-truncation
+detection). See ADR-0008 and ADR-0015.
 
 ## Reporting
 

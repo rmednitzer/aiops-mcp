@@ -75,9 +75,8 @@ here for honesty and tracked in the backlog:
   raises `NotImplementedError`. v0 tamper-evidence rests on the hash chain plus
   operating-system append-only storage when an audit file is configured
   (`PRAXIS_AUDIT_PATH`; with no path, or on a file-open failure, records go to
-  stderr); wiring runtime
-  anchoring and a non-forgeable stamper is tracked as BL-076 (with BL-050 for
-  tail-truncation detection).
+  stderr); wiring runtime anchoring and a non-forgeable stamper is tracked as BL-076
+  (with BL-050 for tail-truncation detection).
 - The SQLite store file is created with the default umask, not `0o600`, so
   restricted facts may be group or world readable on a shared host (BL-079); wrapped
   actuation subprocesses inherit the full server environment, including unrelated

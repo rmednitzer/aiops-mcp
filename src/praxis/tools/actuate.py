@@ -37,21 +37,27 @@ _ADAPTERS: dict[str, ActuationAdapter] = {
 }
 
 AdapterName = Literal["ansible", "opentofu", "runbook", "ssh", "talosctl"]
-# The Literal is the advertised enum; keep it in lockstep with the adapter table so a
-# new adapter cannot be reachable without appearing in the schema. Enforced at import
-# (a raise, not an assert, so it holds under `python -O`).
+HostTypeName = Literal["ubuntu", "talos", "windows", "cloud"]
+# The Literals are the advertised enums; keep them in lockstep with their source of
+# truth so a new adapter or host type cannot be reachable without appearing in the
+# schema. Enforced at import (a raise, not an assert, so it holds under `python -O`).
 if set(get_args(AdapterName)) != set(_ADAPTERS):  # pragma: no cover - import-time invariant
     raise RuntimeError("AdapterName Literal must match the _ADAPTERS table")
+if set(get_args(HostTypeName)) != {h.value for h in HostType}:  # pragma: no cover
+    raise RuntimeError("HostTypeName Literal must match HostType values")
 
 
 class RunActionArgs(ToolArgs):
     adapter: AdapterName
     host: str = Field(min_length=1)
-    host_type: HostType
+    # A Literal of the host_type values (strict-mode and JSON friendly); mapped to the
+    # HostType enum in the handler.
+    host_type: HostTypeName
     action: str = Field(min_length=1)
     ssh_alias: str | None = None
-    nodes: tuple[str, ...] = ()
-    endpoints: tuple[str, ...] = ()
+    # JSON arrays decode to lists; the handler converts to the tuples HostInfo holds.
+    nodes: list[str] = Field(default_factory=list)
+    endpoints: list[str] = Field(default_factory=list)
     dry_run: bool = True
     approval_token: str | None = None
 
@@ -60,10 +66,10 @@ def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
     adapter = _ADAPTERS[args.adapter]
     host = HostInfo(
         name=args.host,
-        host_type=args.host_type,
+        host_type=HostType(args.host_type),
         ssh_alias=args.ssh_alias,
-        nodes=args.nodes,
-        endpoints=args.endpoints,
+        nodes=tuple(args.nodes),
+        endpoints=tuple(args.endpoints),
     )
     token = args.approval_token
 

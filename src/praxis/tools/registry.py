@@ -24,10 +24,13 @@ class ToolArgs(BaseModel):
     """Base model for a tool's validated input.
 
     Unknown arguments are rejected (``extra='forbid'``) so an unexpected field at the
-    boundary fails closed instead of being silently ignored.
+    boundary fails closed instead of being silently ignored. Validation is strict
+    (``strict=True``): no type coercion, so runtime acceptance matches the advertised
+    JSON Schema exactly (a JSON ``"false"`` string is not silently read as the boolean
+    ``false``), keeping the model a true single source of truth for the boundary.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 ToolHandler = Callable[[Any, ServerContext], str]
@@ -113,7 +116,9 @@ class ToolRegistry:
     def call(self, name: str, arguments: dict[str, object], ctx: ServerContext) -> str:
         spec = self._specs.get(name)
         if spec is None:
-            raise KeyError(f"unknown tool: {name}")
+            # A caller-facing boundary error: report it as a bounded ToolError, the
+            # same shape as an invalid-argument rejection, not a raw KeyError.
+            raise ToolError(f"unknown tool: {name!r}")
         try:
             model = spec.args_model.model_validate(arguments)
         except ValidationError as exc:

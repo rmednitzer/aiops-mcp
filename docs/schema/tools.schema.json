@@ -165,19 +165,6 @@
       },
       "description": "Run a tier-gated actuation via an adapter (DRY_RUN, approve, execute).",
       "inputSchema": {
-        "$defs": {
-          "HostType": {
-            "description": "The actuation paradigm of a host. Gates which adapter is legal (SEC-5).",
-            "enum": [
-              "ubuntu",
-              "talos",
-              "windows",
-              "cloud"
-            ],
-            "title": "HostType",
-            "type": "string"
-          }
-        },
         "additionalProperties": false,
         "properties": {
           "action": {
@@ -214,7 +201,6 @@
             "type": "boolean"
           },
           "endpoints": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -227,10 +213,16 @@
             "type": "string"
           },
           "host_type": {
-            "$ref": "#/$defs/HostType"
+            "enum": [
+              "ubuntu",
+              "talos",
+              "windows",
+              "cloud"
+            ],
+            "title": "Host Type",
+            "type": "string"
           },
           "nodes": {
-            "default": [],
             "items": {
               "type": "string"
             },

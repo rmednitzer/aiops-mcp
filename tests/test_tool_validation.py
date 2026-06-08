@@ -71,6 +71,31 @@ def test_fact_history_requires_subject(tmp_path: Path) -> None:
         _registry().call("fact_history", {}, ctx)
 
 
+def test_strict_mode_rejects_coerced_types(tmp_path: Path) -> None:
+    # Strict validation: a JSON string is not a boolean, so it is rejected rather than
+    # silently coerced, keeping runtime acceptance identical to the advertised schema.
+    ctx = _ctx(tmp_path)
+    with pytest.raises(ToolError):
+        _registry().call(
+            "run_action",
+            {
+                "adapter": "ssh",
+                "host": "h",
+                "host_type": "ubuntu",
+                "action": "x",
+                "dry_run": "false",
+            },
+            ctx,
+        )
+
+
+def test_unknown_tool_is_tool_error(tmp_path: Path) -> None:
+    # An unknown tool is a bounded ToolError at the boundary, not a raw KeyError.
+    ctx = _ctx(tmp_path)
+    with pytest.raises(ToolError, match="unknown tool"):
+        _registry().call("does_not_exist", {}, ctx)
+
+
 def test_valid_arguments_dispatch(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     # A well-formed read call validates and returns a result (no raise).

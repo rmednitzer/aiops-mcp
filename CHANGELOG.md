@@ -182,6 +182,18 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   observed facts to the model, so the MCP annotation now reflects that. The
   generated `docs/schema/tools.schema.json` is regenerated accordingly.
 
+### Fixed
+- SBOM workflow (`.github/workflows/sbom.yml`): the CycloneDX generator step failed
+  with `cyclonedx-py: error: unrecognized arguments: --outfile`. The
+  `cyclonedx-py environment` subcommand's output flag is `--output-file`, not
+  `--outfile`, so the job had failed on every push to main since the workflow was
+  added. It runs only on push to main and on a weekly schedule (never on
+  pull-request checks), so the breakage never surfaced on a green PR. Corrected the
+  flag; pinned `cyclonedx-bom==7.3.0` so a future unpinned major bump cannot
+  silently change the CLI surface (closes the `cyclonedx-bom` pin in BL-060); and aligned the
+  SBOM runner to Python 3.12 (the `requires-python` floor and the ci.yml matrix)
+  rather than a bleeding-edge interpreter (BL-071).
+
 ### Dependencies
 - Adopted `pydantic` (MIT) as a core runtime dependency for declarative validation at
   the external-input boundary, and clarified the dependency posture (ADR-0014,

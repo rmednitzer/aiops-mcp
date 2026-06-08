@@ -81,8 +81,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 - Tamper-evident evidence (BL-011) under `praxis.audit`: an RFC 6962 Merkle tree
   (domain-separated), periodic Merkle checkpoints chained over the audit log, RFC
   3161 stamping behind a fail-closed `Stamper` interface (self-contained
-  `LocalStamper` default; real TSA staged), `verify_evidence` (hash chain + Merkle
-  + checkpoint chain + token, fail-closed), a session header binding the
+  `LocalStamper` default; real TSA staged), `verify_evidence` (hash chain + Merkle +
+  checkpoint chain + token, fail-closed), a session header binding the
   server-binary hash into the trail (wired into server startup), and a
   `scripts/verify_audit.py` CLI.
 - CI (BL-013): hardened workflows with SHA-pinned actions and least-privilege

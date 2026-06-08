@@ -3,8 +3,8 @@
 **praxis**, the unified AI-operations MCP.
 
 > Status: v0, stdio only, single-operator, in iterative security hardening.
-> `make ci-success` is green (ruff + mypy strict + pytest + the schema-drift guard
-> + the dispatch eval gate) and each of the nine invariants has a passing test, but
+> `make ci-success` is green (ruff + mypy strict + pytest + the schema-drift guard +
+> the dispatch eval gate) and each of the nine invariants has a passing test, but
 > a deep review (ADR-0015) found that several controls the design treats as
 > load-bearing are specified and partly built yet not fully wired into the running
 > server. Read "Maturity and honest limitations" below and `LIMITATIONS.md` before

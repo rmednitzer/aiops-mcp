@@ -5,6 +5,16 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 
 ## [Unreleased]
 
+### Changed
+- Documentation honesty pass (ADR-0015): README, SECURITY, LIMITATIONS,
+  architecture, the compliance map, the STPA constraint table, the operate and
+  self-audit runbooks, and the deploy README now state the v0 enforcement gaps
+  plainly (the approval token is not yet human-binding, free-form shell floors at
+  T1, the read tools and `ingest_observation` bypass the audited path, and the
+  credential broker, budgets, kill-switch actuator, and runtime audit anchoring are
+  not yet wired). Appended factual audit notes to the immutable ADR-0004, ADR-0005,
+  and ADR-0008. No code or control changed.
+
 ### Added
 - ADR-0015 (Proposed): deep security and architecture review (2026-06) and the
   proposed remediation wave BL-072..BL-090. Records two architectural proposals

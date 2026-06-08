@@ -29,3 +29,13 @@ load-bearing traceability table required by ADR-0009.
   enforcement regresses.
 - The "Invariant" column ties each constraint back to the nine invariants in
   `CLAUDE.md`, so the invariant set and the STPA derivation stay one analysis.
+
+Enforcement-status caveat (ADR-0015, 2026-06-08): a named enforcement mechanism is
+not always fully wired in v0. SEC-2's single audited path does not yet cover the
+read tools or `ingest_observation` (BL-017, BL-062, BL-085); SEC-2 and SEC-6's
+approval is a reproducible token, not yet a human-binding nonce (BL-072, BL-084);
+SEC-8's `CredentialBroker` and `BudgetTracker` are not wired and the kill switch has
+no operator actuator (BL-049, BL-074, BL-075); SEC-9's Merkle and RFC 3161 anchoring
+is not produced at runtime (BL-076). The proving tests pass for what is wired; the
+gaps are tracked, not silently assumed closed. BL-089 adds the missing SEC coverage
+for UCA-4..7, UCA-10, UCA-12/13, and UCA-23.

@@ -60,3 +60,14 @@ Neutral: the tier of a given command can change as `patterns.py` evolves;
 
 - A fifth tier or a sub-tier is needed.
 - Mode semantics must vary per client (multi-operator; out of v0 scope).
+
+## Audit note (2026-06-08, ADR-0015)
+
+Decision 2 states that classification rounds up. In the v0 code this round-up only
+raises the tier when the command string matches a deny or tier pattern; an unmatched
+command stays at its declared base tier. Because the SSH adapter accepts a free-form
+remote command at `base_tier=T1`, a destructive command the patterns do not
+recognise can execute at T1 without approval, so the round-up is not a completeness
+guarantee for free-form shell. Flooring arbitrary execution at T2 and widening the
+patterns is proposed in ADR-0015 and tracked as BL-073. This note records the gap;
+it does not amend the decision.

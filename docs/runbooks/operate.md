@@ -18,7 +18,9 @@ deliberate T3 with a typed token.
 ## Observe (read, T0)
 
 - `ingest_observation` parses captured telemetry (osquery/aide/probe/talos) into
-  observed facts. Note: this arms the trifecta gate for the session (SEC-4).
+  observed facts. Note: this arms the trifecta gate for the session (SEC-4). It
+  writes facts and currently bypasses the audited path, so it is not individually
+  audit-logged (BL-085).
 - `query_facts` / `fact_history` read the bitemporal model.
 - `drift_scan` diffs observed facts against the known-good baseline.
 
@@ -37,11 +39,22 @@ Trifecta note (SEC-4): once a session has ingested untrusted content (any
 `approval_token`; a bare token string is rejected. The dry-run response surfaces
 the token to use.
 
+Honest caveat (v0): the `approval_token` is a deterministic function of the request
+and is handed back by the dry run, so an automated caller can reproduce it. It
+confirms intent but is not yet a robust human gate against an autonomous agent, and
+for a T2+ action the trifecta check currently passes on token presence before the
+executor validates it. A server-issued, single-use, out-of-band nonce is tracked as
+BL-072 (BL-084 for the presence-versus-validity check).
+
 ## Stop everything
 
 Trip the kill switch (in-process `ExecutionContext.kill_switch.trip()`), or set
 the mode to `readonly` and restart. The kill switch clears only by explicit
-operator action.
+operator action. v0 note: there is no operator-facing kill tool or signal handler,
+so tripping the switch needs in-process code and the `CredentialBroker` whose
+`kill_all` would trip it is not wired; setting `PRAXIS_MODE=readonly` and restarting
+is the practical stop today. An operator actuator is tracked as BL-075 (with
+BL-049).
 
 ## Networked (HTTP) deployment
 

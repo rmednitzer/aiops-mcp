@@ -1,7 +1,7 @@
 # AGENTS.md
 
-Short operating spec for `aiops-mcp` (product: `praxis`). The full build brief is
-`docs/first-session.md`; the behavior overlay is `CLAUDE.md`.
+Short operating spec for `aiops-mcp` (product: `praxis`). The design reference is
+`docs/architecture.md`; the behavior overlay is `CLAUDE.md`.
 
 ## One-line
 

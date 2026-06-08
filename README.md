@@ -6,7 +6,7 @@
 > + pytest + the schema-drift guard + the dispatch eval gate), and each of the nine
 > invariants has a passing test. The repository is now in iterative security
 > hardening (audit waves ADR-0011 through ADR-0013; open items in
-> `docs/backlog.md`). The original build brief is `docs/first-session.md`.
+> `docs/backlog.md`). The design reference is `docs/architecture.md`.
 
 ## What it is
 
@@ -50,12 +50,12 @@ python -m praxis             # serve over stdio (JSON-RPC 2.0); refuses unsafe H
 ```
 
 Configuration is `PRAXIS_`-prefixed and bound once at import (`src/praxis/config.py`).
-For the design rationale, the nine non-negotiable invariants, and the build sequence,
-read `docs/first-session.md`.
+For the architecture and layout see `docs/architecture.md`; the nine non-negotiable
+invariants are in `CLAUDE.md`.
 
 ## Layout
 
-See `docs/first-session.md` for the full tree. The spine: `src/praxis/execution/`
+See `docs/architecture.md` for the full tree. The spine: `src/praxis/execution/`
 (the single audited executor), `src/praxis/store/` (the pluggable bitemporal
 store), `src/praxis/drift/` (the drift engine), `src/praxis/actuation/` (tool
 adapters), `src/praxis/tools/` (the MCP surface), and `docs/{adr,stpa}/` plus

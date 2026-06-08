@@ -1,8 +1,8 @@
 # CLAUDE.md
 
 Collaboration guide for Claude Code working in `aiops-mcp` (product: `praxis`).
-Read `docs/first-session.md` first; it is the full build brief. This file is the
-behavior overlay. `AGENTS.md` is the short operating spec.
+This file is the behavior overlay. `docs/architecture.md` is the design reference
+(what the system is and how it is layered); `AGENTS.md` is the short operating spec.
 
 ## What this is
 

@@ -21,8 +21,8 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0012](0012-internal-audit-2026-06.md) | Internal deep audit (2026-06) and remediation wave (BL-037..BL-061) | Accepted |
 | [0013](0013-actuation-and-input-hardening-2026-06.md) | Third audit wave (2026-06): actuation, audit, and untrusted-input hardening (BL-018/020/021/034/047/048/054/055/057/058/059 resolved; BL-063..BL-068) | Accepted |
 
-ADRs 0002-0010 were written before the code that depends on each (build-sequence
-step 0 in `docs/first-session.md`) and accepted as the basis for that code.
+ADRs 0002-0010 were written governance-first, before the code that depends on each,
+and accepted as the basis for that code.
 ADR-0011 is a post-hoc audit wave: it records cross-fleet findings, each validated
 against a trusted source, accepted as a hardening backlog (not yet implemented).
 ADR-0012 and ADR-0013 are internal audit waves that remediate a reproduced cluster

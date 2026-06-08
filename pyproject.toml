@@ -10,7 +10,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 authors = [{ name = "Roman Mednitzer" }]
-dependencies = []
+# Runtime dependencies are intentionally minimal and license-vetted. Self-contained
+# means no coupling to the sibling fleet repositories (ADR-0001), not zero PyPI use:
+# pydantic (MIT) backs declarative validation at the external-input boundary, and
+# psycopg is the optional production store backend (ADR-0014).
+dependencies = ["pydantic>=2,<3"]
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest"]
@@ -47,6 +51,7 @@ python_version = "3.12"
 strict = true
 mypy_path = "src"
 files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
 
 # psycopg is an optional extra (BL-006); the package must type-check without it.
 [[tool.mypy.overrides]]

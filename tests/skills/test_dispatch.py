@@ -109,3 +109,14 @@ def test_load_skill_rejects_non_utf8(tmp_path: Path) -> None:
     # Invalid UTF-8 bytes must be a clean load failure, not an uncaught decode crash.
     (bundle / "SKILL.md").write_bytes(b"---\nname: s\ndescription: \xff\xfe\nkind: tool\n---\n")
     assert load_skill(bundle / "SKILL.md") is None
+
+
+def test_load_skill_rejects_invalid_kind(tmp_path: Path) -> None:
+    bundle = tmp_path / "s"
+    bundle.mkdir()
+    # The frontmatter model's kind is a Literal; an out-of-vocabulary kind is a clean
+    # load failure (None), not a silently-accepted manifest (ADR-0014).
+    (bundle / "SKILL.md").write_text(
+        "---\nname: s\ndescription: d\nkind: wizardry\n---\nbody", encoding="utf-8"
+    )
+    assert load_skill(bundle / "SKILL.md") is None

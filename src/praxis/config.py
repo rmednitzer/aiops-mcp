@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+
+from pydantic import BaseModel, ConfigDict
 
 from praxis.execution.policy import Mode
 
@@ -21,8 +22,17 @@ class TransportError(Exception):
     """Raised when a transport configuration is unsafe. Fails closed."""
 
 
-@dataclass(frozen=True)
-class Config:
+class Config(BaseModel):
+    """The validated server configuration (ADR-0006, ADR-0014).
+
+    A frozen, typed model: ``load_config`` parses the PRAXIS_ environment leniently
+    (never raising at import) and constructs this. Deferred safety checks (port range,
+    the non-loopback opt-in) stay in ``validate_transport``, the fail-closed gate run
+    before any bind, so they are not duplicated as construction-time validators.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
     transport: str = "stdio"
     http_host: str = "127.0.0.1"
     http_port: int = 8765

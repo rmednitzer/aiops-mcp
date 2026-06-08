@@ -182,6 +182,29 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   observed facts to the model, so the MCP annotation now reflects that. The
   generated `docs/schema/tools.schema.json` is regenerated accordingly.
 
+### Dependencies
+- Adopted `pydantic` (MIT) as a core runtime dependency for declarative validation at
+  the external-input boundary, and clarified the dependency posture (ADR-0014,
+  BL-069, BL-070):
+  - The self-contained rule means no coupling to a sibling fleet repository, not
+    "no third-party libraries". `pydantic` joins the optional `psycopg`; the
+    execution core (`patterns`/`policy`/`redaction`/`audit`/`contract`/`runner`) and
+    the fact model stay dependency-free. An appended audit note on the immutable
+    ADR-0001 records the clarification.
+  - Each MCP tool now has a typed args model (`ToolArgs` subclass) that is the single
+    source of truth for both the advertised JSON Schema and the parse/validate step.
+    The registry validates a `tools/call` argument set through the model at one
+    boundary: an out-of-shape, missing, unknown-enum, or unexpected (`extra='forbid'`)
+    argument is rejected as a bounded tool error instead of reaching a handler. The
+    committed `docs/schema/tools.schema.json` is generated from the models.
+  - `config.Config` is a frozen pydantic model; `validate_transport` remains the
+    fail-closed transport authority and import stays non-raising.
+  - The SKILL.md frontmatter is validated through a `SkillFrontmatter` model (also the
+    `skill-manifest.schema.json` source); the hardened parser (BL-057) is retained and
+    validated, not replaced.
+  - The over-absolute "implements everything itself" wording is corrected across
+    `CLAUDE.md`, `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, and `docs/architecture.md`.
+
 ### Removed
 - Retired `docs/first-session.md` (the one-time build brief, now that v0 is built).
   Its durable content (the mission, the strict layering, the repository layout, and

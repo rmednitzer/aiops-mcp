@@ -1,25 +1,55 @@
-"""Skill manifests and a minimal SKILL.md frontmatter parser (ADR-0010).
+"""Skill manifests and a minimal SKILL.md frontmatter parser (ADR-0010, ADR-0014).
 
-A skill is a bundle: ``SKILL.md`` with simple YAML-style frontmatter (name,
-description, kind, optional inputs/outputs) plus optional ``references/``. To stay
-self-contained, the frontmatter parser handles the flat ``key: value`` subset this
-project uses; no YAML dependency is taken. Untrusted bundles are loaded with
-``allow_contract=False``: this loader never imports or executes bundle code.
+A skill is a bundle: ``SKILL.md`` with simple ``key: value`` frontmatter (name,
+description, kind, optional inputs/outputs) plus optional ``references/``. The
+frontmatter is split by a hardened parser (exact fence, size caps, no indented or
+duplicate keys) and then validated through the ``SkillFrontmatter`` pydantic model,
+which is also the single source of truth for the published JSON Schema. Untrusted
+bundles are loaded with ``allow_contract=False``: this loader never imports or
+executes bundle code.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, get_args
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 HOST_KNOWLEDGE = "host-knowledge"
 TOOL = "tool"
-KINDS = frozenset({HOST_KNOWLEDGE, TOOL})
+SkillKind = Literal["host-knowledge", "tool"]
+KINDS = frozenset(get_args(SkillKind))
 
 # A SKILL.md is a small header plus prose. These caps defend the parser against a
 # crafted or runaway bundle without affecting any legitimate skill (BL-057).
 _MAX_SKILL_BYTES = 1 * 1024 * 1024
 _MAX_FRONTMATTER_BYTES = 64 * 1024
+
+
+class SkillFrontmatter(BaseModel):
+    """The validated SKILL.md frontmatter contract (and the published schema source).
+
+    Unknown frontmatter keys are ignored (a bundle may carry extra metadata) and
+    string values are whitespace-stripped, matching the loader's prior behaviour.
+    """
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True, title="SkillManifest")
+
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    kind: SkillKind
+    inputs: tuple[str, ...] = ()
+    outputs: tuple[str, ...] = ()
+
+    @field_validator("inputs", "outputs", mode="before")
+    @classmethod
+    def _split_csv(cls, value: object) -> object:
+        # Frontmatter carries inputs/outputs as a comma-separated string.
+        if isinstance(value, str):
+            return tuple(item.strip() for item in value.split(",") if item.strip())
+        return value
 
 
 @dataclass(frozen=True)
@@ -72,10 +102,6 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return meta, "\n".join(lines[end + 1 :])
 
 
-def _csv(value: str) -> tuple[str, ...]:
-    return tuple(item.strip() for item in value.split(",") if item.strip())
-
-
 def load_skill(skill_md: Path, *, allow_contract: bool = False) -> SkillManifest | None:
     """Load one bundle's manifest. ``allow_contract`` is accepted for API parity but
     is never honoured here: this loader does not execute bundle code."""
@@ -91,16 +117,17 @@ def load_skill(skill_md: Path, *, allow_contract: bool = False) -> SkillManifest
         # crash: the decode boundary is part of the loader contract (BL-057).
         return None
     meta, _ = parse_frontmatter(text)
-    name = meta.get("name", "").strip()
-    description = meta.get("description", "").strip()
-    kind = meta.get("kind", "").strip()
-    if not name or not description or kind not in KINDS:
+    try:
+        front = SkillFrontmatter.model_validate(meta)
+    except ValidationError:
+        # Missing/invalid required fields (name, description, kind) are a load
+        # failure, surfaced as None rather than a raised exception.
         return None
     return SkillManifest(
-        name=name,
-        description=description,
-        kind=kind,
+        name=front.name,
+        description=front.description,
+        kind=front.kind,
         path=str(skill_md.parent),
-        inputs=_csv(meta.get("inputs", "")),
-        outputs=_csv(meta.get("outputs", "")),
+        inputs=front.inputs,
+        outputs=front.outputs,
     )

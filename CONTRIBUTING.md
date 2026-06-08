@@ -32,5 +32,9 @@
 
 ## Self-contained rule
 
-No imports from, or runtime dependencies on, any other repository. If you need a
+No imports from, or runtime coupling to, any sibling fleet repository. If you need a
 pattern from elsewhere, reimplement it natively and record the decision in an ADR.
+This does not forbid third-party PyPI libraries: they are permitted under license and
+supply-chain review, kept minimal and pinned, and excluded from the execution core
+(ADR-0001 as clarified by ADR-0014; the current runtime deps are pydantic and the
+optional psycopg).

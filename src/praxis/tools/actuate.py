@@ -9,6 +9,9 @@ never the output body in the audit (SEC-9).
 from __future__ import annotations
 
 import json
+from typing import Literal, get_args
+
+from pydantic import Field
 
 from praxis.actuation import (
     AnsibleAdapter,
@@ -23,7 +26,7 @@ from praxis.execution.contract import Approval, ApprovalError
 from praxis.execution.patterns import Tier
 from praxis.execution.runner import expected_token
 from praxis.model.facts import HostType
-from praxis.tools.registry import ToolRegistry, ToolSpec
+from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 
 _ADAPTERS: dict[str, ActuationAdapter] = {
     "ssh": SSHAdapter(),
@@ -33,61 +36,46 @@ _ADAPTERS: dict[str, ActuationAdapter] = {
     "runbook": RunbookAdapter(),
 }
 
-_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {
-        "adapter": {"type": "string", "enum": sorted(_ADAPTERS)},
-        "host": {"type": "string"},
-        "host_type": {"type": "string", "enum": [h.value for h in HostType]},
-        "action": {"type": "string"},
-        "ssh_alias": {"type": "string"},
-        "nodes": {"type": "array", "items": {"type": "string"}},
-        "endpoints": {"type": "array", "items": {"type": "string"}},
-        "dry_run": {"type": "boolean", "default": True},
-        "approval_token": {"type": "string"},
-    },
-    "required": ["adapter", "host", "host_type", "action"],
-}
+AdapterName = Literal["ansible", "opentofu", "runbook", "ssh", "talosctl"]
+# The Literal is the advertised enum; keep it in lockstep with the adapter table so a
+# new adapter cannot be reachable without appearing in the schema. Enforced at import
+# (a raise, not an assert, so it holds under `python -O`).
+if set(get_args(AdapterName)) != set(_ADAPTERS):  # pragma: no cover - import-time invariant
+    raise RuntimeError("AdapterName Literal must match the _ADAPTERS table")
 
 
-def _str_list(value: object) -> tuple[str, ...]:
-    if isinstance(value, list):
-        return tuple(str(item) for item in value)
-    return ()
+class RunActionArgs(ToolArgs):
+    adapter: AdapterName
+    host: str = Field(min_length=1)
+    host_type: HostType
+    action: str = Field(min_length=1)
+    ssh_alias: str | None = None
+    nodes: tuple[str, ...] = ()
+    endpoints: tuple[str, ...] = ()
+    dry_run: bool = True
+    approval_token: str | None = None
 
 
-def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
-    adapter = _ADAPTERS.get(str(args.get("adapter", "")))
-    if adapter is None:
-        return json.dumps({"error": f"unknown adapter: {args.get('adapter')!r}"})
-    try:
-        host_type = HostType(str(args.get("host_type", "")))
-    except ValueError:
-        return json.dumps({"error": f"unknown host_type: {args.get('host_type')!r}"})
-
-    alias = args.get("ssh_alias")
+def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
+    adapter = _ADAPTERS[args.adapter]
     host = HostInfo(
-        name=str(args.get("host", "")),
-        host_type=host_type,
-        ssh_alias=alias if isinstance(alias, str) else None,
-        nodes=_str_list(args.get("nodes")),
-        endpoints=_str_list(args.get("endpoints")),
+        name=args.host,
+        host_type=args.host_type,
+        ssh_alias=args.ssh_alias,
+        nodes=args.nodes,
+        endpoints=args.endpoints,
     )
-    action = str(args.get("action", ""))
-    dry_run = bool(args.get("dry_run", True))
-    token = args.get("approval_token")
+    token = args.approval_token
 
-    request = adapter.build_request(host, action, dry_run=dry_run)
+    request = adapter.build_request(host, args.action, dry_run=args.dry_run)
     decision = ctx.execution.policy.check(
         request.tool, request.command, base_tier=request.base_tier
     )
-    approval = (
-        Approval(action_id=request.action_id(), token=token) if isinstance(token, str) else None
-    )
+    approval = Approval(action_id=request.action_id(), token=token) if token is not None else None
 
     # Trifecta containment (SEC-4) applies to a real run only: a DRY_RUN is a
     # non-executing preview, and it is the step that yields the approval token.
-    if not dry_run:
+    if not args.dry_run:
         approved = approval is not None
         if ctx.untrusted_ingested and decision.tier < Tier.T2:
             # Sub-T2 actions are not approval-gated by the executor, so the trifecta
@@ -114,7 +102,7 @@ def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
         )
 
     result = adapter.actuate(
-        host, action, context=ctx.execution, dry_run=dry_run, approval=approval
+        host, args.action, context=ctx.execution, dry_run=args.dry_run, approval=approval
     )
     body: dict[str, object] = {
         "ok": result.ok,
@@ -124,7 +112,7 @@ def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
         "output_len": result.output_len,
         "output": result.output,
     }
-    if dry_run:
+    if args.dry_run:
         # Surface exactly what the operator must supply to approve the real run, so
         # the DRY_RUN -> approve -> execute flow is operable over MCP (SEC-6).
         body["action_id"] = request.action_id()
@@ -134,12 +122,12 @@ def _run_action(args: dict[str, object], ctx: ServerContext) -> str:
 
 def register(registry: ToolRegistry) -> None:
     registry.register(
-        ToolSpec(
+        tool_spec(
             name="run_action",
             description="Run a tier-gated actuation via an adapter (DRY_RUN, approve, execute).",
             read_only=False,
             destructive=True,
-            input_schema=_SCHEMA,
+            args_model=RunActionArgs,
             handler=_run_action,
         )
     )

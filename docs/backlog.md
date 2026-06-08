@@ -74,3 +74,5 @@ XS, S, M, L.
 | BL-066 | Self-containment: remove the out-of-tree prototype reference from `context.py` (no sibling repo named in code or docs) | XS | resolved | 0013 |
 | BL-067 | Config: strip whitespace from `PRAXIS_HTTP_HOST` so a `"127.0.0.1\n"` value is recognised as loopback; empty defaults to loopback (residual of BL-060) | XS | resolved | 0013 |
 | BL-068 | Store: add a `seq` identity/uniqueness so the `MAX(seq)+1` read cannot race across two store instances on one file (residual of BL-054) | S | open | 0013 |
+| BL-069 | Clarify the self-contained rule (no coupling to sibling fleet repos, not anti-PyPI); record ADR-0014 and an appended audit note on ADR-0001; correct the over-absolute "implements everything itself" wording across the docs | S | resolved | 0014 |
+| BL-070 | Adopt pydantic at the external-input boundary (MCP tool arguments, config, SKILL.md frontmatter) as the single source of truth for the JSON Schema and the parse/validate step; keep the execution core dependency-free | M | resolved | 0014 |

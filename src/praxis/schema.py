@@ -11,22 +11,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from praxis.skills.manifest import KINDS
+from praxis.skills.manifest import SkillFrontmatter
 
-_SKILL_MANIFEST_SCHEMA: dict[str, object] = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "SkillManifest",
-    "type": "object",
-    "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "kind": {"type": "string", "enum": sorted(KINDS)},
-        "inputs": {"type": "array", "items": {"type": "string"}},
-        "outputs": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["name", "description", "kind"],
-    "additionalProperties": True,
-}
+
+def _skill_manifest_schema() -> dict[str, object]:
+    # Generated from the pydantic frontmatter model (one source of truth, ADR-0014).
+    return dict(SkillFrontmatter.model_json_schema())
 
 
 def _tools_manifest() -> dict[str, object]:
@@ -41,7 +31,7 @@ def _tools_manifest() -> dict[str, object]:
 
 def build_schemas() -> dict[str, dict[str, object]]:
     return {
-        "skill-manifest.schema.json": _SKILL_MANIFEST_SCHEMA,
+        "skill-manifest.schema.json": _skill_manifest_schema(),
         "tools.schema.json": _tools_manifest(),
     }
 

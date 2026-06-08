@@ -26,7 +26,11 @@ bitemporal fleet model, a drift engine, and a tiered audited actuator.
 
 ## Hard rules
 
-1. No imports from or runtime dependency on any other repository. Self-contained.
+1. No imports from, or runtime coupling to, any sibling fleet repository
+   (self-contained). Third-party PyPI libraries are allowed under license and
+   supply-chain review, kept minimal, and excluded from the execution core; the
+   runtime deps are pydantic (boundary validation) and the optional psycopg
+   (ADR-0014).
 2. The nine invariants in `CLAUDE.md` are load-bearing. Each has a test.
 3. Governance traceability: decisions are ADRs, work is `BL-NNN`, safety and
    security requirements are STPA-derived.

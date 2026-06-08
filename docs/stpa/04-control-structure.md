@@ -34,7 +34,7 @@ boundaries are crossed at each arrow into an untrusted zone.
         +-----------+   +-----------+   +-------------+  +-----------+
         | Store     |   | Drift     |   | Skills      |  | Actuation |
         | (facts,   |   | engine    |   | registry +  |  | adapters  |
-        |  bitemporal)  | observe/  |   | dispatcher  |  | (per      |
+        | bitemporal|   | observe/  |   | dispatcher  |  | (per      |
         | audit log)|   | diff      |   |             |  | host_type)|
         +-----------+   +-----------+   +-------------+  +-----------+
                                                               |

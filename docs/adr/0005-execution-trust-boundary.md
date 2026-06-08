@@ -58,3 +58,17 @@ through `run`; they hold no execution authority of their own.
 - A class of operation genuinely cannot fit the linear pipeline.
 - Capability isolation (container/seccomp) is brought in-tree (currently an
   out-of-tree extension point per LIMITATIONS).
+
+## Audit note (2026-06-08, ADR-0015)
+
+Decision 2 states that every read tool and every act tool calls `run`. In v0 this
+holds for the act tools, but the read tools (`query_facts`, `fact_history`, and the
+collector and skill reads) and the state-writing `ingest_observation` tool reach the
+store directly without passing through `run()`, so they are not individually
+audited. `ingest_observation` is `read_only=False` and arms the trifecta latch, so
+the one untrusted-driven state write is currently unaudited. Routing these through
+the path is tracked as BL-017, BL-062, and BL-085. Decisions 4 and 5 (scoped
+credentials, the kill switch, bounded retry) are implemented in the execution
+package, but the `CredentialBroker` and `BudgetTracker` are not yet wired into the
+running server and the kill switch has no operator-facing actuator (BL-049, BL-074,
+BL-075). This note records the v0 gaps; it does not amend the decision.

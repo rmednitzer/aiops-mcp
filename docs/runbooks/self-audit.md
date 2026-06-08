@@ -14,6 +14,12 @@ Fail-closed: a broken hash chain, a Merkle mismatch, a broken checkpoint chain, 
 an invalid timestamp token all report `ok=False`. Investigate any failure as a
 potential L-3 (audit tamper) event before anything else.
 
+v0 note: the running server does not produce Merkle checkpoints or RFC 3161 tokens
+(BL-076), so unless checkpoints were generated out-of-band the verifier validates
+the per-entry hash chain and the Merkle, checkpoint, and timestamp checks have
+nothing to assert. Treat the hash chain plus operating-system append-only storage
+(`chattr +a` or WORM) as the v0 integrity control.
+
 ## 2. Invariant gates
 
 ```
@@ -47,3 +53,6 @@ load-bearing property, not a flake.
   file_integrity) are triaged, not stale.
 - Review outstanding credential grants (`CredentialBroker`): each should be
   least-privilege and still needed; revoke the rest. Confirm the kill switch works.
+  v0 note: the broker is not yet wired into the actuation path (BL-049) and the kill
+  switch has no operator-facing actuator (BL-075), so this step is aspirational until
+  those land.

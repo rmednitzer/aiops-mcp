@@ -6,29 +6,34 @@ use the original-language convention (Art. for EU law). This is a working mappin
 not legal advice. The authoritative control derivation is
 `docs/stpa/07-security-constraints.md`.
 
+Honesty note (ADR-0015, 2026-06-08): some rows name a control that is specified or
+partly built but not yet fully wired in v0. Those rows are annotated inline with the
+v0 gap and the tracking `BL-NNN`; treat them as in-progress, not delivered, until
+the item closes.
+
 ## EU AI Act (Regulation (EU) 2024/1689)
 
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
 | Art. 9 (risk management) | Conservative pre-execution tier classification | SEC-3 / inv 2 | `execution/patterns.py`, `execution/policy.py::classify` |
-| Art. 12 (logging and traceability) | Tamper-evident, append-only audit trail | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`, `audit/evidence.py` |
-| Art. 14 (human oversight) | Tiered HITL at T2+, typed token at T3 | SEC-2, SEC-6 / inv 6 | `execution/runner.py`, `drift/converge.py` |
+| Art. 12 (logging and traceability) | Tamper-evident, append-only audit trail | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`, `audit/evidence.py` (v0 gap: runtime Merkle/RFC 3161 anchoring not produced; BL-076) |
+| Art. 14 (human oversight) | Tiered HITL at T2+, typed token at T3 | SEC-2, SEC-6 / inv 6 | `execution/runner.py`, `drift/converge.py` (v0 gap: approval token reproducible by the caller, not yet human-binding; BL-072) |
 | Art. 15 (accuracy, robustness, cybersecurity) | Bitemporal source of truth; drift detection; SSRF filter | SEC-7, SEC-10 / inv 4, 7 | `store/sqlite.py`, `drift/`, `_ssrf.py` |
 
 ## NIS2 (Directive (EU) 2022/2555) and NISG 2026 (Austria)
 
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
-| Art. 21 (risk-management measures) | Least privilege; scoped, revocable credentials; kill switch | SEC-8 / inv 9 | `actuation/credentials.py`, `execution/runner.py::KillSwitch` |
+| Art. 21 (risk-management measures) | Least privilege; scoped, revocable credentials; kill switch | SEC-8 / inv 9 | `actuation/credentials.py`, `execution/runner.py::KillSwitch` (v0 gap: broker not wired; kill switch lacks an operator actuator; BL-049, BL-075) |
 | Art. 21 (asset and configuration management) | Drift detection against desired state | SEC-6 / inv 6 | `drift/engine.py`, `drift/sources.py` |
-| Art. 23 (reporting) | Complete, verifiable audit evidence for incident reconstruction | SEC-2, SEC-9 / inv 3 | `audit/verify_evidence`, `scripts/verify_audit.py` |
+| Art. 23 (reporting) | Complete, verifiable audit evidence for incident reconstruction | SEC-2, SEC-9 / inv 3 | `audit/verify_evidence`, `scripts/verify_audit.py` (v0 gap: no runtime checkpoints to verify unless generated out-of-band; BL-076) |
 
 ## Cyber Resilience Act (Regulation (EU) 2024/2847)
 
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
-| Annex I 1 (secure by design / default) | Default-deny posture; stdio default; fail-closed HTTP | SEC-7 / inv 7 | `config.py::validate_transport`, the Helm default-deny NetworkPolicy |
-| Annex I 1 (no known exploitable vulns; supply chain) | Digest-pinned image; SBOM; dependency review; SHA-pinned CI | inv (supply chain) | `deploy/`, `.github/workflows/{sbom,dependency-review}.yml` |
+| Annex I 1 (secure by design / default) | Default-deny posture; stdio default; fail-closed HTTP | SEC-7 / inv 7 | `config.py::validate_transport`, the Helm default-deny NetworkPolicy (v0 gap: NetworkPolicy ingress has no `from:` selector; BL-051) |
+| Annex I 1 (no known exploitable vulns; supply chain) | Digest-pinned image; SBOM; dependency review; SHA-pinned CI | inv (supply chain) | `deploy/`, `.github/workflows/{sbom,dependency-review}.yml` (v0 gap: placeholder image digest; SBOM enumerates the environment; BL-033, BL-088) |
 | Annex I 2 (vulnerability handling) | CodeQL, nightly fuzz, the STPA revisit triggers | SEC-1..SEC-10 | `.github/workflows/{codeql,fuzz}.yml` |
 
 ## GDPR (Regulation (EU) 2016/679) and Austrian DSG

@@ -62,3 +62,17 @@ layer works offline.
 
 - A regulator requires per-record qualified signatures.
 - Multi-writer concurrency outgrows the single supervisor.
+
+## Audit note (2026-06-08, ADR-0015)
+
+Decision 5 describes the evidence design (a periodic Merkle root, an RFC 3161
+timestamp, and an optional transparency-log anchor). In v0 the running server does
+not invoke checkpointing, so no Merkle root or timestamp token is produced at
+runtime; the default `LocalStamper` is keyless self-attestation and `Rfc3161Stamper`
+raises `NotImplementedError`. The live trail is the per-entry hash chain (Decision 2)
+plus, when `PRAXIS_AUDIT_PATH` is set, the owner-only `O_APPEND` file and any
+operating-system append-only control (`chattr +a` or WORM); with no path configured,
+or if the file sink cannot be opened, the logger writes to stderr. Decision 3's separate supervisor writer is also not yet a
+distinct process. Wiring runtime checkpointing and a non-forgeable stamper is tracked
+as BL-076, with BL-050 for tail-truncation detection. This note records the v0 gap;
+it does not amend the decision.

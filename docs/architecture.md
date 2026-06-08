@@ -57,17 +57,25 @@ the execution core. Each layer has one responsibility and a stable contract:
   is untrusted and is only compared, never interpreted as instructions.
 - Execution core (`src/praxis/execution/`): the single audited, tier-aware execution
   path (`patterns`, `policy`, `redaction`, `audit`, `contract`, `runner`).
-  `patterns.py` is the sole security-review file. Every read and act tool passes
-  through `run()`: classify, deny-first policy, redact audited args, HITL gate,
-  contract preconditions, execute, bounded error, hash and length, truncate, audit.
+  `patterns.py` is the sole security-review file. Every act tool passes through
+  `run()` (in v0 the read tools and `ingest_observation` reach the store directly;
+  routing them through the path is tracked as BL-017, BL-062, BL-085): classify,
+  deny-first policy, redact audited args, HITL gate, contract preconditions,
+  execute, bounded error, hash and length, truncate, audit.
 - Actuation adapters (`src/praxis/actuation/`): wrappers (never reinventions) for
   SSH/shell, OpenTofu, Ansible, runbook subprocess, and talosctl. Each enforces
   `host_type` as a HARD audited precondition, and follows DRY_RUN then approve then
-  execute, with typed tokens and one-target-at-a-time for T3.
+  execute, with typed tokens and one-target-at-a-time for T3. In v0 the approval
+  token is reproducible by the caller (a human-binding nonce is tracked as BL-072),
+  and free-form shell actuation floors at T1 pending the T2 floor in BL-073.
 - Audit and evidence (`src/praxis/audit/`): the per-entry hash chain plus a periodic
   Merkle root (RFC 6962 domain separation) plus RFC 3161 timestamping (fail-closed
   verify) plus an optional transparency-log anchor. The session header binds the
-  server-binary hash into the trail.
+  server-binary hash into the trail. The Merkle and RFC 3161 layer is built and
+  verifiable, but the running server does not produce checkpoints in v0 (the default
+  stamper is keyless; the real TSA is unimplemented), so runtime tamper-evidence is
+  the hash chain plus operating-system append-only storage when an audit file is
+  configured (`PRAXIS_AUDIT_PATH`; otherwise audit records go to stderr) (BL-076).
 
 ## Repository layout
 

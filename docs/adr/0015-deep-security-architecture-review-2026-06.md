@@ -98,6 +98,12 @@ and absent from the UCA table.
 Verification: R = reproduced by executing the code, V = verified against the exact
 source, S = static review (credible, not independently executed).
 
+Severity: P1 = a load-bearing invariant or control is defeated or unenforced in a
+reachable path, fix before the agentic or HTTP surface is relied on; P2 = a real
+weakness or hardening gap with a bounded or not-yet-wired blast radius; P3 =
+cosmetic, documentation, or defense in depth for a path not currently reached. P1
+corresponds to the Critical and High bands used in ADR-0012, P2 to Medium.
+
 | BL | Finding | Constraint | Sev | Verify | Status |
 |----|---------|-----------|-----|--------|--------|
 | 072 | Approval gate is not human-binding: `expected_token` is a deterministic function of the request and is returned in the `DRY_RUN` body, so an autonomous caller self-approves T2 and T3 | SEC-2, INV 6, 8 | P1 | V | open |

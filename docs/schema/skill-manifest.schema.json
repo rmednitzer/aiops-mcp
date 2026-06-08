@@ -1,14 +1,17 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": true,
+  "description": "The validated SKILL.md frontmatter contract (and the published schema source).\n\nUnknown frontmatter keys are ignored (a bundle may carry extra metadata) and\nstring values are whitespace-stripped, matching the loader's prior behaviour.",
   "properties": {
     "description": {
+      "minLength": 1,
+      "title": "Description",
       "type": "string"
     },
     "inputs": {
+      "default": [],
       "items": {
         "type": "string"
       },
+      "title": "Inputs",
       "type": "array"
     },
     "kind": {
@@ -16,15 +19,20 @@
         "host-knowledge",
         "tool"
       ],
+      "title": "Kind",
       "type": "string"
     },
     "name": {
+      "minLength": 1,
+      "title": "Name",
       "type": "string"
     },
     "outputs": {
+      "default": [],
       "items": {
         "type": "string"
       },
+      "title": "Outputs",
       "type": "array"
     }
   },

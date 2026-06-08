@@ -61,3 +61,12 @@ Neutral: the surrounding repositories remain reference material, not dependencie
 - The fleet grows past the point where the SQLite default backend is adequate.
 - A decision in ADR-0002 through ADR-0010 conflicts with this scope; in that case
   write a superseding ADR rather than editing this one.
+
+## Audit note (2026-06-08, ADR-0014)
+
+Decision 1's "implements everything itself" is scoped to other repositories: the
+self-contained rule forbids coupling to a sibling fleet repository (no imports from,
+no runtime dependency on another repo), not the use of well-licensed third-party PyPI
+libraries. The repository already declares `psycopg` as an optional dependency, and
+ADR-0014 adopts `pydantic` (MIT) at the external-input boundary under license and
+supply-chain review, while keeping the execution core dependency-free. See ADR-0014.

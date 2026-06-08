@@ -22,8 +22,10 @@ AI-operations MCP server. It fuses three things into one control plane:
    T0 to T3, gates state-changing actions behind human confirmation, and wraps the
    right tool per host type instead of reinventing it.
 
-It implements everything itself. It has zero runtime dependency on, and no imports
-from, any other repository.
+It is self-contained: no imports from, or runtime coupling to, any sibling fleet
+repository. Third-party libraries are kept minimal and license-vetted (pydantic for
+input validation; psycopg for the optional Postgres backend), and the execution core
+stays dependency-free (ADR-0001, ADR-0014).
 
 ## Strict layering
 

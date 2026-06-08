@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import json
 
+from pydantic import Field
+
 from praxis.context import ServerContext
 from praxis.drift import diff
 from praxis.model.facts import KNOWN_GOOD, OBSERVED
-from praxis.tools.registry import ToolRegistry, ToolSpec
-
-_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {
-        "subject": {"type": "string", "description": "Restrict the scan to one subject."}
-    },
-}
+from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 
 
-def _drift_scan(args: dict[str, object], ctx: ServerContext) -> str:
-    subject = args.get("subject")
-    subj = subject if isinstance(subject, str) else None
-    observed = ctx.store.list_active(subject=subj, fact_type=OBSERVED)
-    desired = ctx.store.list_active(subject=subj, fact_type=KNOWN_GOOD)
+class DriftScanArgs(ToolArgs):
+    subject: str | None = Field(default=None, description="Restrict the scan to one subject.")
+
+
+def _drift_scan(args: DriftScanArgs, ctx: ServerContext) -> str:
+    observed = ctx.store.list_active(subject=args.subject, fact_type=OBSERVED)
+    desired = ctx.store.list_active(subject=args.subject, fact_type=KNOWN_GOOD)
     findings = diff(observed, desired, flag_unexpected=True)
     rows = [
         {
@@ -37,12 +34,12 @@ def _drift_scan(args: dict[str, object], ctx: ServerContext) -> str:
 
 def register(registry: ToolRegistry) -> None:
     registry.register(
-        ToolSpec(
+        tool_spec(
             name="drift_scan",
             description="Compute drift findings: observed facts versus the known-good baseline.",
             read_only=True,
             destructive=False,
-            input_schema=_SCHEMA,
+            args_model=DriftScanArgs,
             handler=_drift_scan,
         )
     )

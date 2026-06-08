@@ -14,8 +14,10 @@ control plane:
 2. A drift engine (observed state vs desired state, with human-gated convergence).
 3. A tiered, audited actuator (the safe hands) exposed over MCP.
 
-The repo implements everything itself. It has zero runtime dependency on, and no
-imports from, any other repository.
+The repo is self-contained: no imports from, or runtime coupling to, any sibling
+fleet repository. Third-party libraries are kept minimal and license-vetted (pydantic
+for input validation; psycopg for the optional Postgres backend), and the
+execution core stays dependency-free (ADR-0001, ADR-0014).
 
 ## The nine invariants (do not weaken; each has a test)
 

@@ -4,36 +4,26 @@ from __future__ import annotations
 
 import json
 
+from pydantic import Field
+
 from praxis.context import ServerContext
-from praxis.tools.registry import ToolRegistry, ToolSpec
-
-_QUERY_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {
-        "subject": {"type": "string", "description": "Filter to one subject, e.g. host:axiom."},
-        "fact_type": {
-            "type": "string",
-            "description": "Filter to observed/desired/drift/known_good.",
-        },
-    },
-}
-_HISTORY_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {
-        "subject": {"type": "string"},
-        "predicate": {"type": "string"},
-    },
-    "required": ["subject"],
-}
+from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 
 
-def _query_facts(args: dict[str, object], ctx: ServerContext) -> str:
-    subject = args.get("subject")
-    fact_type = args.get("fact_type")
-    facts = ctx.store.list_active(
-        subject=subject if isinstance(subject, str) else None,
-        fact_type=fact_type if isinstance(fact_type, str) else None,
+class QueryFactsArgs(ToolArgs):
+    subject: str | None = Field(default=None, description="Filter to one subject, e.g. host:axiom.")
+    fact_type: str | None = Field(
+        default=None, description="Filter to observed/desired/drift/known_good."
     )
+
+
+class FactHistoryArgs(ToolArgs):
+    subject: str = Field(min_length=1)
+    predicate: str | None = None
+
+
+def _query_facts(args: QueryFactsArgs, ctx: ServerContext) -> str:
+    facts = ctx.store.list_active(subject=args.subject, fact_type=args.fact_type)
     rows: list[dict[str, object]] = [
         {"subject": f.subject, "predicate": f.predicate, "fact_type": f.fact_type, "value": f.value}
         for f in facts
@@ -42,12 +32,8 @@ def _query_facts(args: dict[str, object], ctx: ServerContext) -> str:
     return json.dumps({"count": len(rows), "facts": rows}, sort_keys=True)
 
 
-def _fact_history(args: dict[str, object], ctx: ServerContext) -> str:
-    subject = args.get("subject")
-    predicate = args.get("predicate")
-    if not isinstance(subject, str):
-        return json.dumps({"error": "subject is required"})
-    history = ctx.store.history(subject, predicate if isinstance(predicate, str) else None)
+def _fact_history(args: FactHistoryArgs, ctx: ServerContext) -> str:
+    history = ctx.store.history(args.subject, args.predicate)
     rows: list[dict[str, object]] = [
         {
             "predicate": f.predicate,
@@ -63,22 +49,22 @@ def _fact_history(args: dict[str, object], ctx: ServerContext) -> str:
 
 def register(registry: ToolRegistry) -> None:
     registry.register(
-        ToolSpec(
+        tool_spec(
             name="query_facts",
             description="List active fleet-state facts; filter by subject and/or fact_type.",
             read_only=True,
             destructive=False,
-            input_schema=_QUERY_SCHEMA,
+            args_model=QueryFactsArgs,
             handler=_query_facts,
         )
     )
     registry.register(
-        ToolSpec(
+        tool_spec(
             name="fact_history",
             description="Return the full recorded (bitemporal) history of facts for a subject.",
             read_only=True,
             destructive=False,
-            input_schema=_HISTORY_SCHEMA,
+            args_model=FactHistoryArgs,
             handler=_fact_history,
         )
     )

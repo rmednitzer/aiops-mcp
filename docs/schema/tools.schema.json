@@ -8,12 +8,23 @@
       },
       "description": "Compute drift findings: observed facts versus the known-good baseline.",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "description": "Restrict the scan to one subject.",
-            "type": "string"
+            "title": "Subject"
           }
         },
+        "title": "DriftScanArgs",
         "type": "object"
       },
       "name": "drift_scan"
@@ -25,17 +36,30 @@
       },
       "description": "Return the full recorded (bitemporal) history of facts for a subject.",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "predicate": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Predicate"
           },
           "subject": {
+            "minLength": 1,
+            "title": "Subject",
             "type": "string"
           }
         },
         "required": [
           "subject"
         ],
+        "title": "FactHistoryArgs",
         "type": "object"
       },
       "name": "fact_history"
@@ -47,6 +71,7 @@
       },
       "description": "Parse captured host telemetry into observed facts.",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "collector": {
             "enum": [
@@ -55,16 +80,30 @@
               "probe",
               "talos"
             ],
+            "title": "Collector",
             "type": "string"
           },
           "predicate": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Predicate"
           },
           "raw": {
             "description": "Raw tool output captured by a T0 read.",
+            "maxLength": 4194304,
+            "title": "Raw",
             "type": "string"
           },
           "subject": {
+            "minLength": 1,
+            "title": "Subject",
             "type": "string"
           }
         },
@@ -73,6 +112,7 @@
           "subject",
           "raw"
         ],
+        "title": "IngestArgs",
         "type": "object"
       },
       "name": "ingest_observation"
@@ -84,16 +124,36 @@
       },
       "description": "List active fleet-state facts; filter by subject and/or fact_type.",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "fact_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "description": "Filter to observed/desired/drift/known_good.",
-            "type": "string"
+            "title": "Fact Type"
           },
           "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "description": "Filter to one subject, e.g. host:axiom.",
-            "type": "string"
+            "title": "Subject"
           }
         },
+        "title": "QueryFactsArgs",
         "type": "object"
       },
       "name": "query_facts"
@@ -105,8 +165,11 @@
       },
       "description": "Run a tier-gated actuation via an adapter (DRY_RUN, approve, execute).",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "action": {
+            "minLength": 1,
+            "title": "Action",
             "type": "string"
           },
           "adapter": {
@@ -117,22 +180,36 @@
               "ssh",
               "talosctl"
             ],
+            "title": "Adapter",
             "type": "string"
           },
           "approval_token": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Token"
           },
           "dry_run": {
             "default": true,
+            "title": "Dry Run",
             "type": "boolean"
           },
           "endpoints": {
             "items": {
               "type": "string"
             },
+            "title": "Endpoints",
             "type": "array"
           },
           "host": {
+            "minLength": 1,
+            "title": "Host",
             "type": "string"
           },
           "host_type": {
@@ -142,16 +219,27 @@
               "windows",
               "cloud"
             ],
+            "title": "Host Type",
             "type": "string"
           },
           "nodes": {
             "items": {
               "type": "string"
             },
+            "title": "Nodes",
             "type": "array"
           },
           "ssh_alias": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ssh Alias"
           }
         },
         "required": [
@@ -160,6 +248,7 @@
           "host_type",
           "action"
         ],
+        "title": "RunActionArgs",
         "type": "object"
       },
       "name": "run_action"

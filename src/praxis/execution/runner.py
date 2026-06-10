@@ -3,10 +3,14 @@
 ``run`` is the one entry point through which every read tool and every act tool
 passes. Its pipeline is fixed and total:
 
-    kill switch -> redact audited args (contained) -> classify ->
+    redact audited args (contained) -> kill switch -> classify ->
     policy (deny-first) -> untrusted-latch arm -> approval/HITL + trifecta gate ->
     contract preconditions -> budget -> execute ->
     bounded error formatting -> hash + length -> truncate preview -> audit record
+
+Redaction runs first because every audit record, including the kill-switch denial
+itself, is built from the redacted args; it is contained (BL-077), so a redaction
+failure can never delay or mask the kill switch.
 
 Every call writes exactly one audit record, including denials and errors. Output
 bodies are never stored: the audit keeps the SHA-256 and the length of the full
@@ -305,7 +309,9 @@ def run(
             denied=True,
         )
 
-    # 0. Kill switch: checked on every call, before anything else (SEC-8).
+    # 2. Kill switch: checked on every call, before any decision or execution
+    #    (SEC-8). Only the contained arg redaction above runs earlier, because
+    #    this denial's own audit record is built from the redacted args.
     if context.kill_switch.is_tripped():
         reason = "kill switch engaged; execution disabled"
         return denied(refusal(reason), reason)
@@ -314,18 +320,18 @@ def run(
         reason = "argument redaction failed; call refused (BL-077)"
         return denied(refusal(reason), reason)
 
-    # 2. Classify + policy (deny-first, unconditional) (SEC-1, SEC-3).
+    # 3. Classify + policy (deny-first, unconditional) (SEC-1, SEC-3).
     decision = context.policy.check(request.tool, request.command, base_tier=request.base_tier)
     if not decision.allowed:
         return denied(decision, decision.reason)
 
-    # 3. Arm the session taint latch for a call that carries attacker-influenced
+    # 4. Arm the session taint latch for a call that carries attacker-influenced
     #    content, BEFORE the gate is evaluated, so the very first untrusted call
     #    is gated by its own taint: conservative, fail-closed (SEC-4; BL-083).
     if request.untrusted:
         context.taint.mark()
 
-    # 4. Approval / HITL gate. T2+ always gates a real run; once the session
+    # 5. Approval / HITL gate. T2+ always gates a real run; once the session
     #    taint latch is armed, any T1+ real run gates too (SEC-2, SEC-4, SEC-6;
     #    invariant 8). A DRY_RUN is a preview and needs no approval: instead, a
     #    gated DRY_RUN mints the single-use nonce for the matching real run.
@@ -355,14 +361,14 @@ def run(
         except ApprovalError as exc:
             return denied(decision, str(exc))
 
-    # 5. Contract preconditions and invariants. A HARD failure aborts (SEC-2).
+    # 6. Contract preconditions and invariants. A HARD failure aborts (SEC-2).
     violations = context.contract.check_pre(request)
     hard = Contract.hard_failures(violations)
     if hard:
         reason = "; ".join(f"{v.name}: {v.message}" for v in hard)
         return denied(decision, f"precondition failed: {reason}")
 
-    # 6. Budget: a T1+ real run that has passed every gate charges one action just
+    # 7. Budget: a T1+ real run that has passed every gate charges one action just
     #    before executing, so a denied or mis-approved call never burns the ceiling
     #    (a refused approval must not be able to exhaust the budget and lock the
     #    operator out), while every executed action is counted (BL-074). T0 reads
@@ -374,7 +380,7 @@ def run(
         except BudgetError as exc:
             return denied(decision, f"budget exceeded: {exc}")
 
-    # 7. Execute. Any exception becomes a bounded error; never a raw traceback,
+    # 8. Execute. Any exception becomes a bounded error; never a raw traceback,
     #    never re-raised out of the audited path (invariant 1).
     error: str | None = None
     output = ""
@@ -387,7 +393,7 @@ def run(
     if context.budget is not None:
         context.budget.record_spend(wall_seconds=max(0.0, time.monotonic() - started))
 
-    # 8. A successful gated DRY_RUN mints the out-of-band approval nonce for the
+    # 9. A successful gated DRY_RUN mints the out-of-band approval nonce for the
     #    matching real run (BL-072). Never minted for a T3 multi-target request
     #    (the real run would be refused) and never echoed in the result.
     if request.dry_run and gate_required and error is None and not multi_target_t3:
@@ -406,7 +412,7 @@ def run(
             token=token,
         )
 
-    # 9. Hash + length over the FULL output (tamper-evidence proof), then keep only
+    # 10. Hash + length over the FULL output (tamper-evidence proof), then keep only
     #    a truncated preview for the caller. The body is never stored (SEC-9).
     #    Encoded once: reads can route multi-megabyte bodies through here.
     encoded = output.encode("utf-8", errors="surrogatepass")

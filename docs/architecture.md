@@ -57,17 +57,20 @@ the execution core. Each layer has one responsibility and a stable contract:
   is untrusted and is only compared, never interpreted as instructions.
 - Execution core (`src/praxis/execution/`): the single audited, tier-aware execution
   path (`patterns`, `policy`, `redaction`, `audit`, `contract`, `runner`).
-  `patterns.py` is the sole security-review file. Every act tool passes through
-  `run()` (in v0 the read tools and `ingest_observation` reach the store directly;
-  routing them through the path is tracked as BL-017, BL-062, BL-085): classify,
-  deny-first policy, redact audited args, HITL gate, contract preconditions,
-  execute, bounded error, hash and length, truncate, audit.
+  `patterns.py` is the sole security-review file. Every registered tool, read or
+  write, passes through `run()` (ADR-0016; the read tools and `ingest_observation`
+  route via `tools/_audited.py`): kill switch, contained arg redaction, classify,
+  deny-first policy, budget, approval and trifecta gate, contract preconditions,
+  execute, bounded error, hash and length, truncate, audit. A gated DRY_RUN mints
+  a server-generated, single-use, TTL-bound approval nonce surfaced OUT-OF-BAND on
+  the operator console, never in a tool result (BL-072).
 - Actuation adapters (`src/praxis/actuation/`): wrappers (never reinventions) for
   SSH/shell, OpenTofu, Ansible, runbook subprocess, and talosctl. Each enforces
   `host_type` as a HARD audited precondition, and follows DRY_RUN then approve then
-  execute, with typed tokens and one-target-at-a-time for T3. In v0 the approval
-  token is reproducible by the caller (a human-binding nonce is tracked as BL-072),
-  and free-form shell actuation floors at T1 pending the T2 floor in BL-073.
+  execute, with minted single-use approvals and one-target-at-a-time for T3.
+  Free-form shell (the SSH adapter) floors at T2 (ADR-0016, BL-073); ansible and
+  runbook actions are confined to configured roots, fail closed when unset; the
+  subprocess environment is an allowlist (BL-080).
 - Audit and evidence (`src/praxis/audit/`): the per-entry hash chain plus a periodic
   Merkle root (RFC 6962 domain separation) plus RFC 3161 timestamping (fail-closed
   verify) plus an optional transparency-log anchor. The session header binds the

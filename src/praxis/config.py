@@ -42,6 +42,20 @@ class Config(BaseModel):
     store_dsn: str | None = None
     mode: Mode = Mode.GUARDED
     audit_path: str | None = None
+    # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
+    # the corresponding adapter outright: fail closed.
+    playbook_root: str | None = None
+    runbook_root: str | None = None
+    # Durable kill-switch sentinel file (BL-075). When set, a trip writes the
+    # file, the switch reads as tripped while the file exists, and the stop
+    # survives a restart. Restore by removing the file out-of-band.
+    kill_switch_path: str | None = None
+    # Per-session budget ceilings on the audited path (BL-074). None or 0 means
+    # no tracker on that axis; any set axis enables enforcement.
+    max_actions: int | None = None
+    max_wall_seconds: int | None = None
+    # Approval nonce TTL in seconds (BL-072).
+    approval_ttl_seconds: int = 600
 
     @property
     def http_is_loopback(self) -> bool:
@@ -88,6 +102,10 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     # the safest bind (BL-060).
     http_host = (get("HTTP_HOST", "127.0.0.1") or "127.0.0.1").strip() or "127.0.0.1"
 
+    def positive_or_none(name: str) -> int | None:
+        parsed = _safe_int(get(name), 0)
+        return parsed if parsed > 0 else None
+
     return Config(
         transport=transport,
         http_host=http_host,
@@ -98,6 +116,12 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         store_dsn=get("STORE_DSN"),
         mode=mode,
         audit_path=get("AUDIT_PATH"),
+        playbook_root=get("PLAYBOOK_ROOT"),
+        runbook_root=get("RUNBOOK_ROOT"),
+        kill_switch_path=get("KILL_SWITCH_PATH"),
+        max_actions=positive_or_none("MAX_ACTIONS"),
+        max_wall_seconds=positive_or_none("MAX_WALL_SECONDS"),
+        approval_ttl_seconds=max(1, _safe_int(get("APPROVAL_TTL_SECONDS", "600"), 600)),
     )
 
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sqlite3
 import uuid
 from collections.abc import Sequence
@@ -45,6 +46,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS facts_active_unique
     WHERE t_invalid IS NULL AND t_superseded IS NULL;
 
 CREATE INDEX IF NOT EXISTS facts_subject ON facts (subject);
+
+-- seq is unique at the storage layer, so the inline MAX(seq)+1 computed in the
+-- INSERT cannot silently collide across two store instances on one file: a race
+-- fails loudly instead of corrupting the ordering (BL-068).
+CREATE UNIQUE INDEX IF NOT EXISTS facts_seq_unique ON facts (seq);
 
 -- Append-only: deletion is blocked unconditionally (SEC-10).
 CREATE TRIGGER IF NOT EXISTS facts_no_delete
@@ -98,6 +104,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS edges_active_unique
 
 CREATE INDEX IF NOT EXISTS edges_subject ON edges (subject);
 
+CREATE UNIQUE INDEX IF NOT EXISTS edges_seq_unique ON edges (seq);
+
 CREATE TRIGGER IF NOT EXISTS edges_no_delete
 BEFORE DELETE ON edges
 BEGIN
@@ -137,11 +145,30 @@ def _loads_obj(raw: str) -> dict[str, object]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _precreate_owner_only(path: str) -> None:
+    """Create (or re-permission) the store file ``0o600`` before SQLite opens it.
+
+    Restricted facts must not be group or world readable on a shared host. SQLite
+    creates the WAL/SHM sidecars with the database file's permissions, so fixing
+    the database file covers them too (BL-079; mirrors the audit sink, BL-064).
+    A path SQLite cannot use anyway (a directory, an exotic DSN) is left for
+    ``sqlite3.connect`` to refuse with its own error.
+    """
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_WRONLY, 0o600)
+        os.close(fd)
+        os.chmod(path, 0o600)
+    except OSError:
+        return
+
+
 class SqliteStore:
     """The default store backend. Implements ``StoreProtocol`` and ``VectorStore``."""
 
     def __init__(self, path: Path | str = ":memory:") -> None:
         self.path = str(path)
+        if self.path != ":memory:":
+            _precreate_owner_only(self.path)
         self._conn = sqlite3.connect(self.path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -155,7 +182,6 @@ class SqliteStore:
         now = utc_now_iso()
         fact_id = uuid.uuid4().hex
         with self._conn:
-            seq = self._next_seq("facts")
             existing = self.get_active(fact.subject, fact.predicate, fact.fact_type)
             if existing is not None and existing.fact_id is not None:
                 # Supersede the prior active row BEFORE inserting the new one so the
@@ -164,10 +190,14 @@ class SqliteStore:
                     "UPDATE facts SET t_superseded = ? WHERE fact_id = ?",
                     (now, existing.fact_id),
                 )
+            # seq is computed inside the INSERT itself, so the read and the write
+            # are one atomic statement; the unique index on seq turns any residual
+            # cross-instance race into a loud IntegrityError (BL-068).
             self._conn.execute(
                 "INSERT INTO facts (fact_id, subject, predicate, fact_type, value, "
                 "t_valid, t_invalid, t_recorded, t_superseded, actor, reason, seq) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                "(SELECT COALESCE(MAX(seq), -1) + 1 FROM facts))",
                 (
                     fact_id,
                     fact.subject,
@@ -180,7 +210,6 @@ class SqliteStore:
                     None,
                     fact.actor,
                     fact.reason,
-                    seq,
                 ),
             )
         stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
@@ -256,7 +285,6 @@ class SqliteStore:
         edge_id = uuid.uuid4().hex
         t_valid = edge.t_valid or now
         with self._conn:
-            seq = self._next_seq("edges")
             existing = self._active_edge(edge.subject, edge.relation, edge.target)
             if existing is not None and existing.edge_id is not None:
                 self._conn.execute(
@@ -266,7 +294,8 @@ class SqliteStore:
             self._conn.execute(
                 "INSERT INTO edges (edge_id, subject, relation, target, value, "
                 "t_valid, t_invalid, t_recorded, t_superseded, actor, reason, seq) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                "(SELECT COALESCE(MAX(seq), -1) + 1 FROM edges))",
                 (
                     edge_id,
                     edge.subject,
@@ -279,7 +308,6 @@ class SqliteStore:
                     None,
                     edge.actor,
                     edge.reason,
-                    seq,
                 ),
             )
         stored = self._active_edge(edge.subject, edge.relation, edge.target)
@@ -332,17 +360,6 @@ class SqliteStore:
         return scored[:k]
 
     # --------------------------------------------------------------- plumbing
-    def _next_seq(self, table: str) -> int:
-        # Table is never interpolated from caller input: only these two literals.
-        if table == "facts":
-            sql = "SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM facts"
-        elif table == "edges":
-            sql = "SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM edges"
-        else:
-            raise ValueError(f"unknown table {table!r}")
-        row = self._conn.execute(sql).fetchone()
-        return int(row["n"])
-
     def capabilities(self) -> frozenset[Capability]:
         return frozenset({Capability.VECTOR})
 

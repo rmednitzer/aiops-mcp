@@ -17,17 +17,24 @@ from pathlib import Path
 from typing import TextIO
 
 from praxis import __version__
+from praxis.actuation.credentials import CredentialBroker
 from praxis.audit import bind_session
 from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
+from praxis.execution.contract import ApprovalRegistry, BudgetTracker
 from praxis.execution.policy import Policy
-from praxis.execution.runner import ExecutionContext, bounded_error
+from praxis.execution.runner import ExecutionContext, KillSwitch, bounded_error
 from praxis.store import open_store
 from praxis.tools import ToolRegistry, register_all
 
 MCP_PROTOCOL_VERSION = "2025-11-25"
 _SERVER_INFO: dict[str, object] = {"name": "praxis", "version": __version__}
+
+# A single JSON-RPC message is bounded so a hostile or runaway client cannot drive
+# the stdio reader to buffer without limit (BL-056). 16 MiB is far beyond any
+# legitimate tool call (the ingest body has its own 4 MiB boundary cap).
+_MAX_LINE_CHARS = 16 * 1024 * 1024
 
 
 def build_context(config: Config) -> ServerContext:
@@ -35,12 +42,33 @@ def build_context(config: Config) -> ServerContext:
     audit = AuditLogger(Path(config.audit_path)) if config.audit_path else AuditLogger()
     # Bind the server-binary hash into the trail as the first record (ADR-0008).
     bind_session(audit)
-    execution = ExecutionContext(policy=Policy(config.mode), audit=audit)
+    # Durable kill switch (BL-075), per-session budget (BL-074), and the
+    # human-binding approval registry (BL-072), wired from config.
+    kill_switch = KillSwitch(
+        sentinel_path=Path(config.kill_switch_path) if config.kill_switch_path else None
+    )
+    budget = (
+        BudgetTracker(max_actions=config.max_actions, max_wall_seconds=config.max_wall_seconds)
+        if (config.max_actions is not None or config.max_wall_seconds is not None)
+        else None
+    )
+    execution = ExecutionContext(
+        policy=Policy(config.mode),
+        audit=audit,
+        kill_switch=kill_switch,
+        approvals=ApprovalRegistry(ttl_seconds=float(config.approval_ttl_seconds)),
+        budget=budget,
+    )
+    # The credential broker shares the kill switch (its kill_all trips it). It holds
+    # zero grants by default, so scoped-credential enforcement is off until the
+    # operator issues the first grant (BL-049).
+    broker = CredentialBroker(kill_switch=kill_switch)
     return ServerContext(
         execution=execution,
         store=store,
         transport=config.transport,
         allow_restricted=config.allow_restricted,
+        broker=broker,
     )
 
 
@@ -60,6 +88,13 @@ class StdioServer:
     def handle(self, message: Mapping[str, object]) -> dict[str, object] | None:
         method = message.get("method")
         mid = message.get("id")
+        # A JSON-RPC notification is a message with NO ``id`` member (not merely a
+        # null id) and never receives a response (BL-056). It is also never
+        # DISPATCHED here: a tools/call whose caller cannot receive the result
+        # must not silently consume approvals or actuate (fail closed). The only
+        # notifications MCP defines for this server are no-ops anyway.
+        if "id" not in message:
+            return None
         if method == "initialize":
             result: dict[str, object] = {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
@@ -70,8 +105,6 @@ class StdioServer:
             result = {"tools": [spec.to_mcp() for spec in self.registry.specs()]}
         elif method == "tools/call":
             result = self._call(message.get("params"))
-        elif isinstance(method, str) and method.startswith("notifications/"):
-            return None  # notifications get no response
         else:
             return _error(mid, -32601, f"method not found: {method!r}")
         return {"jsonrpc": "2.0", "id": mid, "result": result}
@@ -97,7 +130,17 @@ class StdioServer:
     def serve(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:
         source = stdin if stdin is not None else sys.stdin
         sink = stdout if stdout is not None else sys.stdout
-        for line in source:
+        while True:
+            # Bounded read: never buffer more than one capped message (BL-056).
+            line = source.readline(_MAX_LINE_CHARS + 1)
+            if line == "":
+                break  # EOF
+            if len(line) > _MAX_LINE_CHARS and not line.endswith("\n"):
+                # An oversize message: drain the rest of the line and refuse, rather
+                # than accumulate it. The id is unknowable, so reply with a null id.
+                self._drain_line(source)
+                _write(sink, _error(None, -32600, "request too large"))
+                continue
             stripped = line.strip()
             if not stripped:
                 continue
@@ -106,12 +149,27 @@ class StdioServer:
             except json.JSONDecodeError:
                 _write(sink, _error(None, -32700, "parse error"))
                 continue
+            except RecursionError:
+                # Deeply nested JSON can exhaust the decoder's recursion limit;
+                # contain it as a parse error rather than crash the loop (BL-056).
+                _write(sink, _error(None, -32700, "parse error: input too deeply nested"))
+                continue
             if not isinstance(message, dict):
+                # JSON-RPC batch (an array) is not supported by MCP 2025-11-25;
+                # any non-object is an invalid request, not a crash (BL-056).
                 _write(sink, _error(None, -32600, "invalid request"))
                 continue
             response = self.handle(message)
             if response is not None:
                 _write(sink, response)
+
+    @staticmethod
+    def _drain_line(source: TextIO) -> None:
+        """Consume the remainder of an oversize line, bounded per read (BL-056)."""
+        while True:
+            chunk = source.readline(_MAX_LINE_CHARS + 1)
+            if chunk == "" or chunk.endswith("\n"):
+                return
 
 
 def _error(mid: object, code: int, message: str) -> dict[str, object]:

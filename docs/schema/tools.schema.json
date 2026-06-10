@@ -32,6 +32,31 @@
     {
       "annotations": {
         "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Trip the kill switch to halt all subsequent execution immediately (SEC-8). Restoring service is an out-of-band operator action.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "Why execution is being halted; recorded in the audit trail.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "EmergencyStopArgs",
+        "type": "object"
+      },
+      "name": "emergency_stop"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
         "readOnlyHint": true
       },
       "description": "Return the full recorded (bitemporal) history of facts for a subject.",
@@ -240,6 +265,23 @@
             ],
             "default": null,
             "title": "Ssh Alias"
+          },
+          "wipe_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "system-disk",
+                  "user-disks",
+                  "all"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wipe Mode"
           }
         },
         "required": [

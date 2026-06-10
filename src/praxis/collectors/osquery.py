@@ -23,8 +23,11 @@ class OsqueryCollector(Collector):
 
     def parse(self, raw: str, *, subject: str, actor: str = "collector") -> list[Fact]:
         try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
+            # parse_constant maps a JSON NaN/Infinity/-Infinity literal to None
+            # rather than a non-finite float, so collected telemetry cannot inject a
+            # NaN that later poisons numeric comparisons or vector ranking (BL-026).
+            parsed = json.loads(raw, parse_constant=lambda _const: None)
+        except (json.JSONDecodeError, RecursionError):
             return []
         rows = parsed if isinstance(parsed, list) else []
         clean_rows = [row for row in rows if isinstance(row, dict)]

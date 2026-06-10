@@ -24,6 +24,21 @@ _SUMMARY = re.compile(
 _SECTION = re.compile(r"^(Added|Removed|Changed)\s+entries:\s*$", re.IGNORECASE)
 _ENTRY = re.compile(r"(?P<path>/\S+)")
 
+# A real AIDE count fits well within a 64-bit integer. The summary regex matches an
+# unbounded ``\d+`` run, and ``int()`` on a very long digit string raises under
+# CPython's int-string conversion limit; a run longer than this is hostile padding,
+# not a count, so it clamps to the default instead of raising (BL-026).
+_MAX_INT_DIGITS = 18
+
+
+def _bounded_int(raw: str, default: int = 0) -> int:
+    if len(raw) > _MAX_INT_DIGITS:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
 
 class AideCollector(Collector):
     name: ClassVar[str] = "aide"
@@ -47,10 +62,10 @@ class AideCollector(Collector):
         }
         if summary is not None:
             value["totals"] = {
-                "total": int(summary.group("total")),
-                "added": int(summary.group("added")),
-                "removed": int(summary.group("removed")),
-                "changed": int(summary.group("changed")),
+                "total": _bounded_int(summary.group("total")),
+                "added": _bounded_int(summary.group("added")),
+                "removed": _bounded_int(summary.group("removed")),
+                "changed": _bounded_int(summary.group("changed")),
             }
         return [self._fact(subject, "file_integrity", value, actor)]
 

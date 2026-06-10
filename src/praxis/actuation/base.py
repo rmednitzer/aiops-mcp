@@ -15,12 +15,14 @@ runbooks) return a non-executing preview string (SEC-6).
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import signal
 import subprocess  # noqa: S404 - actuation wraps real tools; calls are tier-gated and audited
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import ClassVar
 
 from praxis.execution.contract import Approval, Contract, Predicate, Severity
@@ -29,6 +31,13 @@ from praxis.execution.runner import ExecutionContext, ExecutionRequest, Executio
 from praxis.model.facts import HostType
 
 _DEFAULT_TIMEOUT_S = 120
+
+# A host/target must begin with an alphanumeric so it can never be parsed as a
+# CLI option by the wrapped tool (a leading-dash value like ``-oProxyCommand=...``
+# is an option-injection vector even with a list argv, because the tool itself
+# parses it). The body permits user@host, IPv6 brackets, dots, and hyphens,
+# nothing that needs a shell (BL-020; shared with ansible ``--limit``, BL-081).
+SAFE_TARGET = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\-\[\]:@]*$")
 
 
 @dataclass(frozen=True)
@@ -42,18 +51,43 @@ class HostInfo:
     nodes: tuple[str, ...] = ()
 
 
-def scrubbed_env() -> dict[str, str]:
-    """The server environment, augmented so a wrapped tool cannot hang on a prompt.
+# The only server environment variables a wrapped tool receives (BL-080). The
+# operator's scoped material (an SSH agent socket, a TALOSCONFIG/KUBECONFIG path)
+# is passed through by name; everything else in the server environment, including
+# unrelated secrets, never reaches wrapped tools or their plugins.
+_ENV_ALLOWLIST = (
+    "PATH",
+    "HOME",  # ssh reads ~/.ssh/config for aliases; tools resolve dotfiles
+    "USER",
+    "LOGNAME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TZ",
+    "TMPDIR",
+    "SSH_AUTH_SOCK",
+    "TALOSCONFIG",
+    "KUBECONFIG",
+    "ANSIBLE_CONFIG",
+    # Vault decryption needs the password-file path; everything else ansible
+    # reads from the environment can live in the ansible.cfg that ANSIBLE_CONFIG
+    # names (roles_path, collections_paths, inventory, ...).
+    "ANSIBLE_VAULT_PASSWORD_FILE",
+)
 
-    An MCP tool call has no controlling TTY, so a tool that drops to an interactive
-    credential or confirmation prompt would block the server indefinitely. The
-    operator's scoped secret material (an SSH agent socket, a TALOSCONFIG path) is
-    injected into the server environment out of band (see ``credentials.py``), so we
-    copy and augment rather than strip: only the prompt-suppressing knobs are forced.
+
+def scrubbed_env() -> dict[str, str]:
+    """An allowlisted environment for wrapped tools, with prompts suppressed.
+
+    Only the variables in ``_ENV_ALLOWLIST`` cross from the server into a wrapped
+    tool, so unrelated server secrets cannot leak into subprocesses and their
+    plugins (BL-080). An MCP tool call also has no controlling TTY, so a tool that
+    drops to an interactive credential or confirmation prompt would block the
+    server indefinitely: the prompt-suppressing knobs are forced.
     """
-    env = dict(os.environ)
-    # Override a missing OR empty PATH: an explicit PATH="" would otherwise survive
-    # setdefault and break tool discovery (shutil.which / the subprocess PATH lookup).
+    env = {key: os.environ[key] for key in _ENV_ALLOWLIST if key in os.environ}
+    # Override a missing OR empty PATH: an explicit PATH="" would otherwise break
+    # tool discovery (shutil.which / the subprocess PATH lookup).
     if not env.get("PATH"):
         env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     env.setdefault("LANG", "C.UTF-8")
@@ -62,6 +96,30 @@ def scrubbed_env() -> dict[str, str]:
     env["GIT_ASKPASS"] = ""
     env["SSH_ASKPASS"] = ""
     return env
+
+
+def confine_to_root(action: str, *, root: str | None, kind: str) -> str:
+    """Resolve ``action`` to a real path inside the configured root, or refuse.
+
+    Playbooks and runbooks execute from an operator-configured directory only
+    (BL-024, BL-081). Fail closed: with no root configured the adapter refuses
+    outright. Resolution follows symlinks, so a link escaping the root is refused
+    the same as a ``..`` traversal. The file must exist: a typo is an operator
+    error surfaced here, not at the wrapped tool's exit status.
+    """
+    if root is None:
+        raise ValueError(
+            f"no {kind} root configured; set PRAXIS_{kind.upper()}_ROOT to the "
+            f"directory {kind}s may run from (BL-024/BL-081: fail closed)"
+        )
+    base = Path(root).resolve()
+    raw = Path(action)
+    candidate = (raw if raw.is_absolute() else base / raw).resolve()
+    if not candidate.is_relative_to(base):
+        raise ValueError(f"{kind} path escapes the configured {kind} root: {action!r}")
+    if not candidate.is_file():
+        raise ValueError(f"{kind} not found under the configured {kind} root: {action!r}")
+    return str(candidate)
 
 
 def _kill_process_group(proc: subprocess.Popen[str]) -> None:
@@ -138,6 +196,17 @@ class ActuationAdapter(ABC):
     def supports(self, host: HostInfo) -> bool:
         return host.host_type in self.supported
 
+    def extra_preconditions(
+        self, host: HostInfo, action: str, params: Mapping[str, object], *, dry_run: bool
+    ) -> list[Predicate[ExecutionRequest]]:
+        """Adapter-specific HARD/SOFT preconditions merged into the audited run.
+
+        Override to add pre-flight checks that must hold before a real run (for
+        example the talosctl health gate before an upgrade, BL-023). Evaluated
+        inside ``run()``, so a failure is an audited refusal.
+        """
+        return []
+
     def build_request(
         self,
         host: HostInfo,
@@ -148,11 +217,23 @@ class ActuationAdapter(ABC):
         approval: Approval | None = None,
     ) -> ExecutionRequest:
         """Build the ExecutionRequest the executor will run. Lets a caller compute
-        the action id, present the dry run, obtain an approval, then actuate."""
+        the action id, present the dry run, obtain an approval, then actuate.
+
+        The action identity (``action_key``) is always the REAL-run command, so the
+        approval a dry run mints binds to the command that will actually execute,
+        even for adapters whose preview argv differs (ansible ``--check``, tofu
+        ``plan``) (BL-072, ADR-0016).
+        """
         params = params or {}
         supported = self.supports(host)
         argv = self.build_argv(host, action, params, dry_run=dry_run) if supported else []
+        real_argv = (
+            argv
+            if not dry_run or not supported
+            else self.build_argv(host, action, params, dry_run=False)
+        )
         command = " ".join(argv) if supported else None
+        action_key = " ".join(real_argv) if supported else None
         return ExecutionRequest(
             tool=self.name,
             command=command,
@@ -161,6 +242,7 @@ class ActuationAdapter(ABC):
             dry_run=dry_run,
             approval=approval,
             args={"action": action, **dict(params)},
+            action_key=action_key,
         )
 
     def actuate(
@@ -187,8 +269,9 @@ class ActuationAdapter(ABC):
                 f"(SEC-5; host {host.name})"
             ),
         )
+        extra = self.extra_preconditions(host, action, params, dry_run=dry_run) if supported else []
         merged = Contract[ExecutionRequest](
-            preconditions=[*context.contract.preconditions, host_pred],
+            preconditions=[*context.contract.preconditions, host_pred, *extra],
             invariants=context.contract.invariants,
             postconditions=context.contract.postconditions,
         )

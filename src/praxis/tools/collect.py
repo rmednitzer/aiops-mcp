@@ -1,8 +1,11 @@
-"""Ingest tool: parse host telemetry into facts and record them.
+"""Ingest tool: parse host telemetry into facts and record them, audited.
 
-Collected host data is attacker-influenced, so a successful ingest marks the
-session as having taken in untrusted content (SEC-4). It does not change any host
-(read_only over the fleet), but it does write observed facts to the model.
+Collected host data is attacker-influenced, so the ingest runs through the single
+audited path marked ``untrusted``: that writes one audit record (BL-085) and arms
+the session trifecta latch (SEC-4, BL-083) on the path itself, not in the handler.
+The 4 MiB raw body is never put in the audit args; only its SHA-256 and length are
+recorded. The ingest does not change any host (read_only over the fleet), but it
+does write observed facts to the model.
 """
 
 from __future__ import annotations
@@ -20,6 +23,8 @@ from praxis.collectors import (
     TalosCollector,
 )
 from praxis.context import ServerContext
+from praxis.execution.audit import sha256_text
+from praxis.tools._audited import run_audited
 from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 
 # Collected telemetry is attacker-influenced; bound it before a collector parses it
@@ -52,13 +57,30 @@ def _build_collector(kind: CollectorName, predicate: str) -> Collector:
 
 def _ingest(args: IngestArgs, ctx: ServerContext) -> str:
     predicate = args.predicate if args.predicate else args.collector
-    facts = _build_collector(args.collector, predicate).parse(args.raw, subject=args.subject)
-    for fact in facts:
-        ctx.store.put_fact(fact)
-    # Collected host data is untrusted: arm the trifecta gate (SEC-4).
-    ctx.mark_untrusted_ingested()
-    return json.dumps(
-        {"ingested": len(facts), "subject": args.subject, "collector": args.collector}
+
+    def execute() -> str:
+        facts = _build_collector(args.collector, predicate).parse(args.raw, subject=args.subject)
+        for fact in facts:
+            ctx.store.put_fact(fact)
+        return json.dumps(
+            {"ingested": len(facts), "subject": args.subject, "collector": args.collector}
+        )
+
+    # The raw telemetry is summarized for the audit, never stored (SEC-9, BL-085).
+    # untrusted=True arms the trifecta latch on the audited path (SEC-4, BL-083).
+    return run_audited(
+        ctx,
+        tool="ingest_observation",
+        args={
+            "collector": args.collector,
+            "subject": args.subject,
+            "predicate": predicate,
+            "raw_sha256": sha256_text(args.raw),
+            "raw_len": len(args.raw.encode("utf-8", errors="surrogatepass")),
+        },
+        execute=execute,
+        target=args.subject,
+        untrusted=True,
     )
 
 

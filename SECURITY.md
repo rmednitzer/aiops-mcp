@@ -15,54 +15,47 @@ unguarded session.
 
 ## Controls (the nine invariants)
 
-These nine are the design's load-bearing controls. Several are fully enforced with
-tests; several are specified or partly built but not yet fully wired in v0. The
-honest enforcement status is recorded in ADR-0015 and `LIMITATIONS.md`; the inline
-notes below mark the v0 gaps.
+These nine are the design's load-bearing controls, each with a proving test. The
+enforcement history is recorded in ADR-0015 (the gap review) and ADR-0016 (the
+wave that closed them); `LIMITATIONS.md` records what remains open.
 
-1. Single audited execution path; no tool bypasses it.
+1. Single audited execution path; no tool bypasses it. Since ADR-0016 this
+   includes the read tools and `ingest_observation` (BL-017, BL-062, BL-085).
 2. Load-bearing tiered authority T0-T3; conservative classification;
    sudo/doas/pkexec are at least T2; modes gate tiers; deny is global and
-   unconditional. (v0 gap: classification is a denylist over the command string and
-   only rounds up, and free-form shell actuation floors at T1, so an unrecognised
-   destructive command can run unapproved; the T2 floor for arbitrary execution is
-   tracked as BL-073.)
+   unconditional. Free-form shell actuation floors at T2 (ADR-0016, BL-073),
+   because the denylist only rounds up and cannot be complete against arbitrary
+   commands.
 3. Audit stores `output_sha256` + `output_len`, never output bodies; append-only
    per-entry hash chain; parameters redacted; the logger never raises.
 4. Bitemporal, append-only state (deletion blocked at the storage layer;
    supersession carries actor and reason).
 5. host_type gates actuation; never SSH a Talos host.
 6. DRY_RUN, then human approval, then execute; T3 requires a typed token and one
-   target at a time. (v0 gap: the approval token is a deterministic confirmation
-   returned in the dry-run response, so an automated caller can reproduce it; it is
-   not yet binding against an autonomous agent. A server-issued single-use nonce is
-   tracked as BL-072.)
+   target at a time. The approval is a server-minted, single-use, TTL-bound nonce
+   surfaced out-of-band on the operator console, never in a tool response, so an
+   autonomous caller cannot self-approve (ADR-0016, BL-072).
 7. stdio by default; HTTP requires a bearer token AND an explicit non-loopback
    opt-in AND an SSRF egress filter (block link-local and RFC1918); no token
    passthrough. (The per-client consent registry named in ADR-0006 Decision 4 is
    specified but not yet built in v0; see `LIMITATIONS.md` and ADR-0012.)
 8. Lethal-trifecta containment; read tools separable from act tools; human gate
-   between observation and actuation.
-9. Least privilege; scoped, independently revocable credentials; kill switch; no
-   NOPASSWD: ALL. (v0 gap: the `CredentialBroker` and `BudgetTracker` are
-   implemented and tested but not wired into the actuation path, and the kill switch
-   is enforced in the runner but has no operator-facing actuator; tracked as
-   BL-049, BL-074, BL-075.)
-
-Invariant 1 (single audited execution path) governs the execution and actuation
-tools. In v0 the read tools (`query_facts`, `fact_history`, and the collector and
-skill reads) and the state-writing `ingest_observation` tool read or write the store
-directly without passing through `run()`, so they are not individually written to
-the audit log; `ingest_observation` is `read_only=False` and arms the trifecta
-latch, so the one untrusted-driven state write is currently unaudited. Routing them
-through the audited path is tracked as BL-017, BL-062, and BL-085. Their feedback is
-still treated as untrusted (invariant 8).
+   between observation and actuation, enforced inside the single audited path
+   (ADR-0016, BL-083): once the session has taken in untrusted content, including
+   observed facts read back from the store, any T1+ real run needs a minted
+   approval.
+9. Least privilege; scoped, independently revocable credentials (broker wired,
+   opt-in via the first grant); per-session budgets; an audited `emergency_stop`
+   actuator with a durable kill-switch sentinel; no NOPASSWD: ALL (ADR-0016,
+   BL-049, BL-074, BL-075).
 
 Privileged-execution and audit hardening (the SSH host-key policy plus
-option-injection target guard, subprocess process-group isolation with a scrubbed
-environment and detached stdin, the talosctl verb allowlist and node-aware T3 gate,
-audited trifecta refusals, the owner-only audit-log file mode, and broader secret
-redaction) is recorded in ADR-0013. Each control has a regression test.
+option-injection target guard, subprocess process-group isolation with an
+allowlisted environment and detached stdin, the talosctl verb allowlist, post-verb
+option rejection, node validation, explicit reset wipe scope and node-aware T3
+gate, playbook/runbook root confinement, the owner-only audit-log and store file
+modes, and broader secret redaction) is recorded in ADR-0013 and ADR-0016. Each
+control has a regression test.
 
 ## Evidence integrity
 

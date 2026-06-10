@@ -14,6 +14,12 @@ The tiers (ADR-0004):
 Classification is conservative and rounds up (`execution.policy.classify`). The
 deny set is global and unconditional, evaluated before any tier gate
 (`execution.policy.Policy.check`).
+
+Classification scope (BL-019, ADR-0016): the classify probe is the tool name plus
+the command string. Anything else an executor passes to a wrapped process (stdin
+content, environment variables, file payloads) is NOT classified here; any future
+passthrough of such channels MUST first be folded into the probe (or refused), so
+a command cannot smuggle its blast radius past the patterns in a side channel.
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from enum import IntEnum
 # Bump on EVERY change to the pattern sets below. The audit record stamps this
 # value so a reviewer can tie a classification to the exact ruleset that produced
 # it (SEC-3).
-PATTERNS_VERSION = 2
+PATTERNS_VERSION = 3
 
 
 class Tier(IntEnum):
@@ -87,6 +93,20 @@ TIER3: tuple[re.Pattern[str], ...] = _compile(
         r"\b(lvremove|vgremove|pvremove)\b",
         r"\bredfish\b[^\n]*\b(reset|poweroff|forceoff)\b",
         r"\bipmitool\b[^\n]*\bchassis\s+power\s+(off|cycle|reset)\b",
+        # BL-073 (ADR-0015/ADR-0016): destructive forms the v0 set missed.
+        r"\bfind\b[^\n]*\s-delete\b",  # mass delete via find
+        r"\biptables\b[^\n]*\s(-F|--flush)\b",  # flush firewall rules
+        r"\bnft\b[^\n]*\bflush\s+ruleset\b",
+        # SQL mass delete/update: any DELETE/UPDATE statement with no WHERE before
+        # the statement end, including trailing clauses (RETURNING, LIMIT, USING).
+        r"\bDELETE\s+FROM\s+[\w.\"`]+(?![^\n;]*\bWHERE\b)",
+        r"\bUPDATE\s+[\w.\"`]+\s+SET\b(?![^\n;]*\bWHERE\b)",
+        r"\bRemove-Item\b[^\n]*-Recurse\b",  # windows recursive delete
+        r"\bFormat-Volume\b",
+        r"\b(Stop|Restart)-Computer\b",
+        r">>?\s*\S*authorized_keys\b",  # SSH key persistence via redirect
+        r"\btee\b[^\n]*authorized_keys\b",  # SSH key persistence via tee
+        r"\bssh-copy-id\b",  # SSH key persistence via the canonical tool
     ]
 )
 
@@ -99,7 +119,7 @@ TIER2: tuple[re.Pattern[str], ...] = _compile(
         r"\b(tofu|terraform)\b[^\n]*\bapply\b",
         r"\bansible-playbook\b(?![^\n]*--check)",  # apply (a --check run is T0)
         r"\b(docker|podman)\s+(run|rm|stop|kill|restart)\b",
-        r"\bkubectl\s+(apply|delete|scale|rollout|patch|edit)\b",
+        r"\bkubectl\s+(apply|delete|scale|rollout|patch|edit|drain|cordon|uncordon)\b",
         r"\btalosctl\b[^\n]*\bapply-config\b",
         r"\b(kill|pkill|killall)\b",
         r"\b(mount|umount)\b",

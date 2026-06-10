@@ -13,48 +13,54 @@ PRAXIS_MODE=guarded PRAXIS_AUDIT_PATH=/var/lib/praxis/audit.jsonl \
 
 Modes (ADR-0004): `readonly` (T0 only), `guarded` (T0-T2; T3 refused), `open`
 (all tiers, each behind its gate). Start in `guarded`; raise to `open` only for a
-deliberate T3 with a typed token.
+deliberate T3 with a minted approval token and exactly one target.
 
 ## Observe (read, T0)
 
 - `ingest_observation` parses captured telemetry (osquery/aide/probe/talos) into
-  observed facts. Note: this arms the trifecta gate for the session (SEC-4). It
-  writes facts and currently bypasses the audited path, so it is not individually
-  audit-logged (BL-085).
-- `query_facts` / `fact_history` read the bitemporal model.
-- `drift_scan` diffs observed facts against the known-good baseline.
+  observed facts. It runs through the audited path (one audit record carrying the
+  raw payload's SHA-256 and length, never the body) and arms the trifecta latch
+  for the session (SEC-4, ADR-0016).
+- `query_facts` / `fact_history` read the bitemporal model, audited per call. A
+  read that returns observed facts also arms the trifecta latch: collected data
+  read back is as untrusted as live collection.
+- `drift_scan` diffs observed facts against the known-good baseline, audited.
 
 ## Actuate (DRY_RUN, then approve, then execute)
 
-1. Call `run_action` with `dry_run: true` to preview. A dry run needs no approval;
-   its response carries the `action_id` and the exact `approval_token` to use next.
-2. Review the preview, then re-issue with `dry_run: false` and that `approval_token`.
-   For T2 the token is `APPROVE-<action_id>`; for T3 it is `CONFIRM-<target>` and
-   exactly one target is allowed.
+1. Call `run_action` with `dry_run: true` to preview. A dry run needs no approval.
+   Its response carries the `action_id`; for a gated action the server mints a
+   single-use approval token and prints it on ITS OWN console (stderr), out-of-band
+   from the MCP channel (BL-072, ADR-0016). The token never appears in the tool
+   response, so an autonomous caller cannot read and replay it.
+2. Read the token from the server console, review the preview, then re-issue with
+   `dry_run: false` and that token as `approval_token`. The token is single-use,
+   expires after `PRAXIS_APPROVAL_TTL_SECONDS` (default 600), and is bound to the
+   exact action, target, tier, and patterns version; for T3 exactly one target is
+   allowed. A restart invalidates pending tokens: re-run the dry run.
 3. Each call writes one audit record (allow, deny, or error). Output bodies are
    never logged, only their SHA-256 and length.
 
-Trifecta note (SEC-4): once a session has ingested untrusted content (any
-`ingest_observation` or feed), even a sub-T2 act requires a validated, single-use
-`approval_token`; a bare token string is rejected. The dry-run response surfaces
-the token to use.
+Trifecta note (SEC-4): once a session has taken in untrusted content (an ingest,
+or a read returning observed facts), ANY T1+ real run requires a minted approval,
+enforced inside the audited path itself. Free-form shell via ssh floors at T2
+regardless (BL-073), so it always meets the gate.
 
-Honest caveat (v0): the `approval_token` is a deterministic function of the request
-and is handed back by the dry run, so an automated caller can reproduce it. It
-confirms intent but is not yet a robust human gate against an autonomous agent, and
-for a T2+ action the trifecta check currently passes on token presence before the
-executor validates it. A server-issued, single-use, out-of-band nonce is tracked as
-BL-072 (BL-084 for the presence-versus-validity check).
+Configuration this flow needs: `PRAXIS_PLAYBOOK_ROOT` and `PRAXIS_RUNBOOK_ROOT`
+confine ansible and runbook actions; both adapters refuse outright until their
+root is set (fail closed, BL-024/BL-081). Optional budget ceilings
+(`PRAXIS_MAX_ACTIONS`, `PRAXIS_MAX_WALL_SECONDS`) deny, audited, once exhausted.
 
 ## Stop everything
 
-Trip the kill switch (in-process `ExecutionContext.kill_switch.trip()`), or set
-the mode to `readonly` and restart. The kill switch clears only by explicit
-operator action. v0 note: there is no operator-facing kill tool or signal handler,
-so tripping the switch needs in-process code and the `CredentialBroker` whose
-`kill_all` would trip it is not wired; setting `PRAXIS_MODE=readonly` and restarting
-is the practical stop today. An operator actuator is tracked as BL-075 (with
-BL-049).
+Call the `emergency_stop` tool (T0, audited, never gated): it trips the kill
+switch immediately and, with `PRAXIS_KILL_SWITCH_PATH` set, writes a sentinel file
+so the stop survives a restart. An operator can also engage the stop out-of-band
+by creating the sentinel file (`touch`), with no tool call at all. Restoring
+service is deliberately out-of-band: remove the sentinel file and restart (or call
+`kill_switch.reset()` in-process). Setting `PRAXIS_MODE=readonly` and restarting
+remains a coarser fallback. The credential broker's `kill_all` also trips the
+shared switch (BL-049, BL-075).
 
 ## Networked (HTTP) deployment
 

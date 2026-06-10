@@ -1,15 +1,19 @@
-"""SEC-4 at the tool boundary: ``run_action`` enforces a VALIDATED human gate after
-untrusted ingestion, even for a sub-T2 action. A caller-supplied token string alone
-is never sufficient (this is the bypass the gate must close)."""
+"""SEC-4 at the tool boundary: ``run_action`` is gated by the single audited path.
+
+After untrusted ingestion, a real run needs a server-minted approval; an arbitrary
+caller-supplied token string is never sufficient, and the minted token is surfaced
+out-of-band only (never in the dry-run response) (BL-072, BL-083, ADR-0016).
+"""
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from praxis.context import ServerContext, TrifectaViolation
+from praxis.context import ServerContext
 from praxis.execution import AuditLogger, ExecutionContext, Mode, Policy
 from praxis.store import SqliteStore
 from praxis.tools.actuate import RunActionArgs, _run_action
@@ -25,13 +29,13 @@ def _run(args: dict[str, object], ctx: ServerContext) -> str:
     return _run_action(RunActionArgs.model_validate(args), ctx)
 
 
-def _t1_args(**extra: object) -> dict[str, object]:
+def _ssh_args(**extra: object) -> dict[str, object]:
     args: dict[str, object] = {
         "adapter": "ssh",
         "host": "axiom",
         "host_type": "ubuntu",
         "ssh_alias": "axiom",
-        "action": "uptime",  # stays T1: no sudo, no destructive verb
+        "action": "uptime",
     }
     args.update(extra)
     return args
@@ -43,61 +47,87 @@ def _no_real_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("praxis.actuation.base.shutil.which", lambda _name: None)
 
 
-def test_t1_real_run_after_untrusted_needs_validated_approval(tmp_path: Path) -> None:
+def _mint_token(ctx: ServerContext, args: dict[str, object]) -> str:
+    """Run the dry run and capture the nonce from the operator sink (the BL-072 flow)."""
+    minted: list[str] = []
+    ctx.execution.approval_sink = minted.append
+    preview = json.loads(_run({**args, "dry_run": True}, ctx))
+    assert preview["ok"] is True
+    assert minted, "a gated dry run must mint to the operator sink"
+    match = re.search(r"token=(\S+)", minted[-1])
+    assert match is not None
+    token = match.group(1)
+    # The nonce is out-of-band ONLY: never echoed in the tool response.
+    assert token not in json.dumps(preview)
+    assert "approval_token" not in preview
+    return token
+
+
+def test_free_form_shell_floors_at_t2(tmp_path: Path) -> None:
+    # BL-073: even a benign-looking free-form command via ssh is T2 and refused
+    # without an approval; the patterns denylist alone is not trusted to be complete.
+    ctx = _ctx(tmp_path)
+    body = json.loads(_run(_ssh_args(dry_run=False), ctx))
+    assert body["ok"] is False
+    assert body["tier"] == "T2"
+    assert "approval required" in body["error"]
+
+
+def test_real_run_after_untrusted_needs_validated_approval(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     ctx.mark_untrusted_ingested()
 
-    # A real T1 run with no approval is refused (the executor would not gate T1).
-    with pytest.raises(TrifectaViolation):
-        _run(_t1_args(dry_run=False), ctx)
+    # A real run with no approval is refused inside the audited path.
+    refused = json.loads(_run(_ssh_args(dry_run=False), ctx))
+    assert refused["ok"] is False
 
-    # A real T1 run with an arbitrary, unvalidated token is STILL refused: presence
-    # is not validation. This is the bypass the gate closes.
-    with pytest.raises(TrifectaViolation):
-        _run(_t1_args(dry_run=False, approval_token="anything"), ctx)
+    # A real run with an arbitrary, unminted token is STILL refused: presence
+    # is not validation, and the caller cannot mint (BL-072 closes the bypass).
+    forged = json.loads(_run(_ssh_args(dry_run=False, approval_token="anything"), ctx))
+    assert forged["ok"] is False
+    assert "not minted" in forged["error"]
 
 
-def test_t1_proceeds_with_the_surfaced_token(
+def test_real_run_proceeds_with_the_minted_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _no_real_subprocess(monkeypatch)
     ctx = _ctx(tmp_path)
     ctx.mark_untrusted_ingested()
 
-    # The dry run surfaces the exact token the operator must supply.
-    preview = json.loads(_run(_t1_args(dry_run=True), ctx))
-    token = preview["approval_token"]
-    assert token.startswith("APPROVE-")
-    assert preview["action_id"]
+    token = _mint_token(ctx, _ssh_args())
 
-    # With that validated token the trifecta gate passes (the execution itself may
-    # error because ssh is not invoked here; the point is no TrifectaViolation).
-    body = json.loads(_run(_t1_args(dry_run=False, approval_token=token), ctx))
-    assert "ok" in body
+    # With the minted token the gate passes (the execution itself errors because
+    # ssh is not on PATH here; the point is the gate, not the transport).
+    body = json.loads(_run(_ssh_args(dry_run=False, approval_token=token), ctx))
+    assert "approval" not in (body["error"] or "")
 
     # The approval is single-use: replaying it is refused (SEC-2).
-    with pytest.raises(TrifectaViolation):
-        _run(_t1_args(dry_run=False, approval_token=token), ctx)
+    replay = json.loads(_run(_ssh_args(dry_run=False, approval_token=token), ctx))
+    assert replay["ok"] is False
+    assert "already used" in replay["error"]
 
 
-def test_clean_session_t1_real_run_is_not_gated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _no_real_subprocess(monkeypatch)
+def test_dry_run_response_carries_id_but_never_the_token(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
-    # No untrusted ingestion: a reversible T1 act needs no extra trifecta gate, with
-    # or without a token.
-    body = json.loads(_run(_t1_args(dry_run=False), ctx))
-    assert "ok" in body
+    minted: list[str] = []
+    ctx.execution.approval_sink = minted.append
+    preview = json.loads(_run(_ssh_args(dry_run=True), ctx))
+    assert preview["ok"] is True
+    assert preview["action_id"]
+    assert "approval_token" not in preview
+    match = re.search(r"token=(\S+)", minted[-1])
+    assert match is not None
+    assert match.group(1) not in json.dumps(preview)
 
 
 def test_trifecta_denial_is_audited(tmp_path: Path) -> None:
-    # Invariant 3: every denial is audited, including a trifecta refusal raised out
-    # of the tool handler before it reaches the executor (BL-018).
+    # Invariant 3: every denial is audited, now by the single path itself (BL-083
+    # supersedes the handler-raised TrifectaViolation of BL-018).
     ctx = _ctx(tmp_path)
     ctx.mark_untrusted_ingested()
-    with pytest.raises(TrifectaViolation):
-        _run(_t1_args(dry_run=False), ctx)
+    refused = json.loads(_run(_ssh_args(dry_run=False), ctx))
+    assert refused["ok"] is False
     ctx.execution.audit.close()
     records = [
         json.loads(line)
@@ -106,4 +136,4 @@ def test_trifecta_denial_is_audited(tmp_path: Path) -> None:
     ]
     denials = [r for r in records if r["decision"] == "denied"]
     assert denials, "the trifecta refusal left no audit trail"
-    assert any("trifecta" in (r.get("error") or "").lower() for r in denials)
+    assert any("approval" in (r.get("error") or "").lower() for r in denials)

@@ -17,6 +17,7 @@ from praxis.execution.contract import (
     RetryPolicy,
     Severity,
 )
+from praxis.execution.patterns import Tier
 
 
 def test_budget_rejects_non_finite_limits() -> None:
@@ -43,21 +44,83 @@ def test_retry_policy_validates() -> None:
         RetryPolicy(max_retries=-1)
 
 
-def test_approval_is_single_use() -> None:
+def test_approval_is_minted_and_single_use() -> None:
     registry = ApprovalRegistry()
-    approval = Approval(action_id="a1", token="tok")
-    registry.consume(approval, expected_action_id="a1", expected_token="tok")
-    with pytest.raises(ApprovalError):
-        registry.consume(approval, expected_action_id="a1", expected_token="tok")
+    token = registry.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    approval = Approval(action_id="a1", token=token)
+    # validate is non-consuming; consume burns the nonce.
+    registry.validate(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    with pytest.raises(ApprovalError, match="already used"):
+        registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+
+
+def test_unminted_token_is_refused() -> None:
+    # The caller cannot conjure a valid token: only the server mints (BL-072).
+    registry = ApprovalRegistry()
+    approval = Approval(action_id="a1", token="APPROVE-a1")
+    with pytest.raises(ApprovalError, match="not minted"):
+        registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
 
 
 def test_approval_binding_enforced() -> None:
     registry = ApprovalRegistry()
-    approval = Approval(action_id="a1", token="tok")
-    with pytest.raises(ApprovalError):
-        registry.consume(approval, expected_action_id="other", expected_token="tok")
-    with pytest.raises(ApprovalError):
-        registry.consume(approval, expected_action_id="a1", expected_token="wrong")
+    token = registry.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    with pytest.raises(ApprovalError, match="different action"):
+        registry.consume(
+            Approval(action_id="other", token=token),
+            action_id="other",
+            target="axiom",
+            tier=Tier.T2,
+            patterns_version=3,
+        )
+    approval = Approval(action_id="a1", token=token)
+    with pytest.raises(ApprovalError, match="different target"):
+        registry.consume(approval, action_id="a1", target="atlas", tier=Tier.T2, patterns_version=3)
+    with pytest.raises(ApprovalError, match="different tier"):
+        registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T3, patterns_version=3)
+    with pytest.raises(ApprovalError, match="patterns changed"):
+        registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=4)
+    # The binding failures above did not consume the nonce: the correct binding works.
+    registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+
+
+def test_approval_ttl_expires() -> None:
+    now = {"t": 0.0}
+    registry = ApprovalRegistry(ttl_seconds=600.0, clock=lambda: now["t"])
+    token = registry.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    approval = Approval(action_id="a1", token=token)
+    now["t"] = 601.0
+    with pytest.raises(ApprovalError, match="expired"):
+        registry.validate(
+            approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3
+        )
+
+
+def test_pending_approvals_are_bounded() -> None:
+    # Dry-run spam cannot grow the pending set without bound; the oldest mints
+    # are evicted first (fail closed: an evicted nonce simply cannot approve).
+    registry = ApprovalRegistry()
+    first = registry.mint(action_id="a0", target="h", tier=Tier.T2, patterns_version=3)
+    for i in range(1, ApprovalRegistry._MAX_PENDING + 1):
+        registry.mint(action_id=f"a{i}", target="h", tier=Tier.T2, patterns_version=3)
+    with pytest.raises(ApprovalError, match="not minted"):
+        registry.validate(
+            Approval(action_id="a0", token=first),
+            action_id="a0",
+            target="h",
+            tier=Tier.T2,
+            patterns_version=3,
+        )
+
+
+def test_budget_record_spend_never_raises_on_ceiling() -> None:
+    # Post-execute accounting records the overspend; the NEXT charge fails (BL-074).
+    budget = BudgetTracker(max_wall_seconds=10.0)
+    budget.record_spend(wall_seconds=60.0)
+    assert budget.wall_seconds == 60.0
+    with pytest.raises(BudgetError, match="wall budget exceeded"):
+        budget.charge(actions=1)
 
 
 def test_predicate_hard_and_soft() -> None:

@@ -2,18 +2,32 @@
 
 Talos is API-only and immutable: there is no SSH. Endpoints are the control-plane
 IPs talosctl connects to; nodes are the machines a request is about. Destructive
-verbs (reset, upgrade) classify as T3 in the executor, so they require a typed
-token and a single target.
+verbs (reset, upgrade) classify as T3 in the executor, so they require a minted
+approval and a single target.
+
+Input hardening (BL-082, ADR-0016): post-verb tokens beginning with ``-`` are
+refused, so a free-form action can no longer smuggle a talosctl option (for
+example ``--talosconfig`` redirection, or ``--recover-skip-hash-check`` on an
+etcd restore, BL-022); options the adapter needs are set from structured params.
+Node and endpoint values must be an IP address or an RFC 1123 hostname. A reset
+never wipes implicitly: ``--wipe-mode`` is always explicit and defaults to
+``system-disk``; ``all`` must be requested via the structured ``wipe_mode`` param
+(BL-025). A real-run upgrade is gated on a pre-flight ``talosctl health`` HARD
+precondition (BL-023).
 """
 
 from __future__ import annotations
 
+import ipaddress
+import re
+import shutil
+import subprocess  # noqa: S404 - pre-flight health probe; argv is adapter-built and gated
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import ClassVar
 
-from praxis.actuation.base import ActuationAdapter, HostInfo
-from praxis.execution.contract import Approval
+from praxis.actuation.base import ActuationAdapter, HostInfo, scrubbed_env
+from praxis.execution.contract import Approval, Predicate, Severity
 from praxis.execution.patterns import Tier
 from praxis.execution.runner import ExecutionRequest
 from praxis.model.facts import HostType
@@ -55,6 +69,36 @@ _TALOSCTL_VERBS: frozenset[str] = frozenset(
     }
 )
 
+# Wipe scopes for ``talosctl reset`` (BL-025). The adapter always passes an
+# explicit ``--wipe-mode``; the default keeps user data disks.
+_WIPE_MODES: frozenset[str] = frozenset({"system-disk", "user-disks", "all"})
+_DEFAULT_WIPE_MODE = "system-disk"
+
+# Verbs whose real run requires a passing pre-flight health check (BL-023).
+_HEALTH_GATED_VERBS: frozenset[str] = frozenset({"upgrade", "upgrade-k8s"})
+
+_RFC1123_HOST = re.compile(
+    r"^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+    r"(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$",
+    re.IGNORECASE,
+)
+
+
+def _validate_node(value: str) -> None:
+    """A node/endpoint must be an IP address or an RFC 1123 hostname (BL-082).
+
+    Anything else (an option-shaped string, whitespace, an empty value) is
+    refused before the argv is built, closing the ``--talosconfig``-style
+    flag-injection residual of BL-047/BL-048.
+    """
+    try:
+        ipaddress.ip_address(value)
+        return
+    except ValueError:
+        pass
+    if not _RFC1123_HOST.match(value):
+        raise ValueError(f"talos node/endpoint is not an IP or RFC 1123 hostname: {value!r}")
+
 
 class TalosctlAdapter(ActuationAdapter):
     name: ClassVar[str] = "talosctl"
@@ -92,10 +136,77 @@ class TalosctlAdapter(ActuationAdapter):
             raise ValueError(
                 f"talosctl verb not allowed: {verb!r} (allowed: {sorted(_TALOSCTL_VERBS)})"
             )
+        for token in parts[1:]:
+            if token.startswith("-"):
+                raise ValueError(
+                    f"talosctl option not accepted in action: {token!r}; options are "
+                    "set by the adapter from structured params (BL-082)"
+                )
+        for value in (*host.nodes, *host.endpoints):
+            _validate_node(value)
         argv = ["talosctl"]
         if host.nodes:
             argv += ["--nodes", ",".join(host.nodes)]
         if host.endpoints:
             argv += ["--endpoints", ",".join(host.endpoints)]
         argv += parts
+        if verb == "reset":
+            wipe_mode = params.get("wipe_mode") or _DEFAULT_WIPE_MODE
+            if not isinstance(wipe_mode, str) or wipe_mode not in _WIPE_MODES:
+                raise ValueError(
+                    f"talosctl reset wipe_mode must be one of {sorted(_WIPE_MODES)}, "
+                    f"got {wipe_mode!r} (BL-025)"
+                )
+            argv += ["--wipe-mode", wipe_mode]
         return argv
+
+    def extra_preconditions(
+        self, host: HostInfo, action: str, params: Mapping[str, object], *, dry_run: bool
+    ) -> list[Predicate[ExecutionRequest]]:
+        """A real-run upgrade requires a passing pre-flight health check (BL-023)."""
+        verb = action.split()[0] if action.split() else ""
+        if dry_run or verb not in _HEALTH_GATED_VERBS:
+            return []
+        return [
+            Predicate[ExecutionRequest](
+                name="talos_health",
+                test=lambda _req: self._health_ok(host),
+                severity=Severity.HARD,
+                message=(
+                    f"talosctl health pre-flight failed for {host.name}; refusing {verb} (BL-023)"
+                ),
+            )
+        ]
+
+    @staticmethod
+    def _health_ok(host: HostInfo) -> bool:
+        """Run ``talosctl health`` against the host; any failure refuses (fail closed).
+
+        Nodes and endpoints are re-validated here, not only in ``build_argv``, so
+        the probe stays injection-safe even if a future code path reaches the
+        precondition without building the main argv first (BL-082).
+        """
+        for value in (*host.nodes, *host.endpoints):
+            _validate_node(value)  # a throwing predicate is a HARD audited refusal
+        argv = ["talosctl"]
+        if host.nodes:
+            argv += ["--nodes", ",".join(host.nodes)]
+        if host.endpoints:
+            argv += ["--endpoints", ",".join(host.endpoints)]
+        argv += ["health"]
+        if shutil.which(argv[0]) is None:
+            return False
+        try:
+            proc = subprocess.run(  # noqa: S603 - adapter-built argv, no shell
+                argv,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=scrubbed_env(),
+                start_new_session=True,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return proc.returncode == 0

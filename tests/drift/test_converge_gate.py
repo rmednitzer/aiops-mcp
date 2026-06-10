@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from praxis.drift import DriftFinding, DriftKind, DriftSeverity, propose
@@ -14,7 +15,6 @@ from praxis.execution import (
     Tier,
     run,
 )
-from praxis.execution.runner import expected_token
 
 
 def _finding() -> DriftFinding:
@@ -45,6 +45,8 @@ def test_finding_does_not_autofix() -> None:
 
 def test_converge_requires_dry_run_then_approval(tmp_path: Path) -> None:
     ctx = ExecutionContext(policy=Policy(Mode.OPEN), audit=AuditLogger(tmp_path / "audit.jsonl"))
+    minted: list[str] = []
+    ctx.approval_sink = minted.append
     plan = propose(
         _finding(),
         target="axiom",
@@ -59,14 +61,17 @@ def test_converge_requires_dry_run_then_approval(tmp_path: Path) -> None:
     assert denied.error is not None
     assert "approval required" in denied.error
 
-    # The dry run previews without approval.
+    # The dry run previews without approval and mints the nonce out-of-band.
     preview = run(
         plan.to_execution_request(dry_run=True), lambda: "would change 1 line", context=ctx
     )
     assert preview.ok is True
+    assert minted, "the gated dry run must mint an approval"
+    match = re.search(r"token=(\S+)", minted[-1])
+    assert match is not None
 
-    # With a fresh approval, the convergence executes through the audited path.
-    approval = Approval(action_id=real.action_id(), token=expected_token(real, Tier.T2))
+    # With the minted approval, the convergence executes through the audited path.
+    approval = Approval(action_id=real.action_id(), token=match.group(1))
     approved = plan.to_execution_request(dry_run=False, approval=approval)
     applied = run(approved, lambda: "applied", context=ctx)
     assert applied.ok is True

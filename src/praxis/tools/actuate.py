@@ -1,14 +1,18 @@
 """Actuation tool: the one destructive surface, fully tier-gated and trifecta-gated.
 
-It builds the adapter request, classifies it, enforces the trifecta gate (SEC-4),
-then routes through the adapter (host_type gate, SEC-5) and the executor
-(DRY_RUN -> approve -> execute, SEC-6). It returns the outcome and the output hash,
-never the output body in the audit (SEC-9).
+It builds the adapter request and routes through the adapter (host_type gate,
+SEC-5) into the single audited path, which enforces the approval flow
+(DRY_RUN -> minted approval -> execute, SEC-2/SEC-6), the trifecta gate (SEC-4,
+BL-083), and the optional credential-scope gate (BL-049). The approval token is
+minted by the server and surfaced OUT-OF-BAND on the operator console, never in
+this tool's response (BL-072, ADR-0016). The response carries the outcome and the
+output hash, never the output body in the audit (SEC-9).
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Literal, get_args
 
 from pydantic import Field
@@ -21,19 +25,20 @@ from praxis.actuation import (
     TalosctlAdapter,
 )
 from praxis.actuation.base import ActuationAdapter, HostInfo
-from praxis.context import ServerContext, TrifectaViolation
-from praxis.execution.contract import Approval, ApprovalError
+from praxis.config import CONFIG
+from praxis.context import ServerContext
+from praxis.execution.contract import Approval, Contract, Predicate, Severity
 from praxis.execution.patterns import Tier
-from praxis.execution.runner import expected_token
+from praxis.execution.runner import ExecutionContext, ExecutionRequest
 from praxis.model.facts import HostType
 from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 
 _ADAPTERS: dict[str, ActuationAdapter] = {
     "ssh": SSHAdapter(),
-    "ansible": AnsibleAdapter(),
+    "ansible": AnsibleAdapter(playbook_root=CONFIG.playbook_root),
     "opentofu": OpenTofuAdapter(),
     "talosctl": TalosctlAdapter(),
-    "runbook": RunbookAdapter(),
+    "runbook": RunbookAdapter(runbook_root=CONFIG.runbook_root),
 }
 
 AdapterName = Literal["ansible", "opentofu", "runbook", "ssh", "talosctl"]
@@ -60,6 +65,46 @@ class RunActionArgs(ToolArgs):
     endpoints: list[str] = Field(default_factory=list)
     dry_run: bool = True
     approval_token: str | None = None
+    # Structured wipe scope for `talosctl reset` (BL-025). Never implicit: omitting
+    # it means the safe default (system-disk); `all` must be asked for by name.
+    wipe_mode: Literal["system-disk", "user-disks", "all"] | None = None
+
+
+def _broker_gated_context(ctx: ServerContext, host: HostInfo) -> ExecutionContext:
+    """Merge the credential-scope HARD precondition when grants exist (BL-049).
+
+    With no broker, or a broker holding zero grants, scoped-credential enforcement
+    is off (the single-operator default) and the execution context passes through
+    unchanged. Once the operator issues a grant, every actuation must be covered
+    by one, and an uncovered call is an audited refusal inside ``run()``.
+    """
+    broker = ctx.broker
+    if broker is None or not broker.has_grants():
+        return ctx.execution
+    policy = ctx.execution.policy
+
+    def covered(req: ExecutionRequest) -> bool:
+        # The tier is classified lazily from the request the runner actually
+        # gates, so this predicate can never disagree with the decision run()
+        # enforces (one classification source, evaluated at check time).
+        tier = policy.check(req.tool, req.command, base_tier=req.base_tier).tier
+        return broker.authorized(host=host.name, tier=tier)
+
+    pred = Predicate[ExecutionRequest](
+        name="credential_scope",
+        test=covered,
+        severity=Severity.HARD,
+        message=(
+            f"no credential grant covers host {host.name!r} at the classified "
+            "tier (scoped credentials, BL-049)"
+        ),
+    )
+    merged = Contract[ExecutionRequest](
+        preconditions=[*ctx.execution.contract.preconditions, pred],
+        invariants=ctx.execution.contract.invariants,
+        postconditions=ctx.execution.contract.postconditions,
+    )
+    return replace(ctx.execution, contract=merged)
 
 
 def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
@@ -71,44 +116,24 @@ def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
         nodes=tuple(args.nodes),
         endpoints=tuple(args.endpoints),
     )
-    token = args.approval_token
+    params: dict[str, object] = {}
+    if args.wipe_mode is not None:
+        params["wipe_mode"] = args.wipe_mode
 
-    request = adapter.build_request(host, args.action, dry_run=args.dry_run)
-    decision = ctx.execution.policy.check(
-        request.tool, request.command, base_tier=request.base_tier
+    request = adapter.build_request(host, args.action, params, dry_run=args.dry_run)
+    approval = (
+        Approval(action_id=request.action_id(), token=args.approval_token)
+        if args.approval_token is not None
+        else None
     )
-    approval = Approval(action_id=request.action_id(), token=token) if token is not None else None
-
-    # Trifecta containment (SEC-4) applies to a real run only: a DRY_RUN is a
-    # non-executing preview, and it is the step that yields the approval token.
-    if not args.dry_run:
-        approved = approval is not None
-        if ctx.untrusted_ingested and decision.tier < Tier.T2:
-            # Sub-T2 actions are not approval-gated by the executor, so the trifecta
-            # gate validates and consumes the approval itself. Token presence alone
-            # never satisfies the human gate: a caller-supplied, unvalidated string
-            # cannot stand in for a confirmation (closes the bypass).
-            approved = False
-            if approval is not None:
-                try:
-                    ctx.execution.approvals.consume(
-                        approval,
-                        expected_action_id=request.action_id(),
-                        expected_token=expected_token(request, decision.tier),
-                    )
-                    approved = True
-                except ApprovalError as exc:
-                    reason = f"trifecta containment: {exc}"
-                    ctx.audit_trifecta_denial(
-                        tool=request.tool, target=host.name, tier=decision.tier, reason=reason
-                    )
-                    raise TrifectaViolation(reason) from exc
-        ctx.guard_actuation(
-            tier=decision.tier, approved=approved, tool=request.tool, target=host.name
-        )
 
     result = adapter.actuate(
-        host, args.action, context=ctx.execution, dry_run=args.dry_run, approval=approval
+        host,
+        args.action,
+        params,
+        context=_broker_gated_context(ctx, host),
+        dry_run=args.dry_run,
+        approval=approval,
     )
     body: dict[str, object] = {
         "ok": result.ok,
@@ -119,10 +144,19 @@ def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
         "output": result.output,
     }
     if args.dry_run:
-        # Surface exactly what the operator must supply to approve the real run, so
-        # the DRY_RUN -> approve -> execute flow is operable over MCP (SEC-6).
+        # The action id lets the operator bind their approval to this exact
+        # request. The token itself is NEVER in this response: a gated dry run
+        # mints it to the operator console, out-of-band (BL-072, ADR-0016).
         body["action_id"] = request.action_id()
-        body["approval_token"] = expected_token(request, decision.tier)
+        gated = result.decision.requires_approval or (
+            ctx.untrusted_ingested and result.decision.tier >= Tier.T1
+        )
+        if result.ok and gated:
+            body["approval"] = (
+                "a single-use approval token was minted to the server operator "
+                "console (out-of-band); pass it as approval_token with "
+                "dry_run=false"
+            )
     return json.dumps(body, sort_keys=True)
 
 

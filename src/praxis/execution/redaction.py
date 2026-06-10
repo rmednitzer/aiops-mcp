@@ -92,27 +92,44 @@ def redact(text: str) -> str:
     return out
 
 
+# Maximum nesting depth redaction will walk. A deeper subtree is replaced whole
+# with a marker rather than recursed into, so a hostile, deeply nested args
+# payload cannot drive redaction into a RecursionError inside the audited path
+# (BL-077). 32 levels is far beyond any legitimate tool argument shape.
+_MAX_DEPTH = 32
+_TOO_DEEP = "[REDACTED:depth-limit]"
+
+
 def redact_args(args: Mapping[str, object]) -> dict[str, object]:
     """Redact a parameter mapping for audit.
 
     A value is redacted whole if its key looks secret; string values otherwise
     have secret-shaped substrings redacted. Nested mappings and sequences are
-    handled recursively so a secret nested in a dict or list does not leak.
+    handled recursively, to a bounded depth (BL-077): a subtree nested deeper
+    than the bound is replaced whole with a marker, never recursed into.
     """
+    return _redact_mapping(args, depth=0)
+
+
+def _redact_mapping(args: Mapping[str, object], *, depth: int) -> dict[str, object]:
     out: dict[str, object] = {}
     for key, value in args.items():
-        if _SECRET_KEY.search(key):
-            out[key] = REDACTED
+        if _SECRET_KEY.search(str(key)):
+            out[str(key)] = REDACTED
         else:
-            out[key] = _redact_value(value)
+            out[str(key)] = _redact_value(value, depth=depth + 1)
     return out
 
 
-def _redact_value(value: object) -> object:
+def _redact_value(value: object, *, depth: int = 0) -> object:
     if isinstance(value, str):
         return redact(value)
+    if depth >= _MAX_DEPTH:
+        if isinstance(value, (Mapping, list, tuple)):
+            return _TOO_DEEP
+        return value
     if isinstance(value, Mapping):
-        return redact_args(value)
+        return _redact_mapping(value, depth=depth)
     if isinstance(value, (list, tuple)):
-        return [_redact_value(v) for v in value]
+        return [_redact_value(v, depth=depth + 1) for v in value]
     return value

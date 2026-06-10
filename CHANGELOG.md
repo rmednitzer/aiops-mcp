@@ -5,6 +5,70 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 
 ## [Unreleased]
 
+### Security
+- Human-binding approval gate (ADR-0016, BL-072, closes the ADR-0015 P1 finding):
+  a gated DRY_RUN now mints a server-generated, single-use, TTL-bound nonce
+  (bound to action id, target, tier, and `PATTERNS_VERSION`) surfaced out-of-band
+  on the operator console; the deterministic `expected_token` and its echo in the
+  DRY_RUN response are removed, so an autonomous caller can no longer self-approve
+  T2/T3 actions. A restart invalidates pending nonces (fail closed).
+- Free-form shell floors at T2 (ADR-0016, BL-073): `SSHAdapter.base_tier` raised
+  from T1 to T2; `PATTERNS_VERSION` bumped to 3 with new destructive patterns
+  (`find -delete`, `iptables -F`/`--flush`, `nft flush ruleset`, `kubectl
+  drain`/`cordon`/`uncordon`, SQL `DELETE`/`UPDATE` without `WHERE`, Windows
+  `Remove-Item -Recurse`/`Format-Volume`/`Stop-Computer`, `authorized_keys`
+  appends, `ssh-copy-id`).
+- Trifecta containment enforced inside the single audited path (BL-083, BL-084):
+  the session taint latch is shared between `ServerContext` and the execution
+  core; once armed, any T1+ real run requires a minted approval, validated and
+  consumed in one place. The handler-level gate (`guard_actuation`,
+  `TrifectaViolation`) is removed. Reads that return observed facts arm the
+  latch (BL-062 sharpening); `ExecutionRequest.untrusted` is now load-bearing.
+- Actuation input hardening: ansible/runbook paths confined to configured roots,
+  fail closed when unset (`PRAXIS_PLAYBOOK_ROOT`, `PRAXIS_RUNBOOK_ROOT`; BL-024,
+  BL-081); ansible `--limit` host validated (BL-081); talosctl refuses post-verb
+  option tokens (closing `--talosconfig` and `--recover-skip-hash-check`
+  injection, BL-082, BL-022), validates nodes/endpoints as IP or RFC 1123 names
+  (BL-082), always passes an explicit `--wipe-mode` for reset defaulting to
+  `system-disk` (BL-025), and gates real-run upgrades on a `talosctl health`
+  HARD precondition (BL-023).
+- Subprocess environment is an allowlist: unrelated server secrets no longer
+  reach wrapped tools or their plugins (BL-080).
+- Audited-path containment: `redact_args` is depth-bounded and a redaction
+  failure audits-and-denies instead of raising unaudited (BL-077); the audit
+  canonicalizer uses `default=str` so the logger never raises on non-native arg
+  values (BL-078); audit appends are serialised under a lock (BL-029).
+- Store hardening: the SQLite file is pre-created `0o600` (BL-079); `seq` is
+  computed inside the INSERT under a unique index, so a cross-instance race
+  fails loudly (BL-068).
+- stdio protocol hardening: per-line read bounded at 16 MiB with oversize drain,
+  notifications (no `id` member) never receive a response, deeply nested JSON is
+  contained (BL-056). Collectors parse numerics finite-or-default (BL-026).
+- Classification probe includes the tool name; stdin/env passthrough documented
+  as a channel that must never be added unclassified (BL-019).
+
+### Added
+- ADR-0016 (Accepted): approval hardening and enforcement wave, ratifying
+  ADR-0015 Decisions 3a and 3b; resolves BL-017, BL-019, BL-022..BL-026, BL-029,
+  BL-049, BL-056, BL-062, BL-068, BL-072..BL-085, and BL-090, each with a
+  regression test.
+- `emergency_stop` MCP tool and a durable kill-switch file sentinel
+  (`PRAXIS_KILL_SWITCH_PATH`): the trip is audited, never approval- or
+  budget-gated, survives a restart, and is restorable only out-of-band (BL-075).
+- Per-session budget enforcement on the audited path (`PRAXIS_MAX_ACTIONS`,
+  `PRAXIS_MAX_WALL_SECONDS`): a T1+ real run that passed every gate charges an
+  action just before executing and records wall time after; exhaustion is an
+  audited denial, and a refused approval never burns the ceiling (BL-074).
+- `CredentialBroker` wired into the server context and bound to the kill switch:
+  zero grants keeps the single-operator default; the first grant flips actuation
+  to deny-unless-authorized via a HARD audited precondition (BL-049).
+- All read tools and `ingest_observation` route through `run()` via a shared
+  `run_audited` helper, so every tool call writes exactly one audit record; the
+  ingest audit carries `raw_sha256`/`raw_len`, never the telemetry body (BL-017,
+  BL-062, BL-085).
+- `run_action` gains a structured `wipe_mode` parameter for talosctl reset;
+  schemas regenerated for the new tool surface.
+
 ### Changed
 - Documentation honesty pass (ADR-0015): README, SECURITY, LIMITATIONS,
   architecture, the compliance map, the STPA constraint table, the operate and

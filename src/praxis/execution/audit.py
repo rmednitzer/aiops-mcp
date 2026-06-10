@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -52,7 +53,14 @@ class AuditRecord:
 
 
 def _canonical(payload: dict[str, object]) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    # default=str (BL-078): a non-JSON-native arg value (a Path, an Enum, a
+    # datetime) canonicalizes as its str() form instead of raising, so
+    # AuditLogger.record can never raise on hostile or unusual arg shapes
+    # (logger-never-raises by construction, invariant 3). The written line is
+    # produced by this same function, so verification stays consistent.
+    return json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+    )
 
 
 def compute_entry_hash(payload: dict[str, object]) -> str:
@@ -68,6 +76,10 @@ class AuditLogger:
         self._path = path
         self._seq = 0
         self._prev_hash = GENESIS
+        # Serialises payload-build + write + chain-advance so concurrent in-process
+        # writers cannot interleave seq/prev_hash state (BL-029). One process owns
+        # one audit file: cross-process coordination is the Postgres path.
+        self._lock = threading.Lock()
         self._sink: TextIO
         self._file: TextIO | None = None
         self._degraded = False
@@ -164,26 +176,27 @@ class AuditLogger:
         patterns_version: int,
     ) -> AuditRecord:
         """Append one record and advance the chain. Never raises on write."""
-        payload: dict[str, object] = {
-            "seq": self._seq,
-            "ts": self._clock(),
-            "tool": tool,
-            "target": target,
-            "tier": tier,
-            "decision": decision,
-            "args": args,
-            "output_sha256": output_sha256,
-            "output_len": output_len,
-            "error": error,
-            "patterns_version": patterns_version,
-            "prev_hash": self._prev_hash,
-        }
-        entry_hash = compute_entry_hash(payload)
-        record = AuditRecord(entry_hash=entry_hash, **payload)  # type: ignore[arg-type]
-        self._write(record)
-        self._seq += 1
-        self._prev_hash = entry_hash
-        return record
+        with self._lock:
+            payload: dict[str, object] = {
+                "seq": self._seq,
+                "ts": self._clock(),
+                "tool": tool,
+                "target": target,
+                "tier": tier,
+                "decision": decision,
+                "args": args,
+                "output_sha256": output_sha256,
+                "output_len": output_len,
+                "error": error,
+                "patterns_version": patterns_version,
+                "prev_hash": self._prev_hash,
+            }
+            entry_hash = compute_entry_hash(payload)
+            record = AuditRecord(entry_hash=entry_hash, **payload)  # type: ignore[arg-type]
+            self._write(record)
+            self._seq += 1
+            self._prev_hash = entry_hash
+            return record
 
     def _write(self, record: AuditRecord) -> None:
         line = _canonical(record.to_dict())

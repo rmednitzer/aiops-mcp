@@ -49,29 +49,26 @@ v0 is real and tested, but it is a hardening-in-progress security project, not a
 finished product. The deep review in ADR-0015 (2026-06-08) verified the spine is
 sound (storage-layer append-only state, parameterised SQL, inert untrusted skill
 bundles, an option-injection-guarded SSH target, an RFC 6962 Merkle implementation,
-a robust SSRF filter) and that all nine invariants have a proving test. It also
-found that several load-bearing controls are not yet fully enforced in the running
-server. The honest current state:
+a robust SSRF filter) and that all nine invariants have a proving test; the
+ADR-0016 enforcement wave (2026-06-10) closed its P1 and wiring findings. The
+honest current state:
 
 - HTTP transport is not implemented. v0 serves stdio only; an unsafe HTTP bind is
   refused (fails closed), but there is no HTTP server yet.
-- The human-approval gate is a confirmation, not yet a human-binding control. The
-  token is a deterministic function of the request and is returned in the dry-run
-  response, so an automated caller can reproduce it. A server-issued, single-use,
-  out-of-band nonce is proposed (BL-072).
-- Tier authority is a denylist over the command string, and free-form shell
-  actuation currently floors at T1, so a destructive command the denylist does not
-  recognise can run without approval. Flooring arbitrary execution at T2 is
-  proposed (BL-073).
-- The read tools and `ingest_observation` bypass the single audited path, so those
-  reads, and the one untrusted-driven state write, are not individually audited yet
-  (BL-017, BL-062, BL-085).
-- Scoped credentials, per-session budgets, an operator kill-switch actuator, and
-  runtime Merkle/RFC 3161 audit anchoring are implemented or specified but not yet
-  wired into the server (BL-049, BL-074, BL-075, BL-076). At runtime the audit
-  trail is a keyless hash chain (written to an owner-only append-only file when
-  `PRAXIS_AUDIT_PATH` is set, otherwise to stderr); external cryptographic anchoring
-  is not produced automatically.
+- The human-approval gate is human-binding (ADR-0016, BL-072): a gated dry run
+  mints a server-generated, single-use, TTL-bound token surfaced on the operator
+  console, out-of-band from the MCP channel. The token never appears in a tool
+  response, so an automated caller cannot reproduce or replay it. Free-form shell
+  actuation floors at T2 (BL-073).
+- Every registered tool, including the read tools and `ingest_observation`, runs
+  through the single audited path (BL-017, BL-062, BL-085); reads that return
+  observed facts arm the trifecta latch, enforced inside the path (BL-083).
+- Scoped credentials (opt-in via the first grant), per-session budgets, and an
+  audited `emergency_stop` actuator with a durable kill-switch sentinel are wired
+  (BL-049, BL-074, BL-075). Runtime Merkle/RFC 3161 audit anchoring is still not
+  produced (BL-076): at runtime the audit trail is a keyless hash chain (written
+  to an owner-only append-only file when `PRAXIS_AUDIT_PATH` is set, otherwise to
+  stderr); external cryptographic anchoring is not produced automatically.
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

@@ -1,18 +1,22 @@
-"""ServerContext: per-session state, the trifecta gate, and classification filtering.
+"""ServerContext: per-session state, the trifecta latch, and classification filtering.
 
-The lethal-trifecta containment (SEC-4, invariant 8): once a session has ingested
-attacker-influenced content (a collector read, a feed), actuation in that session
-requires the human gate. ``guard_actuation`` refuses any act (tier >= T1) without an
-approval once untrusted content is in play, so injected instructions in collected
-data cannot drive an action on their own. Read tools and act tools stay separable.
+The lethal-trifecta containment (SEC-4, invariant 8): once a session has taken in
+attacker-influenced content (an ingest, a read that returned observed facts), any
+T1+ actuation in that session requires a minted approval. Since ADR-0016 (BL-083)
+that gate is enforced INSIDE the single audited path (``execution.runner.run``),
+keyed off the session taint latch shared with ``ExecutionContext``; this context
+only arms the latch and filters restricted rows. Read tools and act tools stay
+separable.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 
-from praxis.execution.patterns import PATTERNS_VERSION, Tier
+from praxis.actuation.credentials import CredentialBroker
 from praxis.execution.runner import ExecutionContext
+from praxis.model.facts import OBSERVED, Fact
 from praxis.store.base import StoreProtocol
 
 _RESTRICTED = "restricted"
@@ -25,58 +29,35 @@ def _is_restricted(row: dict[str, object]) -> bool:
     return isinstance(value, dict) and value.get("classification") == _RESTRICTED
 
 
-class TrifectaViolation(Exception):
-    """Raised when actuation is attempted in a session that holds untrusted content
-    without a human gate (SEC-4)."""
-
-
 @dataclass
 class ServerContext:
     execution: ExecutionContext
     store: StoreProtocol
     transport: str = "stdio"
     allow_restricted: bool = True
-    untrusted_ingested: bool = field(default=False)
+    # Scoped-credential enforcement (BL-049). With zero grants the broker is
+    # inert (the single-operator default); the first grant flips actuation to
+    # deny-unless-authorized. ``kill_all`` trips the shared kill switch.
+    broker: CredentialBroker | None = None
+
+    @property
+    def untrusted_ingested(self) -> bool:
+        """The session taint latch, shared with the execution core (BL-083)."""
+        return self.execution.taint.untrusted_ingested
 
     def mark_untrusted_ingested(self) -> None:
         """Record that attacker-influenced content has entered this session."""
-        self.untrusted_ingested = True
+        self.execution.taint.mark()
 
-    def audit_trifecta_denial(
-        self, *, tool: str, target: str | None, tier: Tier, reason: str
-    ) -> None:
-        """Write a denial record for a trifecta refusal before it raises (BL-018).
+    def mark_if_observed(self, facts: Iterable[Fact]) -> None:
+        """Arm the latch when a read returns any observed (attacker-influenced) fact.
 
-        Invariant 3 requires every denial to be audited; a trifecta refusal raised
-        out of a tool handler would otherwise leave no trail. The audit writer never
-        raises (SEC-8), so this cannot mask the denial.
+        The one place that encodes "reading collected data back is as untrusted as
+        live collection" (SEC-4, invariant 8), so every read tool applies the same
+        rule instead of each re-implementing it (BL-083).
         """
-        self.execution.audit.record(
-            tool=tool,
-            target=target,
-            tier=tier.label,
-            decision="denied",
-            args={},
-            error=reason,
-            patterns_version=PATTERNS_VERSION,
-        )
-
-    def guard_actuation(
-        self, *, tier: Tier, approved: bool, tool: str = "run_action", target: str | None = None
-    ) -> None:
-        """Enforce the trifecta gate before an act tool runs (SEC-4).
-
-        Once untrusted content is in the session, any actuation needs the human
-        gate (an approval). Without ingestion, the executor's own tier gate applies
-        and this is a no-op. A refusal is audited before it raises (BL-018).
-        """
-        if self.untrusted_ingested and tier >= Tier.T1 and not approved:
-            reason = (
-                "this session has ingested untrusted content; actuation requires a "
-                "human approval (lethal-trifecta containment, SEC-4)"
-            )
-            self.audit_trifecta_denial(tool=tool, target=target, tier=tier, reason=reason)
-            raise TrifectaViolation(reason)
+        if any(f.fact_type == OBSERVED for f in facts):
+            self.mark_untrusted_ingested()
 
     def filter_restricted(self, rows: list[dict[str, object]]) -> list[dict[str, object]]:
         """Drop classification=restricted rows over a transport that may not see

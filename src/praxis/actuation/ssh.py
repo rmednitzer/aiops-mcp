@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from typing import ClassVar
 
-from praxis.actuation.base import ActuationAdapter, HostInfo
+from praxis.actuation.base import SAFE_TARGET, ActuationAdapter, HostInfo
 from praxis.execution.patterns import Tier
 from praxis.model.facts import HostType
 
 # A target must begin with an alphanumeric so it can never be parsed as an ssh
 # option (a leading-dash host like ``-oProxyCommand=...`` is an option-injection
-# vector even with a list argv, because ssh itself parses it). The body permits
-# user@host, IPv6 brackets, dots, and hyphens, nothing that needs a shell.
-_SAFE_TARGET = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\-\[\]:@]*$")
+# vector even with a list argv, because ssh itself parses it). The shared pattern
+# lives in ``base.py`` (BL-081 extends it to ansible).
+_SAFE_TARGET = SAFE_TARGET
 
 # Enumerated host-key policies (the OpenSSH ``StrictHostKeyChecking`` values we
 # permit). ``accept-new`` is Trust-On-First-Use: a previously unseen key is
@@ -28,7 +27,11 @@ class SSHAdapter(ActuationAdapter):
     # Ubuntu and Windows (OpenSSH) only. Talos is API-only and immutable: there is
     # no shell to SSH into, so it is deliberately excluded (SEC-5).
     supported: ClassVar[frozenset[HostType]] = frozenset({HostType.UBUNTU, HostType.WINDOWS})
-    base_tier: ClassVar[Tier] = Tier.T1
+    # Free-form remote shell floors at T2 (BL-073, ADR-0016): the tier patterns are
+    # a denylist that only rounds up, so an arbitrary command they do not recognise
+    # must still meet the human gate. T0/T1 convenience never outweighs an
+    # unrecognised destructive command running ungated.
+    base_tier: ClassVar[Tier] = Tier.T2
     native_dry_run: ClassVar[bool] = False  # no safe remote dry-run; preview instead
     # accept-new (TOFU) is the secure default for fleet automation: it pins a new
     # host the first time and refuses a changed key thereafter. BatchMode=yes makes

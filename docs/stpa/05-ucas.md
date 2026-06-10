@@ -32,6 +32,7 @@ that action. The covering constraint is in `07-security-constraints.md`.
 | `converge` (apply a drift fix) | UCA-15 converge automatically from a finding (no human gate) -> H-1, H-6 | UCA-16 fail to converge a critical safety drift and not surface it -> H-6, L-5 | UCA-17 converge against a superseded baseline -> H-6 | n/a |
 | `supersede_fact` (state write) | UCA-18 supersede with no actor/reason, or mutate in place -> H-10 | n/a | n/a | n/a |
 | `delete_fact` (must not exist) | UCA-19 any in-place deletion path -> H-10 | n/a | n/a | n/a |
+| `ingest_observation` (untrusted-driven state write) | UCA-27 ingest writes observed facts without an audit record, or without arming the session untrusted latch -> H-2, H-4 | n/a | UCA-28 latch armed after a subsequent actuation already used the clean-session path -> H-4 | n/a |
 
 ## Operator and boundary control actions
 
@@ -45,8 +46,9 @@ that action. The covering constraint is in `07-security-constraints.md`.
 ## Coverage note
 
 Read-only control actions (T0 collectors, queries, skill reads) are not state
-changing and are not enumerated here. In v0 the read tools (`query_facts`,
-`fact_history`) read the store directly and are not individually audit-logged; the
-single audited path (SC-1) covers the execution and actuation tools. Their feedback
-is still treated as untrusted (SC-4). Routing reads through the audited path is
-tracked as BL-062 (ADR-0012).
+changing and are not enumerated here. Since ADR-0016 (BL-017, BL-062, BL-085) every
+registered MCP tool, including the read tools and `ingest_observation`, routes
+through the single audited path (SC-1), so each call writes one audit record; a
+read that returns observed facts arms the session untrusted latch, and the ingest
+arms it on the path itself (UCA-27/28). Read feedback is treated as untrusted
+(SC-4). The skills dispatcher's internal reads remain outside the per-call audit.

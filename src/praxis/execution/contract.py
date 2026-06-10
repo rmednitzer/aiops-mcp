@@ -5,17 +5,23 @@ These are the building blocks the runner composes around the execute step:
 - Predicates with HARD/SOFT severity (a HARD precondition aborts; a SOFT one warns).
 - A budget tracker that rejects non-finite and negative inputs at construction and
   at charge time, so a NaN/inf limit can never silently disable a ceiling.
-- Single-use approvals bound to one action, so a T2+ approval cannot be replayed
-  and a retry needs a fresh approval (SEC-2).
+- Server-minted, single-use approval nonces bound to one action, target, tier, and
+  patterns version, with a TTL, so a T2+ approval cannot be forged by the caller,
+  replayed, or carried across a policy change (SEC-2; BL-072, ADR-0016). A restart
+  clears all pending nonces: fail closed.
 - A bounded retry policy (at most once by default).
 """
 
 from __future__ import annotations
 
 import math
+import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+
+from praxis.execution.patterns import Tier
 
 
 class Severity(Enum):
@@ -130,6 +136,16 @@ class BudgetTracker:
             raise BudgetError(f"wall budget exceeded: {new_wall} > {self.max_wall_seconds}")
         self.actions, self.usd, self.wall_seconds = new_actions, new_usd, new_wall
 
+    def record_spend(self, *, usd: float = 0.0, wall_seconds: float = 0.0) -> None:
+        """Record spend that has already happened (post-execute accounting).
+
+        Unlike ``charge``, this never raises on a ceiling: the work is done, so
+        the honest move is to record the overspend, which makes the NEXT
+        ``charge`` fail its ceiling check (BL-074).
+        """
+        self.usd += _finite_nonneg(usd, "usd charge")
+        self.wall_seconds += _finite_nonneg(wall_seconds, "wall_seconds charge")
+
 
 class ApprovalError(Exception):
     """Raised when an approval is missing, mismatched, or already consumed."""
@@ -143,21 +159,134 @@ class Approval:
     token: str
 
 
+@dataclass(frozen=True)
+class _PendingApproval:
+    """A minted nonce and the request facts it is bound to (BL-072)."""
+
+    action_id: str
+    target: str | None
+    tier: Tier
+    patterns_version: int
+    expires_at: float  # monotonic deadline
+
+
 class ApprovalRegistry:
-    """Tracks consumed approvals so each is single-use (SEC-2)."""
+    """Mints and consumes single-use approval nonces (SEC-2; BL-072, ADR-0016).
 
-    def __init__(self) -> None:
-        self._consumed: set[str] = set()
+    The token is server-generated (``secrets.token_urlsafe``), never derivable from
+    the request, surfaced to the operator out-of-band (never in a tool result), and
+    bound to the action id, the target, the tier, and the ``PATTERNS_VERSION`` that
+    classified the action. It expires after ``ttl_seconds`` and is single-use. The
+    registry is in-memory only: a server restart invalidates every pending nonce
+    (fail closed).
+    """
 
-    def consume(self, approval: Approval, *, expected_action_id: str, expected_token: str) -> None:
-        if approval.action_id != expected_action_id:
+    _MAX_PENDING = 1024  # bound memory under dry-run spam; oldest evicted first
+
+    def __init__(
+        self,
+        *,
+        ttl_seconds: float = 600.0,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        if not math.isfinite(ttl_seconds) or ttl_seconds <= 0:
+            raise ApprovalError(f"ttl_seconds must be finite and positive, got {ttl_seconds!r}")
+        self.ttl_seconds = ttl_seconds
+        self._clock = clock if clock is not None else time.monotonic
+        self._pending: dict[str, _PendingApproval] = {}
+        # Consumed tokens are kept until their original TTL passes, purely so a
+        # replay gets the clearer "already used" message; after the TTL a replay
+        # is refused as "not minted" anyway, so purging them bounds memory
+        # without weakening single-use.
+        self._consumed: dict[str, float] = {}  # token -> original expiry
+
+    def mint(
+        self,
+        *,
+        action_id: str,
+        target: str | None,
+        tier: Tier,
+        patterns_version: int,
+    ) -> str:
+        """Mint a fresh single-use nonce for one classified action."""
+        now = self._clock()
+        self._purge(now)
+        token = secrets.token_urlsafe(16)
+        self._pending[token] = _PendingApproval(
+            action_id=action_id,
+            target=target,
+            tier=tier,
+            patterns_version=patterns_version,
+            expires_at=now + self.ttl_seconds,
+        )
+        return token
+
+    def validate(
+        self,
+        approval: Approval,
+        *,
+        action_id: str,
+        target: str | None,
+        tier: Tier,
+        patterns_version: int,
+    ) -> None:
+        """Check an approval without consuming it. Raises ``ApprovalError`` if invalid."""
+        if approval.action_id != action_id:
             raise ApprovalError("approval is not bound to this action")
-        if approval.token != expected_token:
-            raise ApprovalError("approval token does not match the required confirmation")
-        key = f"{approval.action_id}:{approval.token}"
-        if key in self._consumed:
+        if approval.token in self._consumed:
             raise ApprovalError("approval already used; a retry requires a fresh approval")
-        self._consumed.add(key)
+        pending = self._pending.get(approval.token)
+        if pending is None:
+            raise ApprovalError(
+                "approval token was not minted by this server for a pending action; "
+                "run with dry_run=True to mint one"
+            )
+        if self._clock() > pending.expires_at:
+            del self._pending[approval.token]
+            raise ApprovalError(
+                "approval token has expired; re-run the dry run to mint a fresh one"
+            )
+        if pending.action_id != action_id:
+            raise ApprovalError("approval token is bound to a different action")
+        if pending.target != target:
+            raise ApprovalError("approval token is bound to a different target")
+        if pending.tier != tier:
+            raise ApprovalError("approval token is bound to a different tier")
+        if pending.patterns_version != patterns_version:
+            raise ApprovalError(
+                "classification patterns changed since this approval was minted; re-run the dry run"
+            )
+
+    def consume(
+        self,
+        approval: Approval,
+        *,
+        action_id: str,
+        target: str | None,
+        tier: Tier,
+        patterns_version: int,
+    ) -> None:
+        """Validate, then burn the nonce so it can never authorize a second run."""
+        self.validate(
+            approval,
+            action_id=action_id,
+            target=target,
+            tier=tier,
+            patterns_version=patterns_version,
+        )
+        pending = self._pending.pop(approval.token)
+        self._consumed[approval.token] = pending.expires_at
+
+    def _purge(self, now: float) -> None:
+        for tok in [t for t, pend in self._pending.items() if now > pend.expires_at]:
+            del self._pending[tok]
+        # Consumed entries past their original TTL can never be presented as
+        # "already used" vs "not minted" differently: drop them (bounded memory).
+        for tok in [t for t, expiry in self._consumed.items() if now > expiry]:
+            del self._consumed[tok]
+        while len(self._pending) >= self._MAX_PENDING:
+            oldest = min(self._pending, key=lambda tok: self._pending[tok].expires_at)
+            del self._pending[oldest]
 
 
 @dataclass(frozen=True)

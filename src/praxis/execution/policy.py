@@ -26,16 +26,28 @@ class Mode(Enum):
     READONLY = "readonly"  # T0 only
 
 
+def _probe(tool: str, command: str | None) -> str:
+    """The classification probe: the tool name plus the command string (BL-019).
+
+    Including the tool name means a destructive cue carried in the tool name
+    itself cannot dodge the patterns. Anything beyond these two strings (stdin,
+    environment, file payloads) is not a classified channel; see the scope note
+    in ``patterns.py``.
+    """
+    return f"{tool} {command}" if command else tool
+
+
 def classify(tool: str, command: str | None = None, *, base_tier: Tier = Tier.T0) -> Tier:
     """Classify a call. The base tier is a floor; the command can only round up.
 
     A read collector declares ``base_tier=Tier.T0``; an act tool declares at least
-    ``Tier.T1``. Command content (sudo, rm -rf, tofu apply, ...) rounds the result
+    ``Tier.T1``. Probe content (sudo, rm -rf, tofu apply, ...) rounds the result
     up but never below the declared base. Ambiguity rounds up (SEC-3).
     """
     tier = base_tier
-    if command:
-        tier = max(tier, command_tier(command))
+    probe = _probe(tool, command)
+    if probe:
+        tier = max(tier, command_tier(probe))
     return tier
 
 
@@ -65,9 +77,11 @@ class Policy:
         base_tier: Tier = Tier.T0,
     ) -> Decision:
         # 1. Deny list: global, unconditional, evaluated before any tier or mode
-        #    gate, and applied in every mode including OPEN (SEC-1).
-        if command:
-            denied_by = deny_match(command)
+        #    gate, and applied in every mode including OPEN (SEC-1). The probe
+        #    includes the tool name (BL-019).
+        probe = _probe(tool, command)
+        if probe:
+            denied_by = deny_match(probe)
             if denied_by is not None:
                 return Decision(
                     allowed=False,

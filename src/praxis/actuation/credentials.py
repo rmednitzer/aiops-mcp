@@ -61,3 +61,23 @@ class CredentialBroker:
         if tier > scope.max_tier:
             raise CredentialError(f"credential capped at {scope.max_tier.label}, need {tier.label}")
         return scope
+
+    def has_grants(self) -> bool:
+        """True once the operator has issued at least one grant.
+
+        Zero grants is the single-operator default posture: scoped-credential
+        enforcement is off. Issuing the first grant flips the actuation path to
+        deny-unless-authorized (BL-049, ADR-0016).
+        """
+        return bool(self._grants)
+
+    def authorized(self, *, host: str, tier: Tier) -> bool:
+        """True if ANY current grant covers this host at this tier (BL-049).
+
+        This is the broker-level scan the actuation path uses as a HARD audited
+        precondition: it asks whether the operator has scoped authority for the
+        action at all, without naming a specific handle.
+        """
+        return any(
+            host in scope.hosts and tier <= scope.max_tier for scope in self._grants.values()
+        )

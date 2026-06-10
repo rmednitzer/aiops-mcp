@@ -52,7 +52,8 @@ load-bearing property, not a flake.
 - Run `drift_scan` per host; confirm critical findings (ssh_config,
   file_integrity) are triaged, not stale.
 - Review outstanding credential grants (`CredentialBroker`): each should be
-  least-privilege and still needed; revoke the rest. Confirm the kill switch works.
-  v0 note: the broker is not yet wired into the actuation path (BL-049) and the kill
-  switch has no operator-facing actuator (BL-075), so this step is aspirational until
-  those land.
+  least-privilege and still needed; revoke the rest. The broker gates actuation as
+  a HARD audited precondition once any grant exists (ADR-0016, BL-049).
+- Confirm the kill switch works: call `emergency_stop`, verify the denial of a
+  follow-up call and the audit records, then restore out-of-band (remove the
+  `PRAXIS_KILL_SWITCH_PATH` sentinel and restart) (ADR-0016, BL-075).

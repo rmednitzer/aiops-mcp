@@ -17,14 +17,14 @@ the item closes.
 |-----------|-----------------|-----------------|-------------|
 | Art. 9 (risk management) | Conservative pre-execution tier classification | SEC-3 / inv 2 | `execution/patterns.py`, `execution/policy.py::classify` |
 | Art. 12 (logging and traceability) | Tamper-evident, append-only audit trail | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`, `audit/evidence.py` (v0 gap: runtime Merkle/RFC 3161 anchoring not produced; BL-076) |
-| Art. 14 (human oversight) | Tiered HITL at T2+, typed token at T3 | SEC-2, SEC-6 / inv 6 | `execution/runner.py`, `drift/converge.py` (v0 gap: approval token reproducible by the caller, not yet human-binding; BL-072) |
+| Art. 14 (human oversight) | Tiered HITL at T2+; server-minted, single-use, TTL-bound approval nonce surfaced out-of-band (human-binding since ADR-0016, BL-072) | SEC-2, SEC-6 / inv 6 | `execution/runner.py`, `execution/contract.py::ApprovalRegistry`, `drift/converge.py` |
 | Art. 15 (accuracy, robustness, cybersecurity) | Bitemporal source of truth; drift detection; SSRF filter | SEC-7, SEC-10 / inv 4, 7 | `store/sqlite.py`, `drift/`, `_ssrf.py` |
 
 ## NIS2 (Directive (EU) 2022/2555) and NISG 2026 (Austria)
 
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
-| Art. 21 (risk-management measures) | Least privilege; scoped, revocable credentials; kill switch | SEC-8 / inv 9 | `actuation/credentials.py`, `execution/runner.py::KillSwitch` (v0 gap: broker not wired; kill switch lacks an operator actuator; BL-049, BL-075) |
+| Art. 21 (risk-management measures) | Least privilege; scoped, revocable credentials (broker wired, opt-in via the first grant, ADR-0016 BL-049); kill switch with an audited operator actuator and a durable sentinel (ADR-0016 BL-075) | SEC-8 / inv 9 | `actuation/credentials.py`, `execution/runner.py::KillSwitch`, `tools/emergency.py` |
 | Art. 21 (asset and configuration management) | Drift detection against desired state | SEC-6 / inv 6 | `drift/engine.py`, `drift/sources.py` |
 | Art. 23 (reporting) | Complete, verifiable audit evidence for incident reconstruction | SEC-2, SEC-9 / inv 3 | `audit/verify_evidence`, `scripts/verify_audit.py` (v0 gap: no runtime checkpoints to verify unless generated out-of-band; BL-076) |
 

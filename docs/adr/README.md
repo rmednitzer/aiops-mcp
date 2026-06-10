@@ -22,6 +22,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0013](0013-actuation-and-input-hardening-2026-06.md) | Third audit wave (2026-06): actuation, audit, and untrusted-input hardening (BL-018/020/021/034/047/048/054/055/057/058/059 resolved; BL-063..BL-068) | Accepted |
 | [0014](0014-dependency-posture-and-pydantic.md) | Dependency posture (self-contained = no cross-repo coupling, not anti-PyPI) and pydantic at the external-input boundary (BL-069, BL-070) | Accepted |
 | [0015](0015-deep-security-architecture-review-2026-06.md) | Deep security and architecture review (2026-06): approval human-binding, free-form-shell tier floor, latent-control wiring, governance traceability (BL-072..BL-090) | Proposed |
+| [0016](0016-approval-hardening-and-enforcement-wave-2026-06.md) | Approval hardening and enforcement wave (2026-06): ratifies ADR-0015 Decisions 3a/3b; minted approval nonces, T2 shell floor, in-path trifecta/budget/kill-switch/broker enforcement, audited reads and ingest (BL-017/019/022..026/029/049/056/062/068/072..085/090 resolved) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -36,3 +37,6 @@ ADR-0015 is a deep review wave recorded with Status Proposed: it enumerates find
 as BL-072..BL-090 and proposes two architectural refinements (a human-binding
 approval gate and a tier floor for free-form shell actuation) for ratification before
 implementation.
+ADR-0016 ratifies both ADR-0015 proposals and implements them, with the enforcement
+wave that wires the latent controls and routes every tool through the audited path;
+each resolved finding carries a regression test in the accompanying change.

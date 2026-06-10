@@ -29,6 +29,7 @@ from praxis.execution.runner import (
     ExecutionRequest,
     ExecutionResult,
     KillSwitch,
+    SessionTaint,
     run,
 )
 
@@ -51,6 +52,7 @@ __all__ = [
     "Policy",
     "Predicate",
     "RetryPolicy",
+    "SessionTaint",
     "Severity",
     "Tier",
     "Violation",

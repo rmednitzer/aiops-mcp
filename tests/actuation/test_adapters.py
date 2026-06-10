@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import stat
 from pathlib import Path
 
@@ -16,9 +17,7 @@ from praxis.execution import (
     ExecutionContext,
     Mode,
     Policy,
-    Tier,
 )
-from praxis.execution.runner import expected_token
 from praxis.model.facts import HostType
 
 
@@ -34,12 +33,59 @@ def _shim(bin_dir: Path, name: str, body: str, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
 
 
-def test_ssh_executes_via_path_shim(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _playbooks(tmp_path: Path, *names: str) -> str:
+    """Create a confined playbook root with the named playbooks (BL-081)."""
+    root = tmp_path / "playbooks"
+    root.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        (root / name).write_text("- hosts: all\n", encoding="utf-8")
+    return str(root)
+
+
+def _mint(ctx: ExecutionContext) -> str:
+    """Pull the latest minted nonce out of the sink the test installed."""
+    assert isinstance(ctx.approval_sink, _Sink)
+    match = re.search(r"token=(\S+)", ctx.approval_sink.messages[-1])
+    assert match is not None
+    return match.group(1)
+
+
+class _Sink:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    def __call__(self, message: str) -> None:
+        self.messages.append(message)
+
+
+def test_ssh_t2_floor_requires_approval_even_for_benign_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # BL-073: free-form shell floors at T2; "uptime" no longer runs ungated.
     _shim(tmp_path / "bin", "ssh", 'echo "FAKE-SSH $@"', monkeypatch)
     ctx = _ctx(tmp_path)
     ubuntu = HostInfo(name="axiom", host_type=HostType.UBUNTU, ssh_alias="axiom")
-    # "uptime" is T1: no approval required; run for real against the shim.
-    result = SSHAdapter().actuate(ubuntu, "uptime", context=ctx, dry_run=False)
+    denied = SSHAdapter().actuate(ubuntu, "uptime", context=ctx, dry_run=False)
+    assert denied.ok is False
+    assert denied.error is not None
+    assert "approval required" in denied.error
+
+
+def test_ssh_executes_via_path_shim_with_minted_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _shim(tmp_path / "bin", "ssh", 'echo "FAKE-SSH $@"', monkeypatch)
+    ctx = _ctx(tmp_path)
+    ctx.approval_sink = _Sink()
+    ubuntu = HostInfo(name="axiom", host_type=HostType.UBUNTU, ssh_alias="axiom")
+    adapter = SSHAdapter()
+
+    preview = adapter.actuate(ubuntu, "uptime", context=ctx, dry_run=True)
+    assert preview.ok is True
+    request = adapter.build_request(ubuntu, "uptime", dry_run=False)
+    approval = Approval(action_id=request.action_id(), token=_mint(ctx))
+
+    result = adapter.actuate(ubuntu, "uptime", context=ctx, dry_run=False, approval=approval)
     assert result.ok is True
     # Host-key policy and BatchMode are forced into the argv (BL-020); the target
     # and action still arrive at the end.
@@ -52,20 +98,22 @@ def test_ansible_dry_run_runs_check(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     _shim(tmp_path / "bin", "ansible-playbook", 'echo "FAKE-ANSIBLE $@"', monkeypatch)
     ctx = _ctx(tmp_path)
     ubuntu = HostInfo(name="axiom", host_type=HostType.UBUNTU)
+    adapter = AnsibleAdapter(playbook_root=_playbooks(tmp_path, "site.yml"))
     # Ansible has a native safe preview: dry_run runs --check for real.
-    result = AnsibleAdapter().actuate(ubuntu, "site.yml", context=ctx, dry_run=True)
+    result = adapter.actuate(ubuntu, "site.yml", context=ctx, dry_run=True)
     assert result.ok is True
     assert "FAKE-ANSIBLE" in result.output
     assert "--check" in result.output
 
 
-def test_ansible_apply_requires_then_consumes_approval(
+def test_ansible_apply_requires_then_consumes_minted_approval(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _shim(tmp_path / "bin", "ansible-playbook", 'echo "FAKE-ANSIBLE $@"', monkeypatch)
     ctx = _ctx(tmp_path)
+    ctx.approval_sink = _Sink()
     ubuntu = HostInfo(name="axiom", host_type=HostType.UBUNTU)
-    adapter = AnsibleAdapter()
+    adapter = AnsibleAdapter(playbook_root=_playbooks(tmp_path, "site.yml"))
 
     # A real apply (T2) without approval is refused.
     denied = adapter.actuate(ubuntu, "site.yml", context=ctx, dry_run=False)
@@ -73,12 +121,41 @@ def test_ansible_apply_requires_then_consumes_approval(
     assert denied.error is not None
     assert "approval required" in denied.error
 
-    # Build the request to obtain its action id, approve it, then actuate.
+    # The dry run (--check) mints; the approval binds to the REAL apply command
+    # (action_key), so the preview-vs-apply argv difference does not break the
+    # DRY_RUN -> approve -> execute flow (BL-072).
+    preview = adapter.actuate(ubuntu, "site.yml", context=ctx, dry_run=True)
+    assert preview.ok is True
     request = adapter.build_request(ubuntu, "site.yml", dry_run=False)
-    approval = Approval(action_id=request.action_id(), token=expected_token(request, Tier.T2))
+    approval = Approval(action_id=request.action_id(), token=_mint(ctx))
     applied = adapter.actuate(ubuntu, "site.yml", context=ctx, dry_run=False, approval=approval)
     assert applied.ok is True
     assert "FAKE-ANSIBLE" in applied.output
+    assert "--check" not in applied.output
+
+
+def test_ansible_confines_playbooks_to_the_root(tmp_path: Path) -> None:
+    # BL-081: no root configured refuses outright; an escaping path is refused.
+    ubuntu = HostInfo(name="axiom", host_type=HostType.UBUNTU)
+    with pytest.raises(ValueError, match="no playbook root configured"):
+        AnsibleAdapter().build_argv(ubuntu, "site.yml", {}, dry_run=True)
+    root = _playbooks(tmp_path, "site.yml")
+    adapter = AnsibleAdapter(playbook_root=root)
+    with pytest.raises(ValueError, match="escapes"):
+        adapter.build_argv(ubuntu, "../../etc/passwd", {}, dry_run=True)
+    with pytest.raises(ValueError, match="not found"):
+        adapter.build_argv(ubuntu, "missing.yml", {}, dry_run=True)
+    argv = adapter.build_argv(ubuntu, "site.yml", {}, dry_run=False)
+    assert argv[0] == "ansible-playbook"
+    assert argv[1] == str(Path(root) / "site.yml")
+
+
+def test_ansible_rejects_option_shaped_limit_host(tmp_path: Path) -> None:
+    # BL-081: the --limit value is validated even though it comes from inventory.
+    adapter = AnsibleAdapter(playbook_root=_playbooks(tmp_path, "site.yml"))
+    hostile = HostInfo(name="--limit-injection", host_type=HostType.UBUNTU)
+    with pytest.raises(ValueError, match="unsafe ansible"):
+        adapter.build_argv(hostile, "site.yml", {}, dry_run=True)
 
 
 def test_opentofu_dry_run_is_a_full_plan() -> None:

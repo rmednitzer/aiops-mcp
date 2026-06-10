@@ -26,8 +26,10 @@ class TalosCollector(Collector):
         if not raw:
             return []
         try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
+            # parse_constant maps a JSON NaN/Infinity literal to None rather than a
+            # non-finite float, so collected telemetry cannot inject a NaN (BL-026).
+            parsed = json.loads(raw, parse_constant=lambda _const: None)
+        except (json.JSONDecodeError, RecursionError):
             return [self._fact(subject, self.predicate, {"status": raw}, actor)]
         if isinstance(parsed, list):
             items = [item for item in parsed if isinstance(item, dict)]

@@ -5,8 +5,9 @@ append-only are enforced at the storage layer by per-table PL/pgSQL trigger
 functions and a partial unique index: deletion is blocked, every identity and
 provenance column is immutable, and the only legal UPDATE is the one-time supersede
 transition (the same guarantees as the SQLite backend). Table-wide ``TRUNCATE`` is
-not yet blocked here (row-level triggers do not fire for it); that needs a
-statement-level ``BEFORE TRUNCATE`` trigger plus a ``REVOKE``, tracked as BL-028.
+blocked by a statement-level ``BEFORE TRUNCATE`` trigger (row-level triggers do not
+fire for it), with ``TRUNCATE`` also revoked from ``PUBLIC`` (BL-028); the trigger
+is the enforcing control, since the table owner is not bound by the revoke.
 Timestamps are stored as TEXT (verbatim ISO 8601) and values as TEXT JSON, so a
 fact round-trips identically across both backends.
 
@@ -81,6 +82,17 @@ END;
 $$ LANGUAGE plpgsql;
 """
 
+# TRUNCATE bypasses row-level triggers entirely, so append-only needs this
+# statement-level guard (BL-028). One shared function is safe here: unlike the
+# per-table append-only functions (BL-038), it inspects no columns.
+_BLOCK_TRUNCATE_FN = """
+CREATE OR REPLACE FUNCTION praxis_block_truncate() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'append-only: TRUNCATE is blocked';
+END;
+$$ LANGUAGE plpgsql;
+"""
+
 _SCHEMA = [
     """
     CREATE TABLE IF NOT EXISTS facts (
@@ -103,15 +115,50 @@ _SCHEMA = [
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS edges_active_unique ON edges (subject, relation, "
     "target) WHERE t_invalid IS NULL AND t_superseded IS NULL",
+    # seq is unique at the storage layer, mirroring the SQLite backend (BL-068),
+    # so the inline MAX(seq)+1 computed in the INSERT cannot silently collide
+    # across two store instances on one database: a race fails loudly with a
+    # UniqueViolation instead of corrupting the ordering (BL-091).
+    "CREATE UNIQUE INDEX IF NOT EXISTS facts_seq_unique ON facts (seq)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS edges_seq_unique ON edges (seq)",
     _FACTS_APPEND_ONLY_FN,
     _EDGES_APPEND_ONLY_FN,
+    _BLOCK_TRUNCATE_FN,
     "DROP TRIGGER IF EXISTS facts_append_only ON facts",
     "CREATE TRIGGER facts_append_only BEFORE UPDATE OR DELETE ON facts "
     "FOR EACH ROW EXECUTE FUNCTION praxis_facts_append_only()",
     "DROP TRIGGER IF EXISTS edges_append_only ON edges",
     "CREATE TRIGGER edges_append_only BEFORE UPDATE OR DELETE ON edges "
     "FOR EACH ROW EXECUTE FUNCTION praxis_edges_append_only()",
+    "DROP TRIGGER IF EXISTS facts_no_truncate ON facts",
+    "CREATE TRIGGER facts_no_truncate BEFORE TRUNCATE ON facts "
+    "FOR EACH STATEMENT EXECUTE FUNCTION praxis_block_truncate()",
+    "DROP TRIGGER IF EXISTS edges_no_truncate ON edges",
+    "CREATE TRIGGER edges_no_truncate BEFORE TRUNCATE ON edges "
+    "FOR EACH STATEMENT EXECUTE FUNCTION praxis_block_truncate()",
+    # Defense in depth for clusters with broader grants; the owner role is not
+    # bound by a revoke, so the statement trigger above is the enforcing control.
+    "REVOKE TRUNCATE ON facts FROM PUBLIC",
+    "REVOKE TRUNCATE ON edges FROM PUBLIC",
 ]
+
+# seq is computed inside the INSERT itself, so the read and the write are one
+# atomic statement per backend connection; under concurrency the unique index
+# turns any residual cross-instance race into a loud UniqueViolation instead of
+# a silent duplicate (BL-068 parity, BL-091). Module-level so the static schema
+# guard can assert the shape without a live database.
+_FACTS_INSERT = (
+    "INSERT INTO facts (fact_id, subject, predicate, fact_type, value, t_valid, "
+    "t_invalid, t_recorded, t_superseded, actor, reason, seq) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+    "(SELECT COALESCE(MAX(seq), -1) + 1 FROM facts))"
+)
+_EDGES_INSERT = (
+    "INSERT INTO edges (edge_id, subject, relation, target, value, t_valid, "
+    "t_invalid, t_recorded, t_superseded, actor, reason, seq) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+    "(SELECT COALESCE(MAX(seq), -1) + 1 FROM edges))"
+)
 
 
 def _loads_obj(raw: str) -> dict[str, object]:
@@ -141,7 +188,6 @@ class PostgresStore:
         now = utc_now_iso()
         fact_id = uuid.uuid4().hex
         with self._conn.transaction():
-            seq = self._next_seq("facts")
             existing = self.get_active(fact.subject, fact.predicate, fact.fact_type)
             if existing is not None and existing.fact_id is not None:
                 self._conn.execute(
@@ -149,9 +195,7 @@ class PostgresStore:
                     (now, existing.fact_id),
                 )
             self._conn.execute(
-                "INSERT INTO facts (fact_id, subject, predicate, fact_type, value, t_valid, "
-                "t_invalid, t_recorded, t_superseded, actor, reason, seq) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                _FACTS_INSERT,
                 (
                     fact_id,
                     fact.subject,
@@ -164,7 +208,6 @@ class PostgresStore:
                     None,
                     fact.actor,
                     fact.reason,
-                    seq,
                 ),
             )
         stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
@@ -237,7 +280,6 @@ class PostgresStore:
         edge_id = uuid.uuid4().hex
         t_valid = edge.t_valid or now
         with self._conn.transaction():
-            seq = self._next_seq("edges")
             existing = self._active_edge(edge.subject, edge.relation, edge.target)
             if existing is not None and existing.edge_id is not None:
                 self._conn.execute(
@@ -245,9 +287,7 @@ class PostgresStore:
                     (now, existing.edge_id),
                 )
             self._conn.execute(
-                "INSERT INTO edges (edge_id, subject, relation, target, value, t_valid, "
-                "t_invalid, t_recorded, t_superseded, actor, reason, seq) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                _EDGES_INSERT,
                 (
                     edge_id,
                     edge.subject,
@@ -260,7 +300,6 @@ class PostgresStore:
                     None,
                     edge.actor,
                     edge.reason,
-                    seq,
                 ),
             )
         stored = self._active_edge(edge.subject, edge.relation, edge.target)
@@ -285,17 +324,6 @@ class PostgresStore:
             (subject, relation, target),
         ).fetchone()
         return _row_to_edge(row) if row is not None else None
-
-    def _next_seq(self, table: str) -> int:
-        # Table is never interpolated from caller input: only these two literals.
-        if table == "facts":
-            sql = "SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM facts"
-        elif table == "edges":
-            sql = "SELECT COALESCE(MAX(seq), -1) + 1 AS n FROM edges"
-        else:
-            raise ValueError(f"unknown table {table!r}")
-        row = self._conn.execute(sql).fetchone()
-        return int(row["n"])
 
     def capabilities(self) -> frozenset[Capability]:
         return frozenset({Capability.GRAPH})

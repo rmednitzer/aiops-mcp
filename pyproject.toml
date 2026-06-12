@@ -41,8 +41,9 @@ select = ["E", "F", "I", "W", "UP", "B", "S"]
 # not real secrets.
 "tests/**" = ["S101", "S105", "S106"]
 # S608: the store backends build WHERE clauses from a fixed, internal set of
-# column predicates; every value is bound as a parameter (?, %s) and table names
-# are literals (see _next_seq). The interpolated parts carry no caller input.
+# column predicates; every value is bound as a parameter (?, %s), table names are
+# literals, and seq is an inline subselect over a literal table. The interpolated
+# parts carry no caller input.
 "src/praxis/store/sqlite.py" = ["S608"]
 "src/praxis/store/postgres.py" = ["S608"]
 

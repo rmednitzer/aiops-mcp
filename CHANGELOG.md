@@ -6,6 +6,28 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
+- Postgres storage-layer parity (ADR-0018, BL-091, BL-028): `seq` is computed
+  inside the INSERT under new unique indexes, so the cross-instance `MAX(seq)+1`
+  race fails loudly with a `UniqueViolation` instead of silently corrupting fact
+  ordering (the BL-068 fix had covered SQLite only); a statement-level
+  `BEFORE TRUNCATE` trigger refuses table-wide truncation, with `TRUNCATE` also
+  revoked from `PUBLIC`. Live-verified against PostgreSQL 16.13; new live tests
+  (seq uniqueness across two store instances, duplicate-seq violation, TRUNCATE
+  and DELETE refusals) run when `PRAXIS_TEST_PG_DSN` is set, and static schema
+  guards assert the same statements without a database.
+- Supply chain (ADR-0018, BL-088): CI installs are hash-locked
+  (`requirements-dev.txt`, consumed with `pip --require-hashes`); the dev,
+  postgres, and build-backend requirements are version-bounded so majors cannot
+  land unreviewed; the fuzz workflow runs on a test-matrix interpreter (3.13);
+  the SBOM is generated against a dedicated venv so it describes the production
+  dependency graph, not the runner environment.
+- Helm hardening (ADR-0018, BL-051, BL-086): NetworkPolicy ingress admits only
+  the peers named in `networkPolicy.ingressFrom` (empty default denies all
+  ingress to the MCP port); the PostgreSQL DSN moves to a `secretKeyRef`
+  (`store.existingSecret`/`store.secretKey`), and an inline `storeDsn` now fails
+  the render with a migration message instead of landing the password in etcd
+  and `helm history`. Verified with helm 3.21 lint plus rendered-output checks.
+
 - Human-binding approval gate (ADR-0016, BL-072, closes the ADR-0015 P1 finding):
   a gated DRY_RUN now mints a server-generated, single-use, TTL-bound nonce
   (bound to action id, target, tier, and `PATTERNS_VERSION`) surfaced out-of-band
@@ -48,6 +70,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   as a channel that must never be added unclassified (BL-019).
 
 ### Added
+- Coverage floor on the aggregate gate (ADR-0018, BL-053): `make coverage`
+  (source-based, `fail_under = 90`, measured 91 without the postgres extra)
+  joins `ci-success`; the entry point gained tests for the fail-closed
+  `TransportError` to `SystemExit` refusal and the import-bound CONFIG.
+- Chart `NOTES.txt` and a values warning that v0 refuses non-stdio transports,
+  so the default chart CrashLoopBackOffs until HTTP serving lands (BL-093).
+- ADR-0018 (Accepted): the remediation wave resolving BL-028, BL-051, BL-053,
+  BL-086, BL-088, BL-091, and BL-093.
 - ADR-0016 (Accepted): approval hardening and enforcement wave, ratifying
   ADR-0015 Decisions 3a and 3b; resolves BL-017, BL-019, BL-022..BL-026, BL-029,
   BL-049, BL-056, BL-062, BL-068, BL-072..BL-085, and BL-090, each with a

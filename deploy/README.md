@@ -10,11 +10,11 @@ Hardened deployment artifacts for praxis (BL-014).
     dropped, `seccompProfile: RuntimeDefault`.
   - A per-release ServiceAccount with `automountServiceAccountToken: false` (praxis
     needs no Kubernetes API access; invariant 9).
-  - A default-deny `NetworkPolicy`: ingress only on the MCP port, egress only to
-    DNS and explicitly listed fleet CIDRs (the in-cluster complement to the
-    in-process SSRF filter, SEC-7). (v0 gap: the ingress rule has no `from:`
-    selector, so any pod can reach the MCP port, and the DNS egress is not
-    namespace-scoped; BL-051, BL-087.)
+  - A default-deny `NetworkPolicy`: ingress only on the MCP port and only from
+    the peers named in `networkPolicy.ingressFrom` (empty default: all ingress
+    denied, BL-051); egress only to DNS and explicitly listed fleet CIDRs (the
+    in-cluster complement to the in-process SSRF filter, SEC-7). (v0 gap: the
+    DNS egress is not namespace-scoped; BL-087.)
   - A digest-pinned image (no tags; ADR-0001 supply-chain posture). Set
     `image.digest` before installing. (v0 gap: the default `image.digest` is an
     all-zero placeholder that only fails at pull time; BL-033.)
@@ -35,14 +35,14 @@ is reviewable now and ready when HTTP serving lands.
 ## Known hardening gaps (tracked)
 
 The manifests encode the intended posture; the deep review (ADR-0015) found these
-gaps to that bar, each tracked in `docs/backlog.md`:
+gaps to that bar, each tracked in `docs/backlog.md`. The 2026-06-12 wave
+(ADR-0018) closed the `storeDsn` plaintext rendering (now a `secretKeyRef`, with
+an inline DSN refused at render time, BL-086) and the unselective ingress (now
+`networkPolicy.ingressFrom`, deny-all by default, BL-051). Still open:
 
-- `storeDsn` (the PostgreSQL DSN, which carries the password) renders as a plaintext
-  Deployment env value, so it lands in etcd and `helm history`; move it to a
-  `secretKeyRef` (the http token already uses one). BL-086.
-- The `NetworkPolicy` ingress has no `from:` selector and the DNS egress is not
-  namespace-scoped. BL-051, BL-087.
-- The default image digest is an all-zero placeholder. BL-033.
+- The DNS egress is not namespace-scoped. BL-087.
+- The default image digest is an all-zero placeholder. BL-033. No Dockerfile in
+  the repo builds the referenced image. BL-092.
 - The systemd hardening drop-in is missing `PrivateUsers`, `ProcSubset=pid`,
   `RemoveIPC`, and `IPAddressDeny`/`SocketBindDeny`, and `runtimeClassName` defaults
   to empty (no sandbox). BL-087.

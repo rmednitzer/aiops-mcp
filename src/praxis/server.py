@@ -18,7 +18,7 @@ from typing import TextIO
 
 from praxis import __version__
 from praxis.actuation.credentials import CredentialBroker
-from praxis.audit import bind_session
+from praxis.audit import EvidenceScheduler, bind_session
 from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
@@ -39,7 +39,29 @@ _MAX_LINE_CHARS = 16 * 1024 * 1024
 
 def build_context(config: Config) -> ServerContext:
     store = open_store(config.store_dsn)
-    audit = AuditLogger(Path(config.audit_path)) if config.audit_path else AuditLogger()
+    # Runtime evidence (BL-076): with an audit file configured, checkpoints are
+    # produced every evidence_every records via the logger's post-record hook
+    # (and at shutdown via serve's finalize). The anchor high-water mark
+    # (BL-050) is opt-in via PRAXIS_ANCHOR_PATH.
+    audit_path = Path(config.audit_path) if config.audit_path else None
+    scheduler: EvidenceScheduler | None = None
+    if audit_path is not None and config.evidence_every > 0:
+        evidence_path = (
+            Path(config.evidence_path)
+            if config.evidence_path
+            else audit_path.with_suffix(".evidence.jsonl")
+        )
+        scheduler = EvidenceScheduler(
+            audit_path,
+            evidence_path,
+            every=config.evidence_every,
+            anchor_path=Path(config.anchor_path) if config.anchor_path else None,
+        )
+    audit = (
+        AuditLogger(audit_path, on_record=scheduler.on_record if scheduler else None)
+        if audit_path
+        else AuditLogger()
+    )
     # Bind the server-binary hash into the trail as the first record (ADR-0008).
     bind_session(audit)
     # Durable kill switch (BL-075), per-session budget (BL-074), and the
@@ -69,6 +91,7 @@ def build_context(config: Config) -> ServerContext:
         transport=config.transport,
         allow_restricted=config.allow_restricted,
         broker=broker,
+        evidence=scheduler,
     )
 
 
@@ -191,10 +214,18 @@ def serve(config: Config | None = None) -> None:
     validate_transport(cfg)
     ctx = build_context(cfg)
     registry = build_registry()
-    if cfg.transport == "stdio":
-        StdioServer(registry, ctx).serve()
-        return
-    raise NotImplementedError(
-        "HTTP transport serving is staged; the transport guard (token + non-loopback "
-        "opt-in + SSRF egress filter) is enforced before any bind. Use stdio for v0."
-    )
+    try:
+        if cfg.transport == "stdio":
+            StdioServer(registry, ctx).serve()
+            return
+        raise NotImplementedError(
+            "HTTP transport serving is staged; the transport guard (token + non-loopback "
+            "opt-in + SSRF egress filter) is enforced before any bind. Use stdio for v0."
+        )
+    finally:
+        # Cover the audit tail with a final checkpoint at orderly shutdown
+        # (BL-076): verify_evidence requires full coverage at rest. An uncovered
+        # tail after a crash is the intended visible seam, not a silent state.
+        if ctx.evidence is not None:
+            ctx.evidence.finalize()
+        ctx.execution.audit.close()

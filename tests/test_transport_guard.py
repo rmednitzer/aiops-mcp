@@ -111,3 +111,45 @@ def test_assert_egress_is_fail_closed_on_names_and_encodings() -> None:
         with pytest.raises(SSRFBlocked):
             assert_egress_allowed(url)
     assert_egress_allowed("https://8.8.8.8/resolve")  # public IP literal: allowed
+
+
+def test_ssrf_blocks_ipv4_embedded_in_ipv6() -> None:
+    # IPv4-in-IPv6 embeddings must not smuggle a blocked v4 range past the
+    # filter: v4-mapped (::ffff:0:0/96), NAT64 (64:ff9b::/96, RFC 6052), and
+    # 6to4 (2002::/16) forms of loopback, RFC1918, and the IMDS address
+    # (BL-061 bypass sweep).
+    embedded = [
+        "::ffff:127.0.0.1",
+        "::ffff:10.0.0.1",
+        "::ffff:169.254.169.254",
+        "64:ff9b::7f00:1",  # NAT64(127.0.0.1)
+        "64:ff9b::a00:1",  # NAT64(10.0.0.1)
+        "2002:7f00:1::",  # 6to4 from 127.0.0.1
+        "2002:a00:1::",  # 6to4 from 10.0.0.1
+    ]
+    for host in embedded:
+        assert is_blocked_address(host) is True, host
+    # A public v6 literal is still allowed (no over-blocking).
+    assert is_blocked_address("2001:4860:4860::8888") is False
+
+
+def test_ssrf_blocks_ipv6_special_ranges_and_sixtofour_relay() -> None:
+    # ULA, multicast, unspecified, and the deprecated 6to4 relay anycast
+    # (192.88.99/24, RFC 7526): never legitimate praxis egress (BL-096).
+    hosts = ["fc00::1", "fd12:3456::1", "ff02::1", "::", "0.0.0.0", "192.88.99.1"]  # noqa: S104 - asserting the filter BLOCKS the all-interfaces literal
+    for host in hosts:
+        assert is_blocked_address(host) is True, host
+
+
+def test_assert_egress_blocks_userinfo_and_bracketed_v6_tricks() -> None:
+    # The URL host is what urlparse reports as hostname: a public-looking
+    # userinfo prefix must not mask a blocked host, and bracketed v6 literals
+    # are normalised before classification.
+    for url in [
+        "http://8.8.8.8@127.0.0.1/",  # userinfo trick: real host is loopback
+        "http://[::ffff:169.254.169.254]/latest/",
+        "http://[fe80::1]:8080/",
+    ]:
+        with pytest.raises(SSRFBlocked):
+            assert_egress_allowed(url)
+    assert_egress_allowed("https://[2001:4860:4860::8888]/resolve")  # public v6: allowed

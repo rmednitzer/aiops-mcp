@@ -6,6 +6,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
+- SSRF bypass sweep and 6to4 relay block (ADR-0020, BL-061, BL-096): an
+  adversarial pass over the egress filter confirmed IPv4-in-IPv6 (v4-mapped,
+  NAT64, 6to4), IPv6 special ranges, URL userinfo masking, and bracketed v6
+  literals are all blocked; the one gap, the deprecated 6to4 relay anycast
+  `192.88.99.0/24` (RFC 7526, classified inconsistently across interpreter
+  patch versions), is now blocked with a deterministic constant. Regression
+  sweep added.
+- Deploy hardening (ADR-0020, BL-087 partial): the systemd drop-in adds
+  `PrivateUsers`/`ProcSubset=pid`/`RemoveIPC` and is de-duplicated against the
+  base unit; the Helm NetworkPolicy scopes DNS egress to `kube-system` and makes
+  `networkPolicy.egressCIDRs` `{cidr, except}` objects that always excise
+  `169.254.0.0/16` (cloud metadata/link-local). The bare-string `egressCIDRs`
+  form is refused at render time. `IPAddressDeny`/`SocketBindDeny` stay
+  operator-scoped (a deny-all default would brick SSH actuation).
 - Runtime evidence production (ADR-0019, BL-076, BL-050, BL-030): with an audit
   file configured the server now produces Merkle checkpoints every
   `PRAXIS_EVIDENCE_EVERY` records (default 64) and at orderly shutdown, into
@@ -92,6 +106,13 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   as a channel that must never be added unclassified (BL-019).
 
 ### Added
+- Test and fuzz expansion (ADR-0020, BL-061): the full adapter x host_type
+  refusal matrix, a SQLite/Postgres backend parity suite over the shared
+  bitemporal behaviors (live-verified against PostgreSQL 16.13), and
+  `scripts/fuzz.py` stages for the SKILL.md frontmatter parser, the Merkle tree,
+  and `verify_evidence`.
+- ADR-0020 (Accepted): test/fuzz expansion and deploy hardening; resolves
+  BL-061 and BL-096, advances BL-087.
 - ADR-0019 (Accepted): runtime evidence and the anchored high-water mark;
   resolves BL-030, BL-050, and BL-076; files BL-095. New config:
   `PRAXIS_EVIDENCE_PATH`, `PRAXIS_EVIDENCE_EVERY`, `PRAXIS_ANCHOR_PATH`;

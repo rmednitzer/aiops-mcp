@@ -18,6 +18,6 @@ jobs:
           # The fuzz harness exercises the security-review surfaces, so it runs on
           # an interpreter the ci.yml test matrix covers, not a newer one the suite
           # never sees (BL-088).
-          python-version: "3.13"
+          python-version: "3.14"
       - name: Fuzz the classification, policy, and redaction surfaces
         run: python scripts/fuzz.py 200000

@@ -35,7 +35,7 @@ XS, S, M, L.
 | BL-027 | Additive store extension Protocols plus content-hash compare-and-set for supersede | M | open | 0011 |
 | BL-028 | Postgres backend engine-level append-only (`REVOKE` plus `BEFORE TRUNCATE` trigger; optional `RESTRICTIVE` RLS floor) | M | resolved | 0011, 0018 |
 | BL-029 | Serialise audit hash-chain appends for concurrent writers (process lock now; `pg_advisory_xact_lock` for the PG path) | S | resolved | 0011, 0016 |
-| BL-030 | Stamp `raw_snapshot_hash` of each collected snapshot into the Merkle checkpoint | M | open | 0011 |
+| BL-030 | Stamp `raw_snapshot_hash` of each collected snapshot into the Merkle checkpoint | M | resolved | 0011, 0019 |
 | BL-031 | Machine-checkable compliance map (bidirectional code/control/article validator plus framework coverage) in CI | M | open | 0011 |
 | BL-032 | helm-unittest chart assertions for the praxis chart, gated in CI | M | open | 0011 |
 | BL-033 | Supply-chain parity: real zarf digest, CycloneDX SBOM, values/sbom/zarf CI parity, governance-as-code labels | M | open | 0011 |
@@ -55,7 +55,7 @@ XS, S, M, L.
 | BL-047 | talosctl: enforce the T3 single-target rule on `host.nodes`, not only `host.name` | S | resolved | 0012, 0013 |
 | BL-048 | talosctl: replace `action.split()` with a verb allowlist; pass structured params | S | resolved | 0012, 0013 |
 | BL-049 | Wire `CredentialBroker` into the actuation path (scoped, revocable enforcement) | M | resolved | 0012, 0016 |
-| BL-050 | Audit hash chain: anchored high-water-mark to detect tail truncation | M | open | 0012 |
+| BL-050 | Audit hash chain: anchored high-water-mark to detect tail truncation | M | resolved | 0012, 0019 |
 | BL-051 | Helm NetworkPolicy: restrict ingress with a `from:` selector | S | resolved | 0012, 0018 |
 | BL-052 | CI: make CodeQL/fuzz/sbom/dependency-review required gates, not branch-protection-external | S | open | 0012 |
 | BL-053 | Add coverage tooling and a `cov-fail-under` gate | S | resolved | 0012, 0018 |
@@ -81,7 +81,7 @@ XS, S, M, L.
 | BL-073 | Floor free-form shell/runbook/exec actuation at T2 (`SSHAdapter.base_tier` T1 to T2); keep the denylist upgrade-only; add the missing destructive patterns (`find -delete`, `iptables -F`, `nft flush ruleset`, `kubectl drain`/`cordon`, mass `DELETE`/`UPDATE`, Windows `Remove-Item -Recurse`/`Format-Volume`/`Stop-Computer`) and bump `PATTERNS_VERSION` | M | resolved | 0015, 0016 |
 | BL-074 | Wire `BudgetTracker` into `ExecutionContext`/`run()` so a per-session action, cost, and wall-time ceiling is enforced on the audited path | M | resolved | 0015, 0016 |
 | BL-075 | Give the kill switch an operator actuator (an MCP kill/restore tool plus a signal or file sentinel) and a durable trip record, so SEC-8 emergency stop is engageable at runtime, not only via the unwired broker | S | resolved | 0015, 0016 |
-| BL-076 | Wire runtime audit anchoring: invoke periodic `make_checkpoint` from the server (or a supervised sidecar), implement a non-forgeable stamper (real RFC 3161 or a transparency-log anchor), and make operating-system append-only (`chattr +a`/WORM) a required, documented deploy control until then | L | open | 0015 |
+| BL-076 | Wire runtime audit anchoring: invoke periodic `make_checkpoint` from the server (or a supervised sidecar), implement a non-forgeable stamper (real RFC 3161 or a transparency-log anchor), and make operating-system append-only (`chattr +a`/WORM) a required, documented deploy control until then | L | resolved | 0015, 0019 |
 | BL-077 | Bound `redact_args` recursion depth and size inside the audited path and move it under the runner's failure containment, so a deeply nested args payload audits-and-denies instead of raising out of `run()` unaudited | S | resolved | 0015, 0016 |
 | BL-078 | `execution/audit.py::_canonical`: add `default=str` (as `action_id` already does) so `AuditLogger.record` can never raise on a non-JSON-native arg value (logger-never-raises by construction) | XS | resolved | 0015, 0016 |
 | BL-079 | Open the SQLite store file (and WAL/SHM sidecars) `0o600` so restricted facts are not group/world readable (mirror BL-064 for the audit log) | XS | resolved | 0015, 0016 |
@@ -100,3 +100,4 @@ XS, S, M, L.
 | BL-092 | Supply-chain reviewability: no `Dockerfile`/`Containerfile` exists, yet `deploy/helm/praxis/values.yaml` and `deploy/zarf.yaml` reference a digest-pinned `ghcr.io/rmednitzer/praxis` image, so the deployed container cannot be built or inspected from the repo (at odds with the ADR-0001 digest-pin posture; adjacent BL-033). Add a minimal non-root, pinned-base (distroless) Dockerfile that runs `python -m praxis`, or document the external build. | S | open | 0017 |
 | BL-093 | Deploy doc clarity: the Helm chart defaults `transport: http`, but the server refuses any non-stdio transport with `NotImplementedError` (server.py), so `helm install` with defaults yields CrashLoopBackOff until HTTP serving lands (BL-012). `deploy/README.md` already names stdio as the working path; add a `values.yaml` comment and a chart `NOTES.txt` warning so the staged-not-runnable state is visible at install time. | XS | resolved | 0017, 0018 |
 | BL-094 | Audit integrity: `AuditLogger.record` hashed the live args rendering while `_write` rendered the `asdict()` deep copy, and `str()` of a copy is not stable (a deepcopied set may iterate differently), so a record with non-JSON-native args could fail its own `entry_hash` and an honest log verified as tampered (invariant 3; found by the BL-053 coverage gate re-running the suite under fresh hash seeds, deterministic at `PYTHONHASHSEED=24`). Fixed by normalizing the payload through one canonical JSON round-trip before hashing, so the hash and the written line derive from one rendering; regression test uses a deterministic copy-sensitive `str()` probe. | S | resolved | 0018 |
+| BL-095 | Non-forgeable checkpoint stamper (residual of BL-076, split per the BL-054/BL-068 precedent): implement a real RFC 3161 TSP client (ASN.1 TimeStampReq/Resp behind an optional extra and the SSRF egress filter) or a transparency-log anchor (Rekor), replacing the keyless `LocalStamper` whose token anyone who can write the evidence file can forge; until then OS append-only storage on the audit, evidence, and anchor files is the documented required control (SECURITY.md, ADR-0019) | M | open | 0019 |

@@ -7,18 +7,25 @@ in code and that the evidence is intact.
 ## 1. Evidence integrity
 
 ```
-python scripts/verify_audit.py /var/lib/praxis/audit.jsonl
+python scripts/verify_audit.py /var/lib/praxis/audit.jsonl \
+    /var/lib/praxis/audit.evidence.jsonl /mnt/worm/praxis-anchor.jsonl
 ```
 
-Fail-closed: a broken hash chain, a Merkle mismatch, a broken checkpoint chain, or
-an invalid timestamp token all report `ok=False`. Investigate any failure as a
-potential L-3 (audit tamper) event before anything else.
+Fail-closed: a broken hash chain, a Merkle mismatch, a broken checkpoint chain, an
+invalid timestamp token, an uncovered tail, or an anchor inconsistency all report
+`ok=False`. Investigate any failure as a potential L-3 (audit tamper) event before
+anything else. Two expected seams: a crash (no orderly shutdown) leaves an
+uncovered tail until the next checkpoint, and enabling `PRAXIS_ANCHOR_PATH` on an
+existing deployment reports a missing anchor until the first new checkpoint
+anchors.
 
-v0 note: the running server does not produce Merkle checkpoints or RFC 3161 tokens
-(BL-076), so unless checkpoints were generated out-of-band the verifier validates
-the per-entry hash chain and the Merkle, checkpoint, and timestamp checks have
-nothing to assert. Treat the hash chain plus operating-system append-only storage
-(`chattr +a` or WORM) as the v0 integrity control.
+The server produces checkpoints at runtime (every `PRAXIS_EVIDENCE_EVERY` records
+and at orderly shutdown; ADR-0019). Pass the anchor path only if
+`PRAXIS_ANCHOR_PATH` is configured; keep that file on a different trust domain
+than the audit log (another filesystem, host, or WORM store). The stamper is the
+keyless `LocalStamper` until BL-095 lands, so operating-system append-only storage
+(`chattr +a` or WORM) on all three files remains the control against an attacker
+who can rewrite them.
 
 ## 2. Invariant gates
 

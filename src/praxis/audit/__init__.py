@@ -9,16 +9,19 @@ chaining, and a session header binding the server-binary hash into the trail.
 from __future__ import annotations
 
 from praxis.audit.evidence import (
+    EvidenceScheduler,
     EvidenceVerifyResult,
     MerkleCheckpoint,
     make_checkpoint,
     verify_evidence,
+    write_anchor,
 )
 from praxis.audit.merkle import merkle_root, merkle_root_hex
 from praxis.audit.rfc3161 import LocalStamper, Rfc3161Stamper, Stamper
 from praxis.audit.session import SessionHeader, bind_session, server_binary_hash, session_header
 
 __all__ = [
+    "EvidenceScheduler",
     "EvidenceVerifyResult",
     "LocalStamper",
     "MerkleCheckpoint",
@@ -32,4 +35,5 @@ __all__ = [
     "server_binary_hash",
     "session_header",
     "verify_evidence",
+    "write_anchor",
 ]

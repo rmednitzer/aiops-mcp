@@ -15,11 +15,12 @@ from praxis.audit import verify_evidence  # noqa: E402
 def main() -> int:
     args = sys.argv[1:]
     if not args:
-        print("usage: verify_audit.py <audit.jsonl> [evidence.jsonl]")
+        print("usage: verify_audit.py <audit.jsonl> [evidence.jsonl] [anchor.jsonl]")
         return 2
     audit = Path(args[0])
     evidence = Path(args[1]) if len(args) > 1 else audit.with_suffix(".evidence.jsonl")
-    result = verify_evidence(audit, evidence)
+    anchor = Path(args[2]) if len(args) > 2 else None
+    result = verify_evidence(audit, evidence, anchor_path=anchor)
     print(
         f"audit verify: ok={result.ok} checkpoints={result.checkpoints} "
         f"reason={result.reason or 'none'}"

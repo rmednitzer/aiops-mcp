@@ -166,3 +166,26 @@ def test_main_serves_the_import_bound_config(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(entry, "serve", served.append)
     entry.main()
     assert served == [CONFIG]
+
+
+def test_serve_finalizes_evidence_on_eof(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # BL-076: orderly shutdown (stdin EOF) covers the audit tail with a final
+    # checkpoint, so verify_evidence's full-coverage rule holds at rest.
+    import io
+    import sys
+
+    from praxis.audit import verify_evidence
+    from praxis.server import serve
+
+    audit = tmp_path / "audit.jsonl"
+    cfg = Config(transport="stdio", audit_path=str(audit), evidence_every=100)
+    monkeypatch.setattr(
+        sys, "stdin", io.StringIO('{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}\n')
+    )
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    serve(cfg)
+    evidence = audit.with_suffix(".evidence.jsonl")
+    assert evidence.exists()
+    result = verify_evidence(audit, evidence)
+    assert result.ok is True, result.reason
+    assert result.checkpoints == 1

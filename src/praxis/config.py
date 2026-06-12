@@ -42,6 +42,14 @@ class Config(BaseModel):
     store_dsn: str | None = None
     mode: Mode = Mode.GUARDED
     audit_path: str | None = None
+    # Runtime evidence production (BL-076): with an audit file configured, a
+    # Merkle checkpoint is taken every evidence_every records and at orderly
+    # shutdown. None evidence_path derives `<audit>.evidence.jsonl`; 0 disables.
+    # anchor_path appends each checkpoint head to a separate high-water-mark
+    # file (BL-050); point it at a different trust domain than the audit file.
+    evidence_path: str | None = None
+    evidence_every: int = 64
+    anchor_path: str | None = None
     # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
     # the corresponding adapter outright: fail closed.
     playbook_root: str | None = None
@@ -77,6 +85,17 @@ def _safe_int(value: str | None, default: int) -> int:
         return int(value)
     except ValueError:
         return default
+
+
+def _interval_or_default(value: str | None, default: int) -> int:
+    """Parse a record interval where only an explicit ``0`` disables.
+
+    Any misconfiguration, non-numeric or negative, degrades to the default
+    interval, never to disabled: a typo must not be able to switch runtime
+    evidence off (fail-safe direction; ADR-0019).
+    """
+    parsed = _safe_int(value, default)
+    return parsed if parsed >= 0 else default
 
 
 def load_config(env: Mapping[str, str] | None = None) -> Config:
@@ -116,6 +135,9 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         store_dsn=get("STORE_DSN"),
         mode=mode,
         audit_path=get("AUDIT_PATH"),
+        evidence_path=get("EVIDENCE_PATH"),
+        evidence_every=_interval_or_default(get("EVIDENCE_EVERY"), 64),
+        anchor_path=get("ANCHOR_PATH"),
         playbook_root=get("PLAYBOOK_ROOT"),
         runbook_root=get("RUNBOOK_ROOT"),
         kill_switch_path=get("KILL_SWITCH_PATH"),

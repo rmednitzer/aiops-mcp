@@ -16,6 +16,7 @@ import os
 import sys
 import threading
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TextIO
@@ -71,9 +72,19 @@ def compute_entry_hash(payload: dict[str, object]) -> str:
 class AuditLogger:
     """The audit writer. A single instance owns one append-only JSONL sink."""
 
-    def __init__(self, path: Path | None = None, *, clock: Callable[[], str] = utc_now_iso) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        *,
+        clock: Callable[[], str] = utc_now_iso,
+        on_record: Callable[[AuditRecord], None] | None = None,
+    ) -> None:
         self._clock = clock
         self._path = path
+        # Optional post-record hook (additive; BL-076: the evidence scheduler).
+        # Invoked AFTER the record is written and the lock released; contained,
+        # so a failing hook can never lose or block a record (invariant 3).
+        self._on_record = on_record
         self._seq = 0
         self._prev_hash = GENESIS
         # Serialises payload-build + write + chain-advance so concurrent in-process
@@ -204,7 +215,20 @@ class AuditLogger:
             self._write(record)
             self._seq += 1
             self._prev_hash = entry_hash
-            return record
+        # A degraded logger writes to stderr, not the file, so the hook must not
+        # fire: evidence produced over a stale audit file would claim coverage
+        # of a log that is no longer receiving records (ADR-0019).
+        if self._on_record is not None and not self._degraded:
+            try:
+                self._on_record(record)
+            except Exception as exc:  # noqa: BLE001 - the hook must not break the logger
+                with suppress(Exception):
+                    print(
+                        f"[praxis.audit] post-record hook failed ({exc!r}); the record "
+                        "itself is written",
+                        file=sys.stderr,
+                    )
+        return record
 
     def _write(self, record: AuditRecord) -> None:
         line = _canonical(record.to_dict())

@@ -15,6 +15,9 @@ RestartSec=5
 
 # Configuration (PRAXIS_*). stdio default; for a host service use a socket/HTTP
 # per ADR-0006. Secrets come from an EnvironmentFile with mode 0600, not here.
+# Recommended: PRAXIS_AUDIT_PATH under /var/lib/praxis (evidence checkpoints
+# derive beside it, ADR-0019) and PRAXIS_ANCHOR_PATH on a DIFFERENT trust domain
+# (another mount or host); apply chattr +a to all three (SECURITY.md).
 Environment=PRAXIS_MODE=guarded
 EnvironmentFile=-/etc/praxis/praxis.env
 

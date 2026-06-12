@@ -6,6 +6,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
+- Runtime evidence production (ADR-0019, BL-076, BL-050, BL-030): with an audit
+  file configured the server now produces Merkle checkpoints every
+  `PRAXIS_EVIDENCE_EVERY` records (default 64) and at orderly shutdown, into
+  `PRAXIS_EVIDENCE_PATH` (default `<audit>.evidence.jsonl`); with
+  `PRAXIS_ANCHOR_PATH` set, each checkpoint head is appended to an owner-only
+  anchor file and `verify_evidence`/`verify_audit.py` cross-check it, so
+  rewriting both the log and the evidence file to a shorter consistent history
+  is detected (the BL-050 attack; tamper-matrix tests cover it with and without
+  the anchor). Evidence production is contained: a failing checkpoint or anchor
+  write warns on stderr and never loses, blocks, or breaks an audit record.
+  Ingested snapshot hashes (`raw_sha256`, BL-085) are now Merkle-committed by
+  composition (BL-030). The keyless `LocalStamper` remains the default; the
+  non-forgeable RFC 3161/Rekor stamper is split out as BL-095, and OS-level
+  append-only storage stays the documented required control.
 - Audit self-consistency (ADR-0018, BL-094): `AuditLogger.record` now normalizes
   the payload through one canonical JSON round-trip before hashing, so the
   `entry_hash` and the written line always derive from the same rendering.
@@ -78,6 +92,11 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   as a channel that must never be added unclassified (BL-019).
 
 ### Added
+- ADR-0019 (Accepted): runtime evidence and the anchored high-water mark;
+  resolves BL-030, BL-050, and BL-076; files BL-095. New config:
+  `PRAXIS_EVIDENCE_PATH`, `PRAXIS_EVIDENCE_EVERY`, `PRAXIS_ANCHOR_PATH`;
+  `verify_audit.py` takes the anchor as an optional third argument; SECURITY,
+  LIMITATIONS, README, the self-audit runbook, and the systemd unit updated.
 - Coverage floor on the aggregate gate (ADR-0018, BL-053): `make coverage`
   (source-based, `fail_under = 90`, measured 91 without the postgres extra)
   joins `ci-success`; the entry point gained tests for the fail-closed

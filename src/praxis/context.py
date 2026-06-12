@@ -15,6 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from praxis.actuation.credentials import CredentialBroker
+from praxis.audit.evidence import EvidenceScheduler
 from praxis.execution.runner import ExecutionContext
 from praxis.model.facts import OBSERVED, Fact
 from praxis.store.base import StoreProtocol
@@ -39,6 +40,10 @@ class ServerContext:
     # inert (the single-operator default); the first grant flips actuation to
     # deny-unless-authorized. ``kill_all`` trips the shared kill switch.
     broker: CredentialBroker | None = None
+    # Runtime evidence production (BL-076): wired when an audit file is
+    # configured; ``serve`` finalizes it at shutdown so checkpoints cover the
+    # full log at rest. None when auditing goes to stderr.
+    evidence: EvidenceScheduler | None = None
 
     @property
     def untrusted_ingested(self) -> bool:

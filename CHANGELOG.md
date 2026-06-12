@@ -68,6 +68,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   BL-062, BL-085).
 - `run_action` gains a structured `wipe_mode` parameter for talosctl reset;
   schemas regenerated for the new tool surface.
+- ADR-0017 (Accepted): full audit, validation, and hardening pass (2026-06-12),
+  read-only, recorded under `audit/` (inventory, baseline, findings register,
+  final report). Re-validated the green baseline (226 passed, all gates green;
+  `pip-audit` clean; no secrets in tree or history; fuzz 200000 iterations clean;
+  README quickstart executes). No critical/high/medium findings. Files BL-091
+  (Postgres `seq` race residual not closed by BL-068), BL-092 (no reviewable
+  Dockerfile behind the referenced image), and BL-093 (Helm `transport: http`
+  default crash-loops in v0). No code change: the one actionable finding is a
+  deferred Postgres schema proposal.
 
 ### Changed
 - Documentation honesty pass (ADR-0015): README, SECURITY, LIMITATIONS,

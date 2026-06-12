@@ -216,6 +216,10 @@ def write_anchor(anchor_path: Path, checkpoint: MerkleCheckpoint) -> bool:
         fd = os.open(anchor_path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
         with os.fdopen(fd, "a", encoding="utf-8") as handle:
             handle.write(line + "\n")
+        # Best-effort re-permission of a pre-existing file, the same as the
+        # audit sink (BL-064): the creation mode above binds new files only.
+        with suppress(OSError):
+            os.chmod(anchor_path, 0o600)
         return True
     except OSError:
         return False

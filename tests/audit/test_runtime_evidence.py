@@ -37,7 +37,11 @@ def _wired_logger(
 def _record(logger: AuditLogger, n: int) -> None:
     for i in range(n):
         logger.record(
-            tool=f"t{i}", tier="T0", decision="allowed", args={"i": i}, patterns_version=1
+            tool=f"t{i}",
+            tier="T0",
+            decision="allowed",
+            args={"i": i},
+            patterns_version=PATTERNS_VERSION,
         )
 
 
@@ -190,7 +194,7 @@ def test_ingest_raw_hash_is_merkle_committed(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
-    [(None, 64), ("abc", 64), ("0", 0), ("-3", 0), ("7", 7)],
+    [(None, 64), ("abc", 64), ("0", 0), ("-3", 64), ("7", 7)],
 )
 def test_evidence_every_parses_fail_safe(raw: str | None, expected: int) -> None:
     # Parse-only: load_config never touches the filesystem for these values.
@@ -214,3 +218,31 @@ def test_anchor_file_is_owner_only(tmp_path: Path) -> None:
     _record_more.close()
     heads = [json.loads(ln) for ln in anchor.read_text(encoding="utf-8").splitlines()]
     assert [h["seq"] for h in heads] == [0, 1]
+
+
+def test_degraded_logger_produces_no_evidence(tmp_path: Path) -> None:
+    # The documented guarantee: records that go to stderr (degraded sink) must
+    # not drive checkpoints, or the evidence would claim coverage of a log that
+    # is no longer receiving records (ADR-0019).
+    audit_as_dir = tmp_path / "audit.jsonl"
+    audit_as_dir.mkdir()  # the file sink cannot open: the logger degrades
+    evidence = tmp_path / "evidence.jsonl"
+    scheduler = EvidenceScheduler(audit_as_dir, evidence, every=1)
+    logger = AuditLogger(audit_as_dir, on_record=scheduler.on_record)
+    assert logger.degraded is True
+    logger.record(
+        tool="t", tier="T0", decision="allowed", args={}, patterns_version=PATTERNS_VERSION
+    )
+    logger.close()
+    assert not evidence.exists()
+
+
+def test_pre_existing_anchor_is_repermissioned(tmp_path: Path) -> None:
+    import stat
+
+    logger, scheduler, audit, evidence, anchor = _wired_logger(tmp_path, every=1)
+    anchor.touch(mode=0o644)
+    anchor.chmod(0o644)
+    _record(logger, 1)
+    logger.close()
+    assert stat.S_IMODE(anchor.stat().st_mode) == 0o600

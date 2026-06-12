@@ -215,7 +215,10 @@ class AuditLogger:
             self._write(record)
             self._seq += 1
             self._prev_hash = entry_hash
-        if self._on_record is not None:
+        # A degraded logger writes to stderr, not the file, so the hook must not
+        # fire: evidence produced over a stale audit file would claim coverage
+        # of a log that is no longer receiving records (ADR-0019).
+        if self._on_record is not None and not self._degraded:
             try:
                 self._on_record(record)
             except Exception as exc:  # noqa: BLE001 - the hook must not break the logger

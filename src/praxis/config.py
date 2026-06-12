@@ -87,6 +87,17 @@ def _safe_int(value: str | None, default: int) -> int:
         return default
 
 
+def _interval_or_default(value: str | None, default: int) -> int:
+    """Parse a record interval where only an explicit ``0`` disables.
+
+    Any misconfiguration, non-numeric or negative, degrades to the default
+    interval, never to disabled: a typo must not be able to switch runtime
+    evidence off (fail-safe direction; ADR-0019).
+    """
+    parsed = _safe_int(value, default)
+    return parsed if parsed >= 0 else default
+
+
 def load_config(env: Mapping[str, str] | None = None) -> Config:
     """Read PRAXIS_ environment into a Config. Pure given an explicit ``env``."""
     src = env if env is not None else os.environ
@@ -125,9 +136,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         mode=mode,
         audit_path=get("AUDIT_PATH"),
         evidence_path=get("EVIDENCE_PATH"),
-        # A typo degrades to the default interval (64), never to disabled: the
-        # only way to turn runtime evidence off is an explicit "0".
-        evidence_every=max(0, _safe_int(get("EVIDENCE_EVERY", "64"), 64)),
+        evidence_every=_interval_or_default(get("EVIDENCE_EVERY"), 64),
         anchor_path=get("ANCHOR_PATH"),
         playbook_root=get("PLAYBOOK_ROOT"),
         runbook_root=get("RUNBOOK_ROOT"),

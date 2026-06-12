@@ -23,6 +23,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0014](0014-dependency-posture-and-pydantic.md) | Dependency posture (self-contained = no cross-repo coupling, not anti-PyPI) and pydantic at the external-input boundary (BL-069, BL-070) | Accepted |
 | [0015](0015-deep-security-architecture-review-2026-06.md) | Deep security and architecture review (2026-06): approval human-binding, free-form-shell tier floor, latent-control wiring, governance traceability (BL-072..BL-090) | Proposed |
 | [0016](0016-approval-hardening-and-enforcement-wave-2026-06.md) | Approval hardening and enforcement wave (2026-06): ratifies ADR-0015 Decisions 3a/3b; minted approval nonces, T2 shell floor, in-path trifecta/budget/kill-switch/broker enforcement, audited reads and ingest (BL-017/019/022..026/029/049/056/062/068/072..085/090 resolved) | Accepted |
+| [0017](0017-full-audit-pass-2026-06-12.md) | Full audit, validation, and hardening pass (2026-06-12): re-validated baseline and evidence under `audit/`; no critical/high/medium findings; files BL-091..BL-093 (Postgres `seq` residual, missing Dockerfile, Helm transport default); no code change | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.

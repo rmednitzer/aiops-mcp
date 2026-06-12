@@ -71,10 +71,25 @@ regression test or an equivalent rendered verification.
    at install time that v0 refuses non-stdio transports, so the default chart
    CrashLoopBackOffs until HTTP serving lands (BL-012).
 
-5. BL-028, BL-051, BL-053, BL-086, BL-088, BL-091, and BL-093 are resolved by
-   this wave. BL-027, BL-030..BL-033, BL-035, BL-036, BL-046, BL-050, BL-052,
-   BL-060, BL-061, BL-076, BL-087, BL-089, and BL-092 remain open; the largest
-   (BL-076, runtime audit anchoring) is unchanged by this wave.
+5. Audit self-consistency (BL-094, found during this wave by the new coverage
+   gate re-running the suite under fresh hash seeds). ``AuditLogger.record``
+   hashed the canonical form of the live payload while ``_write`` rendered the
+   ``asdict()`` deep copy, and ``str()`` of a copy is not stable for every value
+   (a deepcopied set may iterate in a different order; deterministic at
+   ``PYTHONHASHSEED=24``), so a record with non-JSON-native args could fail its
+   own ``entry_hash`` and an honest log verified as tampered (invariant 3, the
+   BL-078 surface). ``record`` now normalizes the payload through one canonical
+   JSON round-trip before hashing, so the hash and the written line derive from
+   one rendering; the in-memory ``AuditRecord`` carries the same normalized args
+   that land on disk. The regression test pins the mechanism with a
+   deterministic copy-sensitive ``str()`` probe (fails on the old code every
+   run, no seed required).
+
+6. BL-028, BL-051, BL-053, BL-086, BL-088, BL-091, BL-093, and BL-094 are
+   resolved by this wave. BL-027, BL-030..BL-033, BL-035, BL-036, BL-046,
+   BL-050, BL-052, BL-060, BL-061, BL-076, BL-087, BL-089, and BL-092 remain
+   open; the largest (BL-076, runtime audit anchoring) is unchanged by this
+   wave.
 
 ## Consequences
 

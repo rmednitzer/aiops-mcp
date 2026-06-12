@@ -6,6 +6,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
+- Audit self-consistency (ADR-0018, BL-094): `AuditLogger.record` now normalizes
+  the payload through one canonical JSON round-trip before hashing, so the
+  `entry_hash` and the written line always derive from the same rendering.
+  Previously the hash covered `str()` of the live args while the written line
+  carried `str()` of a deep copy; for a copy-sensitive value (a set, under some
+  hash seeds) an honest record failed its own hash and `verify_chain` reported
+  tampering. Found by the new coverage gate re-running the suite; deterministic
+  regression test added.
 - Postgres storage-layer parity (ADR-0018, BL-091, BL-028): `seq` is computed
   inside the INSERT under new unique indexes, so the cross-instance `MAX(seq)+1`
   race fails loudly with a `UniqueViolation` instead of silently corrupting fact

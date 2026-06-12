@@ -12,13 +12,18 @@ spec:
   policyTypes:
     - Ingress
     - Egress
-  # Default-deny: ingress is allowed only on the MCP port; egress only to DNS and
-  # the explicitly listed fleet CIDRs (SEC-7 in spirit; the SSRF filter is the
-  # in-process complement).
+  # Default-deny: ingress is allowed only on the MCP port and only from the
+  # peers named in networkPolicy.ingressFrom; with none named, ingress is denied
+  # entirely (fail closed, BL-051). Egress only to DNS and the explicitly listed
+  # fleet CIDRs (SEC-7 in spirit; the SSRF filter is the in-process complement).
   ingress:
-    - ports:
+    {{- with .Values.networkPolicy.ingressFrom }}
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
         - protocol: TCP
-          port: {{ .Values.http.port }}
+          port: {{ $.Values.http.port }}
+    {{- end }}
   egress:
     - to:
         - namespaceSelector: {}

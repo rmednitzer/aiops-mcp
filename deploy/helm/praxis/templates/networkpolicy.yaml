@@ -13,17 +13,19 @@ spec:
     - Ingress
     - Egress
   # Default-deny: ingress is allowed only on the MCP port and only from the
-  # peers named in networkPolicy.ingressFrom; with none named, ingress is denied
-  # entirely (fail closed, BL-051). Egress only to DNS and the explicitly listed
-  # fleet CIDRs (SEC-7 in spirit; the SSRF filter is the in-process complement).
+  # peers named in networkPolicy.ingressFrom; with none named, the ingress key
+  # is omitted entirely while policyTypes still lists Ingress, the canonical
+  # Kubernetes deny-all-ingress shape (fail closed, BL-051). Egress only to DNS
+  # and the explicitly listed fleet CIDRs (SEC-7 in spirit; the SSRF filter is
+  # the in-process complement).
+  {{- with .Values.networkPolicy.ingressFrom }}
   ingress:
-    {{- with .Values.networkPolicy.ingressFrom }}
     - from:
         {{- toYaml . | nindent 8 }}
       ports:
         - protocol: TCP
           port: {{ $.Values.http.port }}
-    {{- end }}
+  {{- end }}
   egress:
     - to:
         - namespaceSelector: {}

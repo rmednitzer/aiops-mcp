@@ -15,6 +15,9 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.14"
+          # The fuzz harness exercises the security-review surfaces, so it runs on
+          # an interpreter the ci.yml test matrix covers, not a newer one the suite
+          # never sees (BL-088).
+          python-version: "3.13"
       - name: Fuzz the classification, policy, and redaction surfaces
         run: python scripts/fuzz.py 200000

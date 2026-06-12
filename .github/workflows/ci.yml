@@ -22,8 +22,13 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dev dependencies
-        run: python -m pip install -e ".[dev]"
+      # Hash-locked install (BL-088): the gate runs against the exact, reviewed
+      # dependency set, not whatever PyPI resolves on the day. Renovate maintains
+      # the lock; bounds in pyproject keep local installs from drifting majors.
+      - name: Install dev dependencies (hash-locked)
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install -e . --no-deps
       - name: ci-success (lint + type-check + test + schema-drift + eval)
         run: make ci-success
 

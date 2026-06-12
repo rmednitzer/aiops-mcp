@@ -27,8 +27,13 @@ spec:
           port: {{ $.Values.http.port }}
   {{- end }}
   egress:
+    # DNS only from the cluster DNS namespace (BL-087): the kubernetes.io/
+    # metadata.name label is API-server-managed (immutable, since 1.21; the
+    # chart floor is 1.27), so this cannot be spoofed by labeling a pod.
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
           port: 53
@@ -37,8 +42,21 @@ spec:
     {{- with .Values.networkPolicy.egressCIDRs }}
     - to:
         {{- range . }}
+        {{- if kindIs "string" . }}
+        {{- fail "networkPolicy.egressCIDRs is now a list of {cidr: <range>, except: [<sub-ranges>]} objects, not bare strings (BL-087): 169.254.0.0/16 is always excised. Rewrite each entry as `- cidr: <range>`." }}
+        {{- end }}
         - ipBlock:
-            cidr: {{ . | quote }}
+            cidr: {{ .cidr | quote }}
+            # The cloud metadata service and link-local are never legitimate
+            # fleet egress; excise them even when the operator lists a broad
+            # range (BL-087, the in-cluster complement to the SSRF filter).
+            except:
+              - 169.254.0.0/16
+              {{- with .except }}
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+              {{- end }}
         {{- end }}
     {{- end }}
 {{- end }}

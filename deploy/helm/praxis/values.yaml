@@ -53,6 +53,12 @@ networkPolicy:
   # podSelector/namespaceSelector for the MCP client). Default empty: ingress is
   # denied entirely until the operator names the client (fail closed, BL-051).
   ingressFrom: []
-  # CIDRs the server is allowed to egress to (the managed fleet). Default empty:
-  # only DNS is permitted, everything else is denied (default-deny).
+  # Fleet ranges the server may egress to (the managed hosts). Default empty: only
+  # DNS to kube-system is permitted, everything else denied (default-deny). Each
+  # entry is `{cidr: <range>, except: [<sub-ranges>]}`; 169.254.0.0/16 (cloud
+  # metadata and link-local) is always excised, plus any `except` you add (BL-087):
+  #   egressCIDRs:
+  #     - cidr: 10.0.0.0/24
+  #     - cidr: 10.1.0.0/16
+  #       except: ["10.1.5.0/24"]
   egressCIDRs: []

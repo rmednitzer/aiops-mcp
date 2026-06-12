@@ -81,10 +81,12 @@ Verified by running the tools on 2026-06-12:
   `uv venv --python /usr/bin/python3.13 .venv` then `uv pip install -e ".[dev]"`.
 - Resolved tool versions in the venv: ruff 0.15.17, mypy 2.1.0, pytest 9.0.3,
   pydantic 2.13.4 (pydantic-core 2.46.4), hatchling via build isolation.
-  coverage 7.14.1 was installed for the audit only; it is not a project
+  coverage 7.14.1 and pip-audit 2.10.1 were installed from PyPI for the audit
+  only (used in the baseline and security phases); neither is a project
   dependency.
-- Not available: docker (no daemon), semgrep, gitleaks, trufflehog, pip-audit
-  (availability re-checked and recorded in the security phase).
+- Not available and not used this pass: semgrep, gitleaks, trufflehog (no
+  install was attempted; the security phase substitutes a manual SAST pass and a
+  regex secret sweep). docker is present but has no running daemon.
 
 ## Git state
 

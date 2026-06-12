@@ -22,4 +22,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pragma: no cover - exercised as a process, not an import

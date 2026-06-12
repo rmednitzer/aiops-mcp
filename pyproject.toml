@@ -17,7 +17,7 @@ authors = [{ name = "Roman Mednitzer" }]
 dependencies = ["pydantic>=2,<3"]
 
 [project.optional-dependencies]
-dev = ["ruff", "mypy", "pytest"]
+dev = ["ruff", "mypy", "pytest", "coverage"]
 postgres = ["psycopg[binary]"]      # production store backend (BL-006)
 # http = []                         # streamable-HTTP transport (BL-012)
 
@@ -63,3 +63,12 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["src/praxis"]
+
+# The gate (BL-053). Source-based measurement (every file under src/praxis counts,
+# imported or not) reads 91 percent without the postgres extra, whose live tests
+# skip; 90 is the erosion floor under that honest denominator, not a target.
+[tool.coverage.report]
+fail_under = 90

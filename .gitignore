@@ -8,6 +8,10 @@ build/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.coverage
+# CI installs are hash-locked via requirements-dev.txt; a local `uv sync` lock
+# is per-machine state, not the supply-chain record (BL-088).
+uv.lock
 # real inventory and local state are never committed
 config/inventory.yaml
 *.db

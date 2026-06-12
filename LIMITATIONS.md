@@ -38,14 +38,19 @@ CI/deploy gating) are tracked, not yet delivered.
   not implemented in v0 (ADR-0012, BL-045). The transport guard, SSRF filter,
   token requirement, and non-loopback opt-in are in place; the consent registry
   is not.
-- Runtime audit anchoring is not produced. The server writes the per-entry hash
-  chain and the session header, but never invokes Merkle checkpointing or RFC 3161
-  stamping; the default `LocalStamper` is keyless self-attestation and the real TSA
-  raises `NotImplementedError`. v0 tamper-evidence rests on the hash chain plus
-  operating-system append-only storage when an audit file is configured
-  (`PRAXIS_AUDIT_PATH`; with no path, or on a file-open failure, records go to
-  stderr); wiring runtime anchoring and a non-forgeable stamper is tracked as BL-076
-  (with BL-050 for tail-truncation detection).
+- The running server produces Merkle checkpoints (every `PRAXIS_EVIDENCE_EVERY`
+  records, default 64, and at orderly shutdown) plus an optional anchored
+  high-water mark (`PRAXIS_ANCHOR_PATH`) when an audit file is configured
+  (ADR-0019; BL-076, BL-050). The remaining gaps: the default `LocalStamper` is
+  keyless self-attestation (its token is forgeable by anyone who can write the
+  evidence file) and the real RFC 3161 TSA backend raises `NotImplementedError`,
+  tracked as BL-095; a crash leaves an uncovered audit tail that `verify_evidence`
+  flags (the intended visible seam, not silent loss); and the anchor only helps if
+  the operator places it on a different trust domain than the audit log.
+  Operating-system append-only storage (`chattr +a` or WORM) on the audit,
+  evidence, and anchor files remains a required deploy control for attacker-grade
+  tamper-evidence. With no `PRAXIS_AUDIT_PATH`, or on a file-open failure, records
+  go to stderr and no evidence is produced.
 - The minted approval nonce is surfaced on the server's stderr (the operator
   console). Over stdio that stream belongs to the process that launched the
   server, so an operator using a desktop MCP client reads the token from that

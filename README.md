@@ -65,10 +65,13 @@ honest current state:
   observed facts arm the trifecta latch, enforced inside the path (BL-083).
 - Scoped credentials (opt-in via the first grant), per-session budgets, and an
   audited `emergency_stop` actuator with a durable kill-switch sentinel are wired
-  (BL-049, BL-074, BL-075). Runtime Merkle/RFC 3161 audit anchoring is still not
-  produced (BL-076): at runtime the audit trail is a keyless hash chain (written
-  to an owner-only append-only file when `PRAXIS_AUDIT_PATH` is set, otherwise to
-  stderr); external cryptographic anchoring is not produced automatically.
+  (BL-049, BL-074, BL-075). With `PRAXIS_AUDIT_PATH` set, the server also produces
+  runtime Merkle checkpoints over the trail (every N records and at shutdown) and
+  an optional anchored high-water mark (`PRAXIS_ANCHOR_PATH`) that detects
+  truncation of log plus evidence together (ADR-0019; BL-076, BL-050). The
+  checkpoint stamper is still the keyless `LocalStamper` (a real RFC 3161 TSA is
+  BL-095), so OS-level append-only storage remains the required control against
+  an attacker who can rewrite the files.
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

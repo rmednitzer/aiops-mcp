@@ -63,15 +63,18 @@ At runtime the audit log is a per-entry, append-only hash chain (each record com
 to the previous record's hash). When `PRAXIS_AUDIT_PATH` is set (the recommended
 operational config) the sink is an owner-only `O_APPEND` file; with no audit path the
 logger writes to stderr, and it degrades to stderr if the file sink cannot be opened.
-A periodic Merkle root (RFC 6962 domain separation), an RFC 3161 timestamp, and an
-optional transparency-log anchor (Rekor) are the designed evidence layer and a
-verifiable library (`audit/evidence.py`), but in v0 the running server does not
-produce checkpoints automatically, the default `LocalStamper` is keyless
-self-attestation, and the real RFC 3161 backend is not implemented. So v0
-tamper-evidence rests on the hash chain plus, when an audit file is configured,
-operating-system append-only storage (`chattr +a` or WORM); wiring runtime anchoring
-and a non-forgeable stamper is tracked as BL-076 (with BL-050 for tail-truncation
-detection). See ADR-0008 and ADR-0015.
+Since ADR-0019 (BL-076) the running server also produces Merkle checkpoints (RFC
+6962 domain separation) over the log: every `PRAXIS_EVIDENCE_EVERY` records
+(default 64) and at orderly shutdown, into `PRAXIS_EVIDENCE_PATH` (default
+`<audit>.evidence.jsonl`). With `PRAXIS_ANCHOR_PATH` set, each checkpoint head is
+also appended to an anchor file that `verify_audit.py` cross-checks, so rewriting
+both the log and the evidence file to a shorter consistent history is detected
+(BL-050); the anchor earns that property only when it lives on a different trust
+domain (another filesystem, host, or WORM store). The remaining boundary: the
+default `LocalStamper` is keyless self-attestation and the real RFC 3161 backend is
+not implemented (BL-095), so an attacker who can rewrite all three files is outside
+the detectable set. Operating-system append-only storage (`chattr +a` or WORM) on
+those files remains a required deploy control. See ADR-0008, ADR-0015, ADR-0019.
 
 ## Reporting
 

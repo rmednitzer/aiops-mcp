@@ -35,17 +35,20 @@ is reviewable now and ready when HTTP serving lands.
 ## Known hardening gaps (tracked)
 
 The manifests encode the intended posture; the deep review (ADR-0015) found these
-gaps to that bar, each tracked in `docs/backlog.md`. The 2026-06-12 wave
-(ADR-0018) closed the `storeDsn` plaintext rendering (now a `secretKeyRef`, with
-an inline DSN refused at render time, BL-086) and the unselective ingress (now
-`networkPolicy.ingressFrom`, deny-all by default, BL-051). Still open:
+gaps to that bar, each tracked in `docs/backlog.md`. The ADR-0018 wave closed the
+`storeDsn` plaintext rendering (now a `secretKeyRef`, with an inline DSN refused at
+render time, BL-086) and the unselective ingress (now `networkPolicy.ingressFrom`,
+deny-all by default, BL-051). The ADR-0020 wave scoped the DNS egress to
+`kube-system`, made `egressCIDRs` `{cidr, except}` objects that always excise
+169.254.0.0/16 (cloud metadata and link-local), and added the systemd
+`PrivateUsers`/`ProcSubset=pid`/`RemoveIPC` lockdown plus de-duplicated the base
+unit against the drop-in (BL-087). Still open:
 
-- The DNS egress is not namespace-scoped. BL-087.
 - The default image digest is an all-zero placeholder. BL-033. No Dockerfile in
   the repo builds the referenced image. BL-092.
-- The systemd hardening drop-in is missing `PrivateUsers`, `ProcSubset=pid`,
-  `RemoveIPC`, and `IPAddressDeny`/`SocketBindDeny`, and `runtimeClassName` defaults
-  to empty (no sandbox). BL-087.
+- `IPAddressDeny`/`SocketBindDeny` and a sandbox `runtimeClassName` are documented
+  in the drop-in but left for the operator to scope to their fleet (a deny-all
+  default would brick SSH actuation). BL-087 note.
 
 ## Quickstart (stdio, no cluster)
 

@@ -2,8 +2,11 @@
 
 Any server-initiated request (a cloud API call, a webhook) must pass through this
 filter so the MCP surface cannot be used to pivot into the private fleet network.
-Loopback, link-local, private (RFC1918), CGNAT (100.64/10), unique-local,
-multicast, reserved, and unspecified addresses are blocked.
+Loopback, link-local, private (RFC1918), CGNAT (100.64.0.0/10), unique-local,
+multicast, reserved, unspecified, and the deprecated 6to4 relay anycast
+(192.88.99.0/24, RFC 7526) are blocked. IPv4 embedded in IPv6 (v4-mapped
+::ffff:0:0/96, NAT64 64:ff9b::/96, 6to4 2002::/16) is covered by the standard
+registry data the ``ipaddress`` module carries on the supported interpreters.
 """
 
 from __future__ import annotations
@@ -13,6 +16,10 @@ import socket
 from urllib.parse import urlparse
 
 _CGNAT_V4 = ipaddress.ip_network("100.64.0.0/10")
+# The deprecated 6to4 relay anycast (RFC 7526): egress here relays into 2002::/16
+# and is never a legitimate praxis destination. Blocked explicitly because the
+# interpreter registry data for this range varies across patch versions.
+_SIXTOFOUR_RELAY_V4 = ipaddress.ip_network("192.88.99.0/24")
 _BLOCKED_NAMES = frozenset({"localhost", "localhost.localdomain", "ip6-localhost"})
 
 _IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
@@ -47,7 +54,7 @@ def _as_ip(name: str) -> _IPAddress | None:
 
 
 def _ip_is_blocked(ip: _IPAddress) -> bool:
-    if ip.version == 4 and ip in _CGNAT_V4:
+    if ip.version == 4 and (ip in _CGNAT_V4 or ip in _SIXTOFOUR_RELAY_V4):
         return True
     return bool(
         ip.is_loopback

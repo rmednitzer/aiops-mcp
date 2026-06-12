@@ -2,11 +2,11 @@
 
 Any server-initiated request (a cloud API call, a webhook) must pass through this
 filter so the MCP surface cannot be used to pivot into the private fleet network.
-Loopback, link-local, private (RFC1918), CGNAT (100.64/10), unique-local,
+Loopback, link-local, private (RFC1918), CGNAT (100.64.0.0/10), unique-local,
 multicast, reserved, unspecified, and the deprecated 6to4 relay anycast
-(192.88.99/24, RFC 7526) are blocked. IPv4 embedded in IPv6 (v4-mapped ::ffff:0:0/96,
-NAT64 64:ff9b::/96, 6to4 2002::/16) is covered by the standard registry data the
-``ipaddress`` module carries on the supported interpreters.
+(192.88.99.0/24, RFC 7526) are blocked. IPv4 embedded in IPv6 (v4-mapped
+::ffff:0:0/96, NAT64 64:ff9b::/96, 6to4 2002::/16) is covered by the standard
+registry data the ``ipaddress`` module carries on the supported interpreters.
 """
 
 from __future__ import annotations

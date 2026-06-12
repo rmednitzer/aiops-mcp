@@ -135,8 +135,15 @@ def test_ssrf_blocks_ipv4_embedded_in_ipv6() -> None:
 
 def test_ssrf_blocks_ipv6_special_ranges_and_sixtofour_relay() -> None:
     # ULA, multicast, unspecified, and the deprecated 6to4 relay anycast
-    # (192.88.99/24, RFC 7526): never legitimate praxis egress (BL-096).
-    hosts = ["fc00::1", "fd12:3456::1", "ff02::1", "::", "0.0.0.0", "192.88.99.1"]  # noqa: S104 - asserting the filter BLOCKS the all-interfaces literal
+    # (192.88.99.0/24, RFC 7526): never legitimate praxis egress (BL-096).
+    hosts = [
+        "fc00::1",
+        "fd12:3456::1",
+        "ff02::1",
+        "::",
+        "0.0.0.0",  # noqa: S104 - asserting the filter BLOCKS the all-interfaces literal
+        "192.88.99.1",
+    ]
     for host in hosts:
         assert is_blocked_address(host) is True, host
 

@@ -46,7 +46,9 @@ spec:
         {{- fail "networkPolicy.egressCIDRs is now a list of {cidr: <range>, except: [<sub-ranges>]} objects, not bare strings (BL-087): 169.254.0.0/16 is always excised. Rewrite each entry as `- cidr: <range>`." }}
         {{- end }}
         - ipBlock:
-            cidr: {{ .cidr | quote }}
+            # required: an entry with no cidr (for example only `except:`) would
+            # otherwise render cidr: "" and apply as an invalid NetworkPolicy.
+            cidr: {{ required "networkPolicy.egressCIDRs: every entry needs a non-empty `cidr` (BL-087)" .cidr | quote }}
             # The cloud metadata service and link-local are never legitimate
             # fleet egress; excise them even when the operator lists a broad
             # range (BL-087, the in-cluster complement to the SSRF filter).

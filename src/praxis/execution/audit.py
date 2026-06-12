@@ -191,6 +191,14 @@ class AuditLogger:
                 "patterns_version": patterns_version,
                 "prev_hash": self._prev_hash,
             }
+            # Normalize ONCE before hashing (BL-094): a non-native arg value is
+            # rendered by ``default=str`` here and again when ``_write``
+            # canonicalizes the ``asdict()`` deep copy, and str() of a copy is
+            # not guaranteed to match (a deepcopied set may iterate in a
+            # different order), which would write a line that fails its own
+            # entry_hash. After this round-trip every value is JSON-native, so
+            # the hash and the written line derive from one rendering.
+            payload = json.loads(_canonical(payload))
             entry_hash = compute_entry_hash(payload)
             record = AuditRecord(entry_hash=entry_hash, **payload)  # type: ignore[arg-type]
             self._write(record)

@@ -20,13 +20,18 @@ jobs:
           # wheel-complete runtime keeps the SBOM job off a bleeding-edge interpreter.
           python-version: "3.14"
       - name: Install project and SBOM tool
+        # The project installs into a dedicated venv and the generator points at
+        # that venv's interpreter, so the SBOM covers the production dependency
+        # graph only, not the runner's preinstalled packages or the generator's
+        # own dependencies (BL-088).
         run: |
-          python -m pip install -e .
+          python -m venv .sbom-venv
+          ./.sbom-venv/bin/python -m pip install -e .
           # Pin the generator (BL-060) so a future unpinned major bump cannot change
           # the CLI surface out from under this job; keeps the SBOM reproducible.
           python -m pip install "cyclonedx-bom==7.3.0"
       - name: Generate CycloneDX SBOM
-        run: cyclonedx-py environment --output-format JSON --output-file sbom.cdx.json
+        run: cyclonedx-py environment ./.sbom-venv/bin/python --output-format JSON --output-file sbom.cdx.json
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

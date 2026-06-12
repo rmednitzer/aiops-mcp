@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 
 import praxis
-from praxis.config import Config
+from praxis.config import CONFIG, Config, TransportError
 from praxis.context import ServerContext
 from praxis.model.facts import OBSERVED, Fact
 from praxis.server import StdioServer, build_context, build_registry
@@ -143,3 +143,26 @@ def test_tool_error_with_broken_str_does_not_raise(
     text = resp["content"][0]["text"]
     assert "Hostile" in text
     assert "unprintable" in text
+
+
+def test_main_refuses_unsafe_transport_with_systemexit(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The entry point fails closed: a TransportError from the guard becomes a
+    # SystemExit with a refusal message, never a served transport (SEC-7).
+    import praxis.__main__ as entry
+
+    def refuse(config: Config) -> None:
+        raise TransportError("HTTP transport requires PRAXIS_HTTP_TOKEN")
+
+    monkeypatch.setattr(entry, "serve", refuse)
+    with pytest.raises(SystemExit, match="refusing to start"):
+        entry.main()
+
+
+def test_main_serves_the_import_bound_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    # main() serves exactly the config bound at import (ADR-0006), no re-read.
+    import praxis.__main__ as entry
+
+    served: list[Config] = []
+    monkeypatch.setattr(entry, "serve", served.append)
+    entry.main()
+    assert served == [CONFIG]

@@ -56,8 +56,14 @@ spec:
             - name: PRAXIS_ALLOW_RESTRICTED
               value: {{ .Values.http.allowRestricted | quote }}
             {{- if .Values.storeDsn }}
+            {{- fail "storeDsn is no longer accepted: the DSN carries the database password and an inline value lands in etcd and helm history. Put it in a Secret and set store.existingSecret/store.secretKey (BL-086)." }}
+            {{- end }}
+            {{- if .Values.store.existingSecret }}
             - name: PRAXIS_STORE_DSN
-              value: {{ .Values.storeDsn | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.store.existingSecret | quote }}
+                  key: {{ .Values.store.secretKey | quote }}
             {{- end }}
             - name: PRAXIS_HTTP_TOKEN
               valueFrom:

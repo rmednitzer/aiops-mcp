@@ -12,6 +12,11 @@ replicaCount: 1
 # Transport. stdio is the default elsewhere; an in-cluster Deployment uses HTTP,
 # which requires a bearer token (from the secret below) and, for any non-loopback
 # bind, the explicit opt-in. See ADR-0006 and SECURITY.md.
+# v0 warning (BL-093): HTTP serving is staged but not implemented; the server
+# refuses any non-stdio transport at startup (fails closed), so this Deployment
+# CrashLoopBackOffs until HTTP serving lands (BL-012). The chart encodes the
+# intended production posture for review; the working v0 path is stdio on a
+# workstation. NOTES.txt repeats this at install time.
 transport: http
 mode: guarded            # open | guarded | readonly
 http:
@@ -23,7 +28,13 @@ http:
   existingSecret: praxis-http-token
   secretKey: token
 
-storeDsn: ""             # empty -> SQLite (ephemeral); set a postgresql:// DSN for prod
+# Store backend. Empty existingSecret -> SQLite (ephemeral). For Postgres, put
+# the DSN in a Secret and name it here: the DSN carries the database password,
+# and an inline value would land in etcd and `helm history` (BL-086). The
+# legacy inline `storeDsn` value is refused at render time.
+store:
+  existingSecret: ""
+  secretKey: dsn
 
 resources:
   requests:
@@ -38,6 +49,10 @@ runtimeClassName: ""
 
 networkPolicy:
   enabled: true
+  # Peers allowed to reach the MCP port (NetworkPolicy `from:` entries, e.g. a
+  # podSelector/namespaceSelector for the MCP client). Default empty: ingress is
+  # denied entirely until the operator names the client (fail closed, BL-051).
+  ingressFrom: []
   # CIDRs the server is allowed to egress to (the managed fleet). Default empty:
   # only DNS is permitted, everything else is denied (default-deny).
   egressCIDRs: []

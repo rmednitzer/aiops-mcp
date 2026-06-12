@@ -1,0 +1,19 @@
+praxis {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) rendered for release {{ .Release.Name }}.
+{{- if ne .Values.transport "stdio" }}
+
+WARNING (v0, BL-093): HTTP serving is staged but NOT implemented. The server
+refuses any non-stdio transport at startup (fails closed, ADR-0006), so with
+transport={{ .Values.transport }} this Deployment will CrashLoopBackOff until
+HTTP serving lands (BL-012). The chart exists so the production hardening
+posture is reviewable now; the working v0 path is stdio on a workstation:
+
+    python -m praxis
+
+See deploy/README.md and LIMITATIONS.md.
+{{- end }}
+{{- if not .Values.networkPolicy.ingressFrom }}
+
+Note: networkPolicy.ingressFrom is empty, so the NetworkPolicy denies ALL
+ingress to the MCP port (fail closed, BL-051). Name your MCP client's
+podSelector/namespaceSelector there to admit it.
+{{- end }}

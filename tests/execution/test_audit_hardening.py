@@ -1,10 +1,11 @@
-"""Audit hardening: non-JSON-native args never raise (BL-078); concurrent appends
-keep one unbroken chain (BL-029)."""
+"""Audit hardening: non-JSON-native args never raise (BL-078) and hash exactly the
+written rendering (BL-094); concurrent appends keep one unbroken chain (BL-029)."""
 
 from __future__ import annotations
 
 import threading
 from pathlib import Path
+from typing import Any
 
 from praxis.execution import AuditLogger, verify_chain
 from praxis.execution.patterns import PATTERNS_VERSION
@@ -25,6 +26,46 @@ def test_record_never_raises_on_non_json_native_args(tmp_path: Path) -> None:
     logger.close()
     result = verify_chain(log)
     assert result.ok is True
+    assert result.count == 1
+
+
+class _CopySensitive:
+    """str() differs between an object and its deep copy.
+
+    The honest stand-in for a set under an unlucky hash seed: deepcopy preserves
+    equality but not iteration order, so str(copy) can differ from str(original).
+    """
+
+    def __init__(self, generation: int = 0) -> None:
+        self.generation = generation
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _CopySensitive:
+        return _CopySensitive(self.generation + 1)
+
+    def __str__(self) -> str:
+        return f"copy-sensitive-{self.generation}"
+
+
+def test_entry_hash_commits_to_the_written_rendering(tmp_path: Path) -> None:
+    # BL-094: record() must hash the same rendering it writes. Before the fix,
+    # the hash covered str() of the live arg while the written line carried
+    # str() of the asdict() deep copy, so a value whose str() is copy-sensitive
+    # (a set, under some hash seeds) produced a line failing its own entry_hash
+    # and an honest log verified as tampered.
+    log = tmp_path / "audit.jsonl"
+    logger = AuditLogger(log)
+    record = logger.record(
+        tool="collector",
+        tier="T0",
+        decision="allowed",
+        args={"probe": _CopySensitive()},
+        patterns_version=PATTERNS_VERSION,
+    )
+    logger.close()
+    # The in-memory record is already the normalized, written form.
+    assert record.args == {"probe": "copy-sensitive-0"}
+    result = verify_chain(log)
+    assert result.ok is True, result.reason
     assert result.count == 1
 
 

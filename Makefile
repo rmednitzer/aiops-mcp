@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test schema schema-check eval ci-success
+.PHONY: check lint format type-check test coverage schema schema-check eval ci-success
 
 check: lint type-check test
 
@@ -16,6 +16,11 @@ type-check:
 test:
 > pytest
 
+# Coverage gate (BL-053): fail_under lives in pyproject [tool.coverage.report].
+coverage:
+> coverage run -m pytest -q
+> coverage report
+
 # Regenerate the committed JSON Schemas under docs/schema/.
 schema:
 > python scripts/gen_schema.py
@@ -29,6 +34,6 @@ eval:
 > python scripts/eval.py
 
 # The aggregate gate CI requires: lint + type-check + test, plus the schema-drift
-# guard and the eval gate (DoD).
-ci-success: check schema-check eval
+# guard, the eval gate (DoD), and the coverage floor (BL-053).
+ci-success: check schema-check eval coverage
 > @echo "ci-success: all gates green"

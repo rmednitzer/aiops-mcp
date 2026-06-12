@@ -89,6 +89,7 @@ _BLOCK_TRUNCATE_FN = """
 CREATE OR REPLACE FUNCTION praxis_block_truncate() RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'append-only: TRUNCATE is blocked';
+    RETURN NULL;  -- unreachable; completes the trigger-function contract shape
 END;
 $$ LANGUAGE plpgsql;
 """

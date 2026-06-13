@@ -13,8 +13,9 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   (`make validate-compliance`, in `ci-success` and re-run by the suite) enforces
   eleven bidirectional rules: id format, SEC-to-STPA completeness, module existence
   and `SEC-N` back-citation, no dangling `SEC-N` token in the source tree, invariant
-  range, framework coverage, proving-test existence, prose-map parity, and
-  status/tracking coherence. The model is the source of truth for a generated
+  range, framework coverage, proving-test existence (an implemented control names at
+  least one), prose-map parity, and status/tracking coherence. The model is the
+  source of truth for a generated
   `docs/schema/compliance-controls.schema.json` under the schema-drift guard.
 - Content-hash compare-and-set for the store (ADR-0021, BL-027): a `VersionedStore`
   extension Protocol (`Capability.COMPARE_AND_SET`) with `put_fact_if(fact,

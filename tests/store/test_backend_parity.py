@@ -180,6 +180,21 @@ def test_put_fact_if_rejects_stale_version(store: StoreProtocol) -> None:
     assert len(store.history(subject, "role")) == 2
 
 
+def test_put_fact_if_requires_actor(store: StoreProtocol) -> None:
+    # The CAS write path names itself in the provenance error, not put_fact.
+    assert isinstance(store, VersionedStore)
+    anonymous = Fact(
+        subject=_subject(),
+        predicate="p",
+        fact_type=OBSERVED,
+        value={"v": "x"},
+        t_valid="2026-06-12T00:00:00.000000Z",
+        actor="",
+    )
+    with pytest.raises(ValueError, match="put_fact_if"):
+        store.put_fact_if(anonymous, expected_version=None)
+
+
 def test_content_hash_is_stable_across_roundtrip(store: StoreProtocol) -> None:
     # The version token must survive the store round-trip identically, or CAS by a
     # caller-computed hash could never match.

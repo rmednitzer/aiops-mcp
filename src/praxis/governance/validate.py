@@ -19,7 +19,8 @@ cross-repo coupling per ADR-0001/0014), keyed on praxis's existing SEC-N / invar
 - R6  every ``SEC-N`` token in ``src/praxis`` names a catalog control (no dangling ref).
 - R7  every cited invariant is in 1..9.
 - R8  every regulatory framework is known, and every in-scope framework is cited.
-- R9  every proving test ``path::function`` exists.
+- R9  every listed proving test ``path::function`` exists, and an implemented
+      control names at least one (partial/planned controls are exempt).
 - R10 every SEC the prose map cites exists in the catalog (derived-index parity).
 - R11 a partial/planned control carries a tracking BL id; an implemented one does not.
 """
@@ -118,10 +119,14 @@ def validate_catalog(repo_root: Path, catalog: ComplianceCatalog) -> list[str]:
             cited_frameworks.add(ref.framework)
             if ref.framework not in framework_ids:
                 errors.append(f"R8 framework: {cid} maps to unknown framework {ref.framework!r}")
-        # R9: proving tests exist.
+        # R9: proving tests exist, and an implemented control names at least one
+        # (the compliance map's "a control without a test is a visible gap" made a
+        # build break; partial/planned controls are exempt, their gap is tracked).
         for test in control.proving_tests:
             if (problem := _check_proving_test(repo_root, cid, test)) is not None:
                 errors.append(problem)
+        if control.status == "implemented" and not control.proving_tests:
+            errors.append(f"R9 test: implemented control {cid} names no proving test")
         # R11: status/tracking coherence.
         if control.status in ("partial", "planned") and not control.tracking:
             errors.append(f"R11 tracking: {cid} is {control.status} but names no tracking BL id")

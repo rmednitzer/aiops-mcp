@@ -47,7 +47,8 @@ rushing them into a security-sensitive change.
    module exists and (for a SEC control's `src/praxis` modules) carries the matching
    `SEC-N` back-citation token; every `SEC-N` token in the source tree names a
    catalog control; invariants are in 1..9; every regulatory framework is known and
-   every in-scope framework is cited; every proving test `path::function` exists; the
+   every in-scope framework is cited; every listed proving test `path::function`
+   exists and an implemented control names at least one (partial/planned exempt); the
    prose map cites no undefined control; and a partial/planned control carries a
    tracking BL id while an implemented one does not. `scripts/validate_compliance.py`
    wires it into `make validate-compliance` and the `ci-success` aggregate, and the

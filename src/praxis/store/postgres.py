@@ -207,7 +207,7 @@ class PostgresStore:
         SQLite backend's ``put_fact_if`` so the two stay behaviourally identical.
         """
         if not fact.actor:
-            raise ValueError("put_fact requires a non-empty actor (write provenance)")
+            raise ValueError("put_fact_if requires a non-empty actor (write provenance)")
         now = utc_now_iso()
         fact_id = uuid.uuid4().hex
         with self._conn.transaction():

@@ -87,13 +87,16 @@ def test_compare_and_set_serialises_concurrent_writers(tmp_path: Path) -> None:
             store.close()
 
     threads = [
-        threading.Thread(target=writer, args=("t1", "6.18")),
-        threading.Thread(target=writer, args=("t2", "6.19")),
+        threading.Thread(target=writer, args=("t1", "6.18"), daemon=True),
+        threading.Thread(target=writer, args=("t2", "6.19"), daemon=True),
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join(timeout=10)
+        # A hung writer (deadlock past the timeout) must fail the test loudly, not
+        # leave a runaway non-daemon thread keeping the process alive.
+        assert not thread.is_alive(), "writer thread did not finish within 10 s"
 
     # Exactly one writer committed; the other was refused as a stale CAS.
     assert len(results) == 1, f"expected one winner, got {results} / {errors}"

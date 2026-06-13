@@ -17,7 +17,8 @@ in CI by `scripts/validate_compliance.py` (`make validate-compliance`). The
 validator enforces that every control's cited enforcement module exists and carries
 its `SEC-N` back-citation, that every in-scope framework is mapped, that every
 proving test exists, and that this map cites no control the catalog does not define.
-A control with no proving test is therefore a build break, not just a visible gap.
+An implemented control with no proving test is therefore a build break, not just a
+visible gap (partial or planned controls are exempt; their gap is tracked by a BL id).
 
 ## EU AI Act (Regulation (EU) 2024/1689)
 

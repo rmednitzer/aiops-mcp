@@ -165,6 +165,22 @@ def test_proving_test_must_be_path_function_form(tmp_path: Path) -> None:
     assert any("R9 test" in e and "path::function" in e for e in out)
 
 
+def test_implemented_control_needs_a_proving_test(tmp_path: Path) -> None:
+    data = _catalog_dict()
+    data["controls"]["SEC-1"]["proving_tests"] = []  # implemented but untested
+    out = _validate(_make_repo(tmp_path), data)
+    assert any("R9 test" in e and "names no proving test" in e for e in out)
+
+
+def test_partial_control_is_exempt_from_proving_test_rule(tmp_path: Path) -> None:
+    data = _catalog_dict()
+    data["controls"]["SEC-1"]["proving_tests"] = []
+    data["controls"]["SEC-1"]["status"] = "partial"
+    data["controls"]["SEC-1"]["tracking"] = "BL-001"
+    out = _validate(_make_repo(tmp_path), data)
+    assert not any("names no proving test" in e for e in out)
+
+
 def test_map_parity_is_flagged(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     # The prose map cites SEC-3, which the catalog does not define.

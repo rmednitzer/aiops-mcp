@@ -206,7 +206,7 @@ class SqliteStore:
         applied to a different value that landed in between (SEC-6, invariant 4).
         """
         if not fact.actor:
-            raise ValueError("put_fact requires a non-empty actor (write provenance)")
+            raise ValueError("put_fact_if requires a non-empty actor (write provenance)")
         now = utc_now_iso()
         fact_id = uuid.uuid4().hex
         with self._immediate():

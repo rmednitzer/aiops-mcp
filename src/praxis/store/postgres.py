@@ -180,6 +180,10 @@ class PostgresStore:
                 "PostgresStore requires the 'postgres' extra: pip install 'praxis[postgres]'"
             ) from exc
         self._conn: Any = psycopg.connect(dsn, autocommit=True, row_factory=dict_row)
+        # Captured for the compare-and-set create path: a concurrent create that wins
+        # the race trips the partial unique index, which we translate to a
+        # VersionConflict (BL-027). IntegrityError is the parent of UniqueViolation.
+        self._integrity_error: type[Exception] = psycopg.errors.IntegrityError
         with self._conn.transaction():
             for statement in _SCHEMA:
                 self._conn.execute(statement)
@@ -203,8 +207,13 @@ class PostgresStore:
         The active row for the key is locked with ``SELECT ... FOR UPDATE`` so a
         concurrent supersede blocks until this transaction commits, making the
         read-compare-write atomic. A ``content_hash`` mismatch raises
-        ``VersionConflict`` and writes nothing (SEC-6, invariant 4). Mirrors the
-        SQLite backend's ``put_fact_if`` so the two stay behaviourally identical.
+        ``VersionConflict`` and writes nothing (SEC-6, invariant 4). The
+        create-if-absent case (``expected_version`` None) cannot be row-locked (there
+        is no row yet), so a concurrent create that wins the race trips the partial
+        unique index; that ``IntegrityError`` is translated to ``VersionConflict`` so
+        the create path honours the CAS contract like the supersede path and the
+        SQLite backend (live-PG concurrency verification tracked as BL-103). Mirrors
+        the SQLite backend's ``put_fact_if`` so the two stay behaviourally identical.
         """
         if not fact.actor:
             raise ValueError("put_fact_if requires a non-empty actor (write provenance)")
@@ -224,7 +233,19 @@ class PostgresStore:
                     f"{fact.subject}/{fact.predicate}/{fact.fact_type}: "
                     f"expected version {expected_version!r}, active is {current!r}"
                 )
-            self._write_superseding(existing, fact, fact_id=fact_id, now=now)
+            try:
+                self._write_superseding(existing, fact, fact_id=fact_id, now=now)
+            except self._integrity_error as exc:
+                # Only the create-if-absent path can reach here: FOR UPDATE locked no
+                # row, so a peer made the key active between the check and the INSERT.
+                # A supersede (existing was row-locked) should never violate, so do not
+                # mask a genuine bug there.
+                if existing is not None:
+                    raise
+                raise VersionConflict(
+                    f"compare-and-set lost a concurrent create for "
+                    f"{fact.subject}/{fact.predicate}/{fact.fact_type}: the key became active"
+                ) from exc
         stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
         if stored is None:  # pragma: no cover - storage invariant
             raise RuntimeError("invariant violated: just-inserted fact is not active")

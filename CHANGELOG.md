@@ -23,8 +23,10 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   up front (`BEGIN IMMEDIATE` plus `busy_timeout`), Postgres locks the active row
   (`SELECT ... FOR UPDATE`); a stale version raises `VersionConflict` and writes
   nothing, foreclosing a lost update on a human-gated supersede (SEC-6, invariant 4).
-  A concurrency test proves exactly one of two racing writers wins; the rest run in
-  the backend-parity suite.
+  The Postgres create-if-absent race (no row to lock) is translated from a unique-index
+  violation to `VersionConflict` so the create path honours the contract (live-PG
+  verification tracked as BL-103). A SQLite concurrency test proves exactly one of
+  two racing writers wins; the rest run in the backend-parity suite.
 - Talos partition-scoped reset (ADR-0021, BL-098): an additive `system_labels` param
   on the talosctl adapter mapping to `reset --system-labels-to-wipe` (allowlisted
   `EPHEMERAL`/`STATE`), preserving the `STATE` partition so a node rejoins instead of

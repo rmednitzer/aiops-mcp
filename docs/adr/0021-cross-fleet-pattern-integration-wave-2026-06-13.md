@@ -87,8 +87,12 @@ rushing them into a security-sensitive change.
    locks the active row with `SELECT ... FOR UPDATE`; a mismatch raises
    `VersionConflict` and writes nothing. This forecloses a lost update where an
    operator approves replacing the fact they read but a different value lands in
-   between (SEC-6, invariant 4). A concurrency test proves exactly one of two racing
-   writers wins; the rest run in the shared backend-parity suite.
+   between (SEC-6, invariant 4). The Postgres create-if-absent case cannot be
+   row-locked (there is no row yet), so a concurrent create that wins the race trips
+   the partial unique index, which is translated to `VersionConflict` so the create
+   path honours the contract like the supersede path (live-PG concurrency
+   verification tracked as BL-103). A SQLite concurrency test proves exactly one of
+   two racing writers wins; the rest run in the shared backend-parity suite.
 
 5. The larger or decision-bearing findings are tracked, not rushed (mirrors how
    ADR-0011 recorded a validated backlog rather than implementing all at once):
@@ -177,3 +181,6 @@ Neutral:
 - A new SEC constraint or a moved enforcement file: update
   `docs/governance/compliance-controls.json` in the same change (the validator will
   flag the omission).
+- Live PostgreSQL becomes available to CI or the operator: add the concurrent
+  create-if-absent compare-and-set test (BL-103) and confirm the
+  IntegrityError-to-VersionConflict translation under real contention.

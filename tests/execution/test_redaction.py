@@ -92,6 +92,35 @@ def test_authorization_quoted_value_leaves_no_dangling_quote() -> None:
     assert out == "Authorization: [REDACTED]"
 
 
+def test_unbounded_provider_tokens_collapse_whole() -> None:
+    # An UNbounded body floor means a longer-than-minimum token leaves no tail in
+    # the audit log (BL-097). Each sample is assembled from fragments so the source
+    # file holds no contiguous token literal.
+    body = "A1b2C3d4E5f6G7h8I9j0KLMNopqrstuvwx"  # > the minimum body length
+    npm_tok = "npm_" + body + body  # well past the 36-char floor
+    glpat_tok = "gl" + "pat-" + body
+    pypi_tok = "pypi-" + "AgEIcHlwaS5vcmc" + body
+    for secret in (npm_tok, glpat_tok, pypi_tok):
+        out = redact(f"deploy --auth {secret} now")
+        assert secret not in out, secret
+        # No prefix tail survives either (the whole token, not just the floor, is gone).
+        assert body not in out, secret
+
+
+def test_mysql_compact_password_is_context_gated() -> None:
+    # The compact -p<password> form leaks the password on a MySQL-family CLI; it is
+    # redacted only when such a client is present, so -p-as-port is left intact (BL-097).
+    leaked = redact("mysql -uroot -ph0tpassw0rd appdb")
+    assert "h0tpassw0rd" not in leaked
+    assert "-p" in leaked and "appdb" in leaked
+    assert "mysql" in leaked and "-uroot" in leaked  # only the password is hit
+    # mysqldump and mariadb are in the family too.
+    assert "s3cretdump" not in redact("mysqldump -ps3cretdump db > out.sql")
+    # -p as a port flag for an unrelated tool must NOT be redacted (no over-scrub).
+    assert redact("ssh -p22 host") == "ssh -p22 host"
+    assert redact("nmap -p1-1000 host") == "nmap -p1-1000 host"
+
+
 def test_non_secret_passthrough() -> None:
     assert redact("just a normal line") == "just a normal line"
     out = redact_args({"count": 3, "flag": True})

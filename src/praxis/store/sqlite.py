@@ -16,11 +16,13 @@ import math
 import os
 import sqlite3
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from praxis.clock import utc_now_iso
 from praxis.model.facts import Capability, Edge, Fact
+from praxis.store.base import VersionConflict
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS facts (
@@ -172,6 +174,11 @@ class SqliteStore:
         self._conn = sqlite3.connect(self.path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        # Wait on a held write lock rather than failing fast, so a compare-and-set
+        # (BEGIN IMMEDIATE) on one store instance serialises against a second
+        # instance on the same file instead of raising "database is locked"
+        # (BL-027; the multi-instance case BL-068 anticipated).
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
@@ -183,39 +190,87 @@ class SqliteStore:
         fact_id = uuid.uuid4().hex
         with self._conn:
             existing = self.get_active(fact.subject, fact.predicate, fact.fact_type)
-            if existing is not None and existing.fact_id is not None:
-                # Supersede the prior active row BEFORE inserting the new one so the
-                # partial unique index never sees two active rows for the key.
-                self._conn.execute(
-                    "UPDATE facts SET t_superseded = ? WHERE fact_id = ?",
-                    (now, existing.fact_id),
-                )
-            # seq is computed inside the INSERT itself, so the read and the write
-            # are one atomic statement; the unique index on seq turns any residual
-            # cross-instance race into a loud IntegrityError (BL-068).
-            self._conn.execute(
-                "INSERT INTO facts (fact_id, subject, predicate, fact_type, value, "
-                "t_valid, t_invalid, t_recorded, t_superseded, actor, reason, seq) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-                "(SELECT COALESCE(MAX(seq), -1) + 1 FROM facts))",
-                (
-                    fact_id,
-                    fact.subject,
-                    fact.predicate,
-                    fact.fact_type,
-                    json.dumps(fact.value, sort_keys=True),
-                    fact.t_valid,
-                    fact.t_invalid,
-                    now,
-                    None,
-                    fact.actor,
-                    fact.reason,
-                ),
-            )
+            self._write_superseding(existing, fact, fact_id=fact_id, now=now)
         stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
         if stored is None:  # pragma: no cover - storage invariant
             raise RuntimeError("invariant violated: just-inserted fact is not active")
         return stored
+
+    def put_fact_if(self, fact: Fact, *, expected_version: str | None) -> Fact:
+        """Version-gated supersede (``VersionedStore``; BL-027, ADR-0021).
+
+        Reads the active fact under an IMMEDIATE write lock, compares its
+        ``content_hash`` to ``expected_version`` (or asserts absence when None), and
+        only then supersedes-and-inserts. A mismatch raises ``VersionConflict`` and
+        writes nothing, so an operator approval bound to the fact they read cannot be
+        applied to a different value that landed in between (SEC-6, invariant 4).
+        """
+        if not fact.actor:
+            raise ValueError("put_fact requires a non-empty actor (write provenance)")
+        now = utc_now_iso()
+        fact_id = uuid.uuid4().hex
+        with self._immediate():
+            existing = self.get_active(fact.subject, fact.predicate, fact.fact_type)
+            current = existing.content_hash() if existing is not None else None
+            if current != expected_version:
+                raise VersionConflict(
+                    f"compare-and-set rejected for "
+                    f"{fact.subject}/{fact.predicate}/{fact.fact_type}: "
+                    f"expected version {expected_version!r}, active is {current!r}"
+                )
+            self._write_superseding(existing, fact, fact_id=fact_id, now=now)
+        stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
+        if stored is None:  # pragma: no cover - storage invariant
+            raise RuntimeError("invariant violated: just-inserted fact is not active")
+        return stored
+
+    @contextmanager
+    def _immediate(self) -> Iterator[None]:
+        """An IMMEDIATE write transaction: take the write lock up front so a
+        compare-and-set read-then-write serialises against a concurrent writer rather
+        than racing to a loud IntegrityError on the partial unique index (BL-027)."""
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            self._conn.rollback()
+            raise
+        else:
+            self._conn.commit()
+
+    def _write_superseding(
+        self, existing: Fact | None, fact: Fact, *, fact_id: str, now: str
+    ) -> None:
+        """Supersede the prior active row (if any) BEFORE inserting the new one, so
+        the partial unique index never sees two active rows for the key. seq is
+        computed inside the INSERT itself, so the read and the write are one atomic
+        statement; the unique index on seq turns any residual cross-instance race
+        into a loud IntegrityError (BL-068). Shared by ``put_fact`` and
+        ``put_fact_if`` so the two write paths cannot drift."""
+        if existing is not None and existing.fact_id is not None:
+            self._conn.execute(
+                "UPDATE facts SET t_superseded = ? WHERE fact_id = ?",
+                (now, existing.fact_id),
+            )
+        self._conn.execute(
+            "INSERT INTO facts (fact_id, subject, predicate, fact_type, value, "
+            "t_valid, t_invalid, t_recorded, t_superseded, actor, reason, seq) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+            "(SELECT COALESCE(MAX(seq), -1) + 1 FROM facts))",
+            (
+                fact_id,
+                fact.subject,
+                fact.predicate,
+                fact.fact_type,
+                json.dumps(fact.value, sort_keys=True),
+                fact.t_valid,
+                fact.t_invalid,
+                now,
+                None,
+                fact.actor,
+                fact.reason,
+            ),
+        )
 
     def supersede(
         self, subject: str, predicate: str, fact_type: str, *, actor: str, reason: str
@@ -361,7 +416,7 @@ class SqliteStore:
 
     # --------------------------------------------------------------- plumbing
     def capabilities(self) -> frozenset[Capability]:
-        return frozenset({Capability.VECTOR})
+        return frozenset({Capability.VECTOR, Capability.COMPARE_AND_SET})
 
     def close(self) -> None:
         self._conn.close()

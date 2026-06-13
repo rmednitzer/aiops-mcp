@@ -35,8 +35,15 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bASIA[0-9A-Z]{16}\b"), REDACTED),  # AWS temporary access key id
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), REDACTED),  # GitHub classic tokens
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"), REDACTED),  # GitHub fine-grained PAT
-    (re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}\b"), REDACTED),  # GitLab PAT
-    (re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"), REDACTED),  # npm token
+    # Provider tokens whose body runs UNBOUNDED from its length floor over the
+    # token's full alphabet, so a longer-than-minimum token collapses whole rather
+    # than leaving a tail in the audit log; a trailing `\b` after a `-`/`_` class is
+    # not a reliable right anchor, so it is omitted here (BL-097).
+    (re.compile(r"\bglpat-[A-Za-z0-9_\-]{20,}"), REDACTED),  # GitLab PAT
+    (re.compile(r"\bnpm_[A-Za-z0-9]{36,}"), REDACTED),  # npm token (>=36, collapse the tail)
+    # PyPI upload token: the body is preceded by a fixed base64 macaroon prefix
+    # (``AgEIcHlwaS5vcmc`` is base64 of "pypi.org"), a near-unique structural anchor.
+    (re.compile(r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{16,}"), REDACTED),  # PyPI upload token
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), REDACTED),  # Slack tokens
     (re.compile(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{16,}"), REDACTED),  # OpenAI scoped
     (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), REDACTED),  # OpenAI / generic sk- key
@@ -82,6 +89,18 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+# The MySQL family takes the password compactly attached to ``-p`` (``-psecret``),
+# unlike the space/equals forms the credential-flag pattern above already covers.
+# Redacting a bare ``-p<value>`` everywhere would over-scrub unrelated tools where
+# ``-p`` means port (``ssh -p22``, ``nmap -p1-1000``), so the compact form is only
+# redacted when a MySQL-family client also appears in the same string (BL-097).
+_MYSQL_FAMILY = re.compile(r"\b(?:mysql\w*|mariadb\w*|mysqldump|mycli)\b", re.IGNORECASE)
+# ``-p`` not preceded by a word char or dash (so ``--compress-p`` is not a hit), then
+# a first password char that is not a space, ``=`` (the equals form is covered above),
+# or ``-`` (so ``-p -h`` does not swallow the next flag), then the rest of the token.
+_MYSQL_COMPACT_PW = re.compile(r"(?<![A-Za-z0-9-])(-p)[^\s=-]\S*")
+
+
 def redact(text: str) -> str:
     """Redact secret-shaped substrings from a free-text string."""
     if not text:
@@ -89,6 +108,10 @@ def redact(text: str) -> str:
     out = text
     for pat, replacement in _VALUE_PATTERNS:
         out = pat.sub(replacement, out)
+    # Context-gated: only collapse a compact ``-p<password>`` when a MySQL-family
+    # client is present, so ``-p`` meaning "port" for other tools is left intact.
+    if _MYSQL_FAMILY.search(out):
+        out = _MYSQL_COMPACT_PW.sub(r"\1" + REDACTED, out)
     return out
 
 

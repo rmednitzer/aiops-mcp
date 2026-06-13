@@ -25,6 +25,7 @@ from typing import Any
 
 from praxis.clock import utc_now_iso
 from praxis.model.facts import Capability, Edge, Fact
+from praxis.store.base import VersionConflict
 
 # Per-table functions: facts and edges have different identity columns, so a single
 # shared function would leave the per-table identity columns unguarded. The
@@ -190,31 +191,73 @@ class PostgresStore:
         fact_id = uuid.uuid4().hex
         with self._conn.transaction():
             existing = self.get_active(fact.subject, fact.predicate, fact.fact_type)
-            if existing is not None and existing.fact_id is not None:
-                self._conn.execute(
-                    "UPDATE facts SET t_superseded = %s WHERE fact_id = %s",
-                    (now, existing.fact_id),
-                )
-            self._conn.execute(
-                _FACTS_INSERT,
-                (
-                    fact_id,
-                    fact.subject,
-                    fact.predicate,
-                    fact.fact_type,
-                    json.dumps(fact.value, sort_keys=True),
-                    fact.t_valid,
-                    fact.t_invalid,
-                    now,
-                    None,
-                    fact.actor,
-                    fact.reason,
-                ),
-            )
+            self._write_superseding(existing, fact, fact_id=fact_id, now=now)
         stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
         if stored is None:  # pragma: no cover - storage invariant
             raise RuntimeError("invariant violated: just-inserted fact is not active")
         return stored
+
+    def put_fact_if(self, fact: Fact, *, expected_version: str | None) -> Fact:
+        """Version-gated supersede (``VersionedStore``; BL-027, ADR-0021).
+
+        The active row for the key is locked with ``SELECT ... FOR UPDATE`` so a
+        concurrent supersede blocks until this transaction commits, making the
+        read-compare-write atomic. A ``content_hash`` mismatch raises
+        ``VersionConflict`` and writes nothing (SEC-6, invariant 4). Mirrors the
+        SQLite backend's ``put_fact_if`` so the two stay behaviourally identical.
+        """
+        if not fact.actor:
+            raise ValueError("put_fact requires a non-empty actor (write provenance)")
+        now = utc_now_iso()
+        fact_id = uuid.uuid4().hex
+        with self._conn.transaction():
+            row = self._conn.execute(
+                "SELECT * FROM facts WHERE subject = %s AND predicate = %s AND fact_type = %s "
+                "AND t_invalid IS NULL AND t_superseded IS NULL FOR UPDATE",
+                (fact.subject, fact.predicate, fact.fact_type),
+            ).fetchone()
+            existing = _row_to_fact(row) if row is not None else None
+            current = existing.content_hash() if existing is not None else None
+            if current != expected_version:
+                raise VersionConflict(
+                    f"compare-and-set rejected for "
+                    f"{fact.subject}/{fact.predicate}/{fact.fact_type}: "
+                    f"expected version {expected_version!r}, active is {current!r}"
+                )
+            self._write_superseding(existing, fact, fact_id=fact_id, now=now)
+        stored = self.get_active(fact.subject, fact.predicate, fact.fact_type)
+        if stored is None:  # pragma: no cover - storage invariant
+            raise RuntimeError("invariant violated: just-inserted fact is not active")
+        return stored
+
+    def _write_superseding(
+        self, existing: Fact | None, fact: Fact, *, fact_id: str, now: str
+    ) -> None:
+        """Supersede the prior active row (if any), then insert the new one. seq is
+        computed inside the INSERT; the unique index turns a residual race into a
+        loud UniqueViolation (BL-068/BL-091). Shared by ``put_fact`` and
+        ``put_fact_if`` so the write paths cannot drift."""
+        if existing is not None and existing.fact_id is not None:
+            self._conn.execute(
+                "UPDATE facts SET t_superseded = %s WHERE fact_id = %s",
+                (now, existing.fact_id),
+            )
+        self._conn.execute(
+            _FACTS_INSERT,
+            (
+                fact_id,
+                fact.subject,
+                fact.predicate,
+                fact.fact_type,
+                json.dumps(fact.value, sort_keys=True),
+                fact.t_valid,
+                fact.t_invalid,
+                now,
+                None,
+                fact.actor,
+                fact.reason,
+            ),
+        )
 
     def supersede(
         self, subject: str, predicate: str, fact_type: str, *, actor: str, reason: str
@@ -327,7 +370,7 @@ class PostgresStore:
         return _row_to_edge(row) if row is not None else None
 
     def capabilities(self) -> frozenset[Capability]:
-        return frozenset({Capability.GRAPH})
+        return frozenset({Capability.GRAPH, Capability.COMPARE_AND_SET})
 
     def close(self) -> None:
         self._conn.close()

@@ -11,12 +11,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from praxis.governance.catalog import ComplianceCatalog
 from praxis.skills.manifest import SkillFrontmatter
 
 
 def _skill_manifest_schema() -> dict[str, object]:
     # Generated from the pydantic frontmatter model (one source of truth, ADR-0014).
     return dict(SkillFrontmatter.model_json_schema())
+
+
+def _compliance_catalog_schema() -> dict[str, object]:
+    # The compliance catalog model is the source of truth for its schema too (BL-031).
+    return dict(ComplianceCatalog.model_json_schema())
 
 
 def _tools_manifest() -> dict[str, object]:
@@ -33,6 +39,7 @@ def build_schemas() -> dict[str, dict[str, object]]:
     return {
         "skill-manifest.schema.json": _skill_manifest_schema(),
         "tools.schema.json": _tools_manifest(),
+        "compliance-controls.schema.json": _compliance_catalog_schema(),
     }
 
 

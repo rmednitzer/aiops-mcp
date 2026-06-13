@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from praxis.model.facts import OBSERVED, Edge, Fact
+from praxis.model.facts import OBSERVED, Capability, Edge, Fact
 from praxis.store import SqliteStore
-from praxis.store.base import StoreProtocol
+from praxis.store.base import StoreProtocol, VersionConflict, VersionedStore
 
 PG_DSN = os.environ.get("PRAXIS_TEST_PG_DSN")
 
@@ -123,6 +123,71 @@ def test_list_active_filters_subject_and_type(store: StoreProtocol) -> None:
     rows = store.list_active(subject=subject, fact_type=OBSERVED)
     assert {f.predicate for f in rows} == {"p1", "p2"}
     assert store.list_active(subject=subject, fact_type="desired") == []
+
+
+# ----------------------------------------------------------------- BL-027 (CAS)
+def test_compare_and_set_capability_is_advertised(store: StoreProtocol) -> None:
+    # A backend that exposes put_fact_if must also advertise the capability, and
+    # vice versa: the ladder stays honest (a backend never fakes an unsupported one).
+    assert isinstance(store, VersionedStore)
+    assert Capability.COMPARE_AND_SET in store.capabilities()
+
+
+def test_put_fact_if_creates_only_when_absent(store: StoreProtocol) -> None:
+    assert isinstance(store, VersionedStore)
+    subject = _subject()
+    # expected_version=None asserts "no active fact for this key" -> creates it.
+    created = store.put_fact_if(_fact(subject, "os", "ubuntu-24.04"), expected_version=None)
+    assert created.value == {"v": "ubuntu-24.04"}
+    # A second create-if-absent now conflicts: an active fact already exists.
+    with pytest.raises(VersionConflict):
+        store.put_fact_if(_fact(subject, "os", "ubuntu-26.04"), expected_version=None)
+    assert store.get_active(subject, "os", OBSERVED) is not None
+    active = store.get_active(subject, "os", OBSERVED)
+    assert active is not None and active.value == {"v": "ubuntu-24.04"}  # unchanged
+
+
+def test_put_fact_if_supersedes_on_matching_version(store: StoreProtocol) -> None:
+    assert isinstance(store, VersionedStore)
+    subject = _subject()
+    first = store.put_fact(_fact(subject, "kernel", "6.17"))
+    # The version a caller reads off get_active is the content hash; CAS on it.
+    updated = store.put_fact_if(
+        _fact(subject, "kernel", "6.18"), expected_version=first.content_hash()
+    )
+    assert updated.value == {"v": "6.18"}
+    active = store.get_active(subject, "kernel", OBSERVED)
+    assert active is not None and active.value == {"v": "6.18"}
+    # The prior row is superseded, not deleted (invariant 4).
+    history = store.history(subject, "kernel")
+    assert len(history) == 2
+    assert sum(1 for f in history if f.t_superseded is not None) == 1
+
+
+def test_put_fact_if_rejects_stale_version(store: StoreProtocol) -> None:
+    # A lost-update guard: a write whose expected version is no longer the active one
+    # is refused and writes nothing, so an approval bound to a stale read cannot land.
+    assert isinstance(store, VersionedStore)
+    subject = _subject()
+    first = store.put_fact(_fact(subject, "role", "worker"))
+    stale_version = first.content_hash()
+    store.put_fact(_fact(subject, "role", "control-plane"))  # someone else moves it on
+    with pytest.raises(VersionConflict):
+        store.put_fact_if(_fact(subject, "role", "edge"), expected_version=stale_version)
+    active = store.get_active(subject, "role", OBSERVED)
+    assert active is not None and active.value == {"v": "control-plane"}  # the CAS wrote nothing
+    # History holds exactly the two honest writes, not a third from the rejected CAS.
+    assert len(store.history(subject, "role")) == 2
+
+
+def test_content_hash_is_stable_across_roundtrip(store: StoreProtocol) -> None:
+    # The version token must survive the store round-trip identically, or CAS by a
+    # caller-computed hash could never match.
+    subject = _subject()
+    stored = store.put_fact(_fact(subject, "p", "v"))
+    reread = store.get_active(subject, "p", OBSERVED)
+    assert reread is not None
+    assert stored.content_hash() == reread.content_hash()
 
 
 def test_edge_roundtrip_and_supersede_on_reput(store: StoreProtocol) -> None:

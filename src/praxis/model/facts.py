@@ -13,6 +13,8 @@ active. "Active" means ``t_invalid is None and t_superseded is None``.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Literal
@@ -42,6 +44,7 @@ class Capability(Enum):
     VECTOR = "vector"  # nearest-neighbour search over embeddings
     GRAPH = "graph"  # native multi-hop graph traversal
     BATCH = "batch"  # batched writes
+    COMPARE_AND_SET = "compare_and_set"  # version-gated supersede (VersionedStore)
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,37 @@ class Fact:
 
     def key(self) -> tuple[str, str, str]:
         return (self.subject, self.predicate, self.fact_type)
+
+    def content_hash(self) -> str:
+        """A stable SHA-256 over the asserted content, the compare-and-set token.
+
+        Covers exactly the caller-meaningful content (the key, the value, and the
+        write provenance), NOT the store-assigned lifecycle stamps (``fact_id``,
+        ``t_recorded``, ``t_invalid``, ``t_superseded``). So the hash a caller reads
+        off ``get_active`` is stable across the store round-trip and identical on
+        both backends, which is what makes it usable as the ``expected_version`` for
+        a version-gated supersede (BL-027; ADR-0021). Two facts asserting identical
+        content hash equal, so a re-asserted value is recognised as unchanged. The
+        canonical JSON rendering matches ``execution.audit`` (sorted keys,
+        ``default=str``), so a non-JSON-native value hashes by its ``str()`` instead
+        of raising.
+        """
+        canonical = json.dumps(
+            {
+                "subject": self.subject,
+                "predicate": self.predicate,
+                "fact_type": self.fact_type,
+                "value": self.value,
+                "t_valid": self.t_valid,
+                "actor": self.actor,
+                "reason": self.reason,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=str,
+        )
+        return hashlib.sha256(canonical.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
 @dataclass(frozen=True)

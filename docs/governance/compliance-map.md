@@ -11,6 +11,15 @@ partly built but not yet fully wired in v0. Those rows are annotated inline with
 v0 gap and the tracking `BL-NNN`; treat them as in-progress, not delivered, until
 the item closes.
 
+Machine-checkable since 2026-06-13 (ADR-0021, BL-031): this prose map has a
+machine-checked projection in `docs/governance/compliance-controls.json`, validated
+in CI by `scripts/validate_compliance.py` (`make validate-compliance`). The
+validator enforces that every control's cited enforcement module exists and carries
+its `SEC-N` back-citation, that every in-scope framework is mapped, that every
+proving test exists, and that this map cites no control the catalog does not define.
+An implemented control with no proving test is therefore a build break, not just a
+visible gap (partial or planned controls are exempt; their gap is tracked by a BL id).
+
 ## EU AI Act (Regulation (EU) 2024/1689)
 
 | Reference | Project control | SEC / invariant | Enforcement |

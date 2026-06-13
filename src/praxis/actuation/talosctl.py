@@ -12,8 +12,12 @@ etcd restore, BL-022); options the adapter needs are set from structured params.
 Node and endpoint values must be an IP address or an RFC 1123 hostname. A reset
 never wipes implicitly: ``--wipe-mode`` is always explicit and defaults to
 ``system-disk``; ``all`` must be requested via the structured ``wipe_mode`` param
-(BL-025). A real-run upgrade is gated on a pre-flight ``talosctl health`` HARD
-precondition (BL-023).
+(BL-025). The structured ``system_labels`` param is the additive partition-scoped
+alternative (BL-098): it maps to ``--system-labels-to-wipe`` (for example
+``EPHEMERAL``), which preserves the ``STATE`` partition so the node rejoins the
+cluster instead of needing a full re-provision; it is mutually exclusive with
+``wipe_mode`` (supplying both is refused). A real-run upgrade is gated on a
+pre-flight ``talosctl health`` HARD precondition (BL-023).
 """
 
 from __future__ import annotations
@@ -74,6 +78,15 @@ _TALOSCTL_VERBS: frozenset[str] = frozenset(
 _WIPE_MODES: frozenset[str] = frozenset({"system-disk", "user-disks", "all"})
 _DEFAULT_WIPE_MODE = "system-disk"
 
+# Partition labels for the additive ``--system-labels-to-wipe`` reset scope (BL-098).
+# This is the partition-granular alternative to the disk-granular ``--wipe-mode``:
+# wiping only ``EPHEMERAL`` preserves the ``STATE`` partition (node identity and
+# secrets), so the node reboots back into the cluster rather than needing a full
+# re-provision. The two scopes are mutually exclusive; supplying both is refused
+# (fail closed on ambiguity). The label set is an allowlist, normalised to the
+# uppercase Talos spelling.
+_SYSTEM_LABELS: frozenset[str] = frozenset({"EPHEMERAL", "STATE"})
+
 # Verbs whose real run requires a passing pre-flight health check (BL-023).
 _HEALTH_GATED_VERBS: frozenset[str] = frozenset({"upgrade", "upgrade-k8s"})
 
@@ -98,6 +111,23 @@ def _validate_node(value: str) -> None:
         pass
     if not _RFC1123_HOST.match(value):
         raise ValueError(f"talos node/endpoint is not an IP or RFC 1123 hostname: {value!r}")
+
+
+def _validate_system_labels(value: str) -> str:
+    """Validate a comma-separated partition-label list against the allowlist (BL-098).
+
+    Returns the normalised (uppercase, comma-joined) value, or raises if any token
+    is empty or outside ``_SYSTEM_LABELS``. The result reaches ``talosctl`` as the
+    value of ``--system-labels-to-wipe`` after the structured-param checks, so a
+    free-form ``action`` string can never inject a partition label.
+    """
+    tokens = [tok.strip().upper() for tok in value.split(",")]
+    if not all(tokens) or any(tok not in _SYSTEM_LABELS for tok in tokens):
+        raise ValueError(
+            f"talosctl reset system_labels must be a comma list of {sorted(_SYSTEM_LABELS)}, "
+            f"got {value!r} (BL-098)"
+        )
+    return ",".join(tokens)
 
 
 class TalosctlAdapter(ActuationAdapter):
@@ -151,13 +181,28 @@ class TalosctlAdapter(ActuationAdapter):
             argv += ["--endpoints", ",".join(host.endpoints)]
         argv += parts
         if verb == "reset":
-            wipe_mode = params.get("wipe_mode") or _DEFAULT_WIPE_MODE
-            if not isinstance(wipe_mode, str) or wipe_mode not in _WIPE_MODES:
-                raise ValueError(
-                    f"talosctl reset wipe_mode must be one of {sorted(_WIPE_MODES)}, "
-                    f"got {wipe_mode!r} (BL-025)"
-                )
-            argv += ["--wipe-mode", wipe_mode]
+            system_labels = params.get("system_labels")
+            if system_labels:
+                # Partition-scoped reset (BL-098): preserves STATE so the node can
+                # rejoin. Mutually exclusive with the disk-scoped --wipe-mode.
+                if params.get("wipe_mode"):
+                    raise ValueError(
+                        "talosctl reset takes either wipe_mode or system_labels, not both "
+                        "(BL-098: fail closed on an ambiguous reset scope)"
+                    )
+                if not isinstance(system_labels, str):
+                    raise ValueError(
+                        f"talosctl reset system_labels must be a string, got {system_labels!r}"
+                    )
+                argv += ["--system-labels-to-wipe", _validate_system_labels(system_labels)]
+            else:
+                wipe_mode = params.get("wipe_mode") or _DEFAULT_WIPE_MODE
+                if not isinstance(wipe_mode, str) or wipe_mode not in _WIPE_MODES:
+                    raise ValueError(
+                        f"talosctl reset wipe_mode must be one of {sorted(_WIPE_MODES)}, "
+                        f"got {wipe_mode!r} (BL-025)"
+                    )
+                argv += ["--wipe-mode", wipe_mode]
         return argv
 
     def extra_preconditions(

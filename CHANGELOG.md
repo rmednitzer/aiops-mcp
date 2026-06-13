@@ -5,7 +5,41 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 
 ## [Unreleased]
 
+### Added
+- Machine-checkable compliance catalog (ADR-0021, BL-031; advances BL-036): the
+  prose compliance map and the STPA security constraints are projected into
+  `docs/governance/compliance-controls.json`, a pydantic-validated catalog keyed by
+  the SEC-1..SEC-10 ids plus one governance control. `scripts/validate_compliance.py`
+  (`make validate-compliance`, in `ci-success` and re-run by the suite) enforces
+  eleven bidirectional rules: id format, SEC-to-STPA completeness, module existence
+  and `SEC-N` back-citation, no dangling `SEC-N` token in the source tree, invariant
+  range, framework coverage, proving-test existence (an implemented control names at
+  least one), prose-map parity, and status/tracking coherence. The model is the
+  source of truth for a generated
+  `docs/schema/compliance-controls.schema.json` under the schema-drift guard.
+- Content-hash compare-and-set for the store (ADR-0021, BL-027): a `VersionedStore`
+  extension Protocol (`Capability.COMPARE_AND_SET`) with `put_fact_if(fact,
+  expected_version=...)`, gated on `Fact.content_hash`. SQLite takes the write lock
+  up front (`BEGIN IMMEDIATE` plus `busy_timeout`), Postgres locks the active row
+  (`SELECT ... FOR UPDATE`); a stale version raises `VersionConflict` and writes
+  nothing, foreclosing a lost update on a human-gated supersede (SEC-6, invariant 4).
+  The Postgres create-if-absent race (no row to lock) is translated from a unique-index
+  violation to `VersionConflict` so the create path honours the contract (live-PG
+  verification tracked as BL-103). A SQLite concurrency test proves exactly one of
+  two racing writers wins; the rest run in the backend-parity suite.
+- Talos partition-scoped reset (ADR-0021, BL-098): an additive `system_labels` param
+  on the talosctl adapter mapping to `reset --system-labels-to-wipe` (allowlisted
+  `EPHEMERAL`/`STATE`), preserving the `STATE` partition so a node rejoins instead of
+  needing a full re-provision. Mutually exclusive with `--wipe-mode` (both refused);
+  the documented `system-disk` default (BL-025) is unchanged; the reset stays T3.
+
 ### Security
+- Redaction hardening (ADR-0021, BL-097): `execution/redaction.py` adds the PyPI
+  upload-token shape, runs the npm and GitLab token bodies unbounded from their
+  length floor so a longer token collapses whole (no audit-log tail), and adds a
+  context-gated compact MySQL `-p<password>` redaction that fires only when a
+  MySQL-family client is present (so `-p`-as-port for `ssh`/`nmap` is not
+  over-scrubbed). Strengthens SEC-9; no `PATTERNS_VERSION` change.
 - SSRF bypass sweep and 6to4 relay block (ADR-0020, BL-061, BL-096): an
   adversarial pass over the egress filter confirmed IPv4-in-IPv6 (v4-mapped,
   NAT64, 6to4), IPv6 special ranges, URL userinfo masking, and bracketed v6

@@ -27,6 +27,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0018](0018-backlog-remediation-wave-2026-06-12.md) | Backlog remediation wave (2026-06-12): Postgres seq-race and TRUNCATE storage-layer parity (live-verified), hash-locked CI installs and bounded toolchain, coverage floor on ci-success, fail-closed Helm ingress and secret-ref DSN, audit entry-hash self-consistency (BL-028/051/053/086/088/091/093/094 resolved) | Accepted |
 | [0019](0019-runtime-evidence-and-anchor-2026-06-12.md) | Runtime evidence production and the anchored high-water mark (2026-06-12): the server checkpoints the audit log every N records and at shutdown; optional anchor file detects truncation of log plus evidence together; snapshot hashes Merkle-committed by composition (BL-030/050/076 resolved; BL-095 filed for the non-forgeable stamper) | Accepted |
 | [0020](0020-test-and-deploy-hardening-wave-2026-06-12.md) | Test/fuzz expansion and deploy hardening (2026-06-12): SSRF bypass sweep (6to4 relay anycast blocked), adapter x host_type refusal matrix, SQLite/Postgres parity suite, fuzz manifest/merkle/evidence stages, systemd PrivateUsers/ProcSubset/RemoveIPC, scoped Helm NetworkPolicy egress (BL-061/096 resolved; BL-087 advanced) | Accepted |
+| [0021](0021-cross-fleet-pattern-integration-wave-2026-06-13.md) | Cross-fleet pattern integration wave (2026-06-13): machine-checkable compliance catalog + bidirectional validator gated in CI, provider/MySQL redaction hardening, additive Talos partition-scoped reset, content-hash compare-and-set for supersede (BL-027/031/097/098 resolved; BL-036 advanced; CIS baseline, multi-sink, audit correlation, client-side health probe filed) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -44,3 +45,9 @@ implementation.
 ADR-0016 ratifies both ADR-0015 proposals and implements them, with the enforcement
 wave that wires the latent controls and routes every tool through the audited path;
 each resolved finding carries a regression test in the accompanying change.
+ADR-0017 through ADR-0020 are audit, remediation, evidence, and hardening waves.
+ADR-0021 is a pattern-integration wave: it adopts four self-contained, proven
+fleet-operations patterns natively (a machine-checkable compliance catalog with a
+CI-gated bidirectional validator, redaction hardening, an additive Talos
+partition-scoped reset, and content-hash compare-and-set for supersede), each with a
+regression test, and files the larger findings as tracked backlog items.

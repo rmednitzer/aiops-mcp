@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test coverage schema schema-check eval ci-success
+.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance ci-success
 
 check: lint type-check test
 
@@ -33,7 +33,13 @@ schema-check:
 eval:
 > python scripts/eval.py
 
+# The machine-checkable compliance gate (BL-031): the catalog must stay consistent
+# with the code, the STPA constraints, and the prose compliance map.
+validate-compliance:
+> python scripts/validate_compliance.py
+
 # The aggregate gate CI requires: lint + type-check + test, plus the schema-drift
-# guard, the eval gate (DoD), and the coverage floor (BL-053).
-ci-success: check schema-check eval coverage
+# guard, the eval gate (DoD), the compliance cross-reference gate, and the coverage
+# floor (BL-053).
+ci-success: check schema-check eval validate-compliance coverage
 > @echo "ci-success: all gates green"

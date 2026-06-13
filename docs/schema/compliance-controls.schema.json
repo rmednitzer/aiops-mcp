@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "ComplianceControl": {
+      "additionalProperties": false,
+      "description": "One control: a SEC constraint (or a governance control) and its traceability.",
+      "properties": {
+        "invariants": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Invariants",
+          "type": "array"
+        },
+        "modules": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Modules",
+          "type": "array"
+        },
+        "proving_tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Proving Tests",
+          "type": "array"
+        },
+        "regulatory": {
+          "items": {
+            "$ref": "#/$defs/RegulatoryRef"
+          },
+          "minItems": 1,
+          "title": "Regulatory",
+          "type": "array"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "default": "implemented",
+          "enum": [
+            "implemented",
+            "partial",
+            "planned"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "tracking": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tracking"
+        }
+      },
+      "required": [
+        "title",
+        "statement",
+        "regulatory"
+      ],
+      "title": "ComplianceControl",
+      "type": "object"
+    },
+    "RegulatoryRef": {
+      "additionalProperties": false,
+      "description": "One regulatory article a control maps to (the original-language convention).",
+      "properties": {
+        "article": {
+          "minLength": 1,
+          "title": "Article",
+          "type": "string"
+        },
+        "framework": {
+          "minLength": 1,
+          "title": "Framework",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "framework",
+        "article"
+      ],
+      "title": "RegulatoryRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The catalog: in-scope frameworks plus the controls, keyed by id (SEC-N/CTL-NNN).",
+  "properties": {
+    "controls": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ComplianceControl"
+      },
+      "minProperties": 1,
+      "title": "Controls",
+      "type": "object"
+    },
+    "frameworks": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "minProperties": 1,
+      "title": "Frameworks",
+      "type": "object"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "frameworks",
+    "controls"
+  ],
+  "title": "ComplianceCatalog",
+  "type": "object"
+}

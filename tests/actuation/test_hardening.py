@@ -22,6 +22,7 @@ from praxis.execution import (
     Policy,
 )
 from praxis.execution.contract import Approval
+from praxis.execution.patterns import Tier, command_tier
 from praxis.model.facts import HostType
 
 
@@ -134,6 +135,44 @@ def test_talosctl_reset_wipe_mode_is_explicit_and_defaults_safe() -> None:
     assert argv_all[-2:] == ["--wipe-mode", "all"]
     with pytest.raises(ValueError, match="wipe_mode"):
         adapter.build_argv(host, "reset", {"wipe_mode": "everything"}, dry_run=False)
+
+
+# --------------------------------------------------------------------- BL-098
+def test_talosctl_reset_system_labels_partition_scoped() -> None:
+    # The additive partition-scoped reset maps to --system-labels-to-wipe and never
+    # emits --wipe-mode; the label list is allowlisted and normalised to uppercase.
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    adapter = TalosctlAdapter()
+    argv = adapter.build_argv(host, "reset", {"system_labels": "EPHEMERAL"}, dry_run=False)
+    assert argv[-2:] == ["--system-labels-to-wipe", "EPHEMERAL"]
+    assert "--wipe-mode" not in argv
+    # A comma list is accepted and case-normalised.
+    argv_two = adapter.build_argv(
+        host, "reset", {"system_labels": "ephemeral,state"}, dry_run=False
+    )
+    assert argv_two[-2:] == ["--system-labels-to-wipe", "EPHEMERAL,STATE"]
+    # An unknown partition label is refused (allowlist).
+    with pytest.raises(ValueError, match="system_labels"):
+        adapter.build_argv(host, "reset", {"system_labels": "ROOT"}, dry_run=False)
+
+
+def test_talosctl_reset_scopes_are_mutually_exclusive() -> None:
+    # Supplying both scopes is an ambiguous reset intent; the adapter fails closed.
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    with pytest.raises(ValueError, match="not both"):
+        TalosctlAdapter().build_argv(
+            host, "reset", {"wipe_mode": "all", "system_labels": "EPHEMERAL"}, dry_run=False
+        )
+
+
+def test_talosctl_partition_reset_still_classifies_t3() -> None:
+    # The partition-scoped reset must keep its T3 authority: the `reset` verb already
+    # floors at T3 in the classifier, so the new argv needs no patterns.py change.
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    argv = TalosctlAdapter().build_argv(
+        host, "reset", {"system_labels": "EPHEMERAL"}, dry_run=False
+    )
+    assert command_tier(" ".join(argv)) is Tier.T3
 
 
 # --------------------------------------------------------------------- BL-023

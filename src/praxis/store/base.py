@@ -76,3 +76,34 @@ class VectorStore(Protocol):
     def similar(self, vector: Sequence[float], *, k: int = 10) -> list[tuple[str, float]]:
         """Return up to ``k`` (fact_id, score) pairs, most similar first."""
         ...
+
+
+class VersionConflict(Exception):
+    """A compare-and-set write whose expected version did not match the active fact.
+
+    Raised by ``VersionedStore.put_fact_if`` when the current active fact's
+    ``content_hash`` differs from the caller's ``expected_version`` (or an active
+    fact exists when ``None`` was expected). Nothing is written: the caller read a
+    now-stale fact and must re-read before deciding again (BL-027; ADR-0021).
+    """
+
+
+@runtime_checkable
+class VersionedStore(Protocol):
+    """Optional content-hash compare-and-set over the active fact (Capability.COMPARE_AND_SET).
+
+    The version token is ``Fact.content_hash()``. ``put_fact_if`` makes the
+    read-compare-write atomic AND version-gated, so a lost update is impossible: an
+    operator who approves replacing the fact they read cannot have that approval
+    silently applied to a different value that landed in between (the human-gated
+    convergence guarantee, SEC-6). A backend implements this only if it can hold an
+    exclusive lock across the read and the write; it never fakes it.
+    """
+
+    def put_fact_if(self, fact: Fact, *, expected_version: str | None) -> Fact:
+        """Record ``fact``, superseding the active fact for its key, only if that
+        active fact's ``content_hash`` equals ``expected_version`` (or no active fact
+        exists when ``expected_version`` is None). Raises ``VersionConflict`` and
+        writes nothing otherwise. Atomic: the compare and the write share one
+        exclusive transaction."""
+        ...

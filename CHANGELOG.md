@@ -17,6 +17,18 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-103 resolved: a live-PostgreSQL concurrent-create-if-absent regression test
+  (`tests/store/test_postgres.py::test_concurrent_create_if_absent_yields_one_winner_and_versionconflict`).
+  Two threads, each on its own `PostgresStore` connection, are released together by a
+  barrier and both call `put_fact_if(expected_version=None)` for the same key; the test
+  asserts exactly one writer wins, the other raises `VersionConflict` (not a raw
+  `IntegrityError`), and the loser's transaction rolled back (one active row, history
+  length 1). This exercises the create-path CAS contract under genuine contention: the
+  create-if-absent case cannot be `FOR UPDATE`-locked, so the partial unique index
+  resolves the race and the `IntegrityError` is translated to `VersionConflict`,
+  matching the SQLite backend. Gated on `PRAXIS_TEST_PG_DSN` like the rest of the PG
+  suite (it import-skips in the default `make check`); the live confirmation runs where
+  a Postgres is configured. No production code change.
 - BL-033 fully resolved (ADR-0035): a tag-triggered `release` workflow
   (`.github/workflows/release.yml`, `on: push: tags: ['v*']`) publishes the praxis
   container image to GHCR with a Sigstore-signed SLSA provenance attestation and a

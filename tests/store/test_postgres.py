@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import uuid
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 psycopg = pytest.importorskip("psycopg")
 
 from praxis.model import OBSERVED, Fact  # noqa: E402
+from praxis.store.base import VersionConflict  # noqa: E402
 from praxis.store.postgres import PostgresStore  # noqa: E402
 
 PG_DSN = os.environ.get("PRAXIS_TEST_PG_DSN")
@@ -120,3 +122,64 @@ def test_delete_is_blocked() -> None:
     with pytest.raises(psycopg.errors.RaiseException, match="deletion is blocked"):
         store._conn.execute("DELETE FROM facts WHERE subject = %s", (subject,))
     store.close()
+
+
+def test_concurrent_create_if_absent_yields_one_winner_and_versionconflict() -> None:
+    # BL-103 (BL-027, ADR-0021): the create-if-absent CAS path cannot `SELECT ... FOR
+    # UPDATE`-lock a fact that does not exist yet, so two concurrent writers can both
+    # pass the version compare-check. The partial unique index `facts_active_unique`
+    # then lets exactly one INSERT win; the other trips an IntegrityError that
+    # PostgresStore translates to VersionConflict (put_fact_if), so the create path
+    # honours the same compare-and-set contract as the supersede path and the SQLite
+    # backend's `BEGIN IMMEDIATE` serialization. This is the live-database race that
+    # could not be exercised without a real Postgres (the translation is verified by
+    # reasoning in the unit suite; here it is verified under genuine contention).
+    #
+    # Two writers, the same key, both expected_version=None: exactly one wins, the
+    # other raises VersionConflict and writes nothing. A barrier releases the two
+    # threads together so their transactions actually contend.
+    subject = f"host:cas-race-{uuid.uuid4().hex[:8]}"
+    barrier = threading.Barrier(2)
+    results: dict[str, Fact] = {}
+    errors: dict[str, BaseException] = {}
+
+    def writer(name: str, version: str) -> None:
+        # Each thread owns its own store/connection (psycopg connections are not
+        # shared across threads); the connection is created and used in this thread.
+        store = _store()
+        try:
+            barrier.wait(timeout=15)
+            results[name] = store.put_fact_if(_fact(subject, "os", version), expected_version=None)
+        except Exception as exc:  # captured so the assertions below can report it
+            errors[name] = exc
+        finally:
+            store.close()
+
+    threads = [
+        threading.Thread(target=writer, args=("a", "ubuntu-24.04")),
+        threading.Thread(target=writer, args=("b", "ubuntu-26.04")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert all(not thread.is_alive() for thread in threads), "a writer thread hung"
+    assert len(results) == 1, f"expected one winner: results={results} errors={errors}"
+    assert len(errors) == 1, f"expected one loser: results={results} errors={errors}"
+    (loser_exc,) = errors.values()
+    assert isinstance(loser_exc, VersionConflict), (
+        f"the loser must raise VersionConflict, not a raw error: {loser_exc!r}"
+    )
+
+    # The loser's transaction rolled back: exactly the winner's single active row
+    # survives, no phantom write (invariant 4).
+    checker = _store()
+    try:
+        active = checker.get_active(subject, "os", OBSERVED)
+        assert active is not None
+        (winner,) = results.values()
+        assert active.value == winner.value
+        assert len(checker.history(subject, "os")) == 1
+    finally:
+        checker.close()

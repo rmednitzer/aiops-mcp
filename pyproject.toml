@@ -35,7 +35,7 @@ postgres = ["psycopg[binary]>=3.2,<4"]  # production store backend (BL-006)
 # Optional RFC 3161 timestamp-authority stamper (BL-095, ADR-0029): asn1crypto (MIT)
 # for the TSP/CMS ASN.1 models, cryptography for the signature/cert verification. Not
 # in the execution core; selected only when the operator opts in with praxis[tsa].
-tsa = ["asn1crypto>=1.5,<2", "cryptography>=46.0.7,<47"]
+tsa = ["asn1crypto>=1.5,<2", "cryptography>=49,<50"]
 # http = []                             # streamable-HTTP transport (BL-012)
 
 [project.scripts]

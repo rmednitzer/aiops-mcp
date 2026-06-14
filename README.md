@@ -68,10 +68,11 @@ honest current state:
   (BL-049, BL-074, BL-075). With `PRAXIS_AUDIT_PATH` set, the server also produces
   runtime Merkle checkpoints over the trail (every N records and at shutdown) and
   an optional anchored high-water mark (`PRAXIS_ANCHOR_PATH`) that detects
-  truncation of log plus evidence together (ADR-0019; BL-076, BL-050). The
-  checkpoint stamper is still the keyless `LocalStamper` (a real RFC 3161 TSA is
-  BL-095), so OS-level append-only storage remains the required control against
-  an attacker who can rewrite the files.
+  truncation of log plus evidence together (ADR-0019; BL-076, BL-050). The default
+  checkpoint stamper is the keyless `LocalStamper`; a non-forgeable RFC 3161 TSA
+  stamper is available opt-in (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095,
+  ADR-0030). With the default stamper, OS-level append-only storage remains the
+  required control against an attacker who can rewrite the files.
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

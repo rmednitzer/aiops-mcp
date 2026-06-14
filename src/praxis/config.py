@@ -65,6 +65,14 @@ class Config(BaseModel):
     # 0 means retain indefinitely. The anchor file follows the evidence tier.
     audit_retention_days: int = DEFAULT_RETENTION_DAYS
     evidence_retention_days: int = DEFAULT_RETENTION_DAYS
+    # Non-forgeable timestamp stamper (BL-095, ADR-0029). With tsa_url set, evidence
+    # checkpoints are stamped by an RFC 3161 timestamp authority instead of the
+    # forgeable LocalStamper, and tsa_cert_path (the TSA signing certificate, PEM) is
+    # required to verify the tokens; selection fails closed if either is missing or the
+    # `tsa` extra is absent. Empty leaves the offline LocalStamper default, with OS
+    # append-only storage as the documented control (SECURITY.md, ADR-0019).
+    tsa_url: str | None = None
+    tsa_cert_path: str | None = None
     # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
     # the corresponding adapter outright: fail closed.
     playbook_root: str | None = None
@@ -172,6 +180,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         evidence_retention_days=_interval_or_default(
             get("EVIDENCE_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
         ),
+        tsa_url=get("TSA_URL"),
+        tsa_cert_path=get("TSA_CERT"),
         playbook_root=get("PLAYBOOK_ROOT"),
         runbook_root=get("RUNBOOK_ROOT"),
         kill_switch_path=get("KILL_SWITCH_PATH"),

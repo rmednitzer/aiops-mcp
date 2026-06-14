@@ -149,3 +149,9 @@ a `RekorStamper` beside `Rfc3161Stamper` without further change.
   configured trust root beyond a single configured TSA certificate.
 - `cryptography` or `asn1crypto` posture concerns (size, build, advisories) that would
   push toward a lighter ASN.1 path.
+
+## Ratification note (2026-06-14)
+
+Ratified (RFC 3161 plus the `tsa` extra) and implemented by ADR-0030 (BL-095). This
+design is unchanged; ADR-0030 carries the accepted implementation, the parallel to how
+ADR-0028 implemented the Proposed ADR-0024.

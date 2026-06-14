@@ -93,7 +93,11 @@ class Policy:
 
         tier = classify(tool, command, base_tier=base_tier)
 
-        # 2. Mode gate.
+        # 2. Mode gate. The server-wide ceiling (config.mode, bound once at start;
+        #    there is no runtime set_mode) caps which classified tiers may run and is
+        #    applied uniformly to every tool, so a single call cannot raise its own
+        #    ceiling (SEC-3, UCA-23). A refusal here is not approval-gated: it sets
+        #    requires_approval=False, so no minted nonce can lift it.
         if self.mode is Mode.READONLY and tier > Tier.T0:
             return Decision(
                 allowed=False,

@@ -68,7 +68,9 @@ XS, S, M, L.
 | BL-057 | Manifest parser: exact `---` fence, size cap, reject indented keys, reject duplicate keys | S | resolved | 0012, 0013 |
 | BL-058 | Collectors: AIDE empty output is not clean; per-collector size caps; finite numeric parse (with BL-026) | S | resolved | 0012, 0013 |
 | BL-059 | Drift: escalate `UNEXPECTED` security-predicate findings; split multi-host Ansible subjects | S | resolved | 0012, 0013 |
-| BL-060 | Deploy and config: Helm health probes, systemd drop-in dedupe, pin `cyclonedx-bom`, strip whitespace `HTTP_HOST`, normalise compliance-map path citations | M | open | 0012 |
+| BL-060 | Deploy and config: Helm health probes, systemd drop-in dedupe, pin `cyclonedx-bom`, strip whitespace `HTTP_HOST`, normalise compliance-map path citations | M | resolved | 0012, 0026 |
+<!-- BL-060 audit note (ADR-0026): all sub-items closed. HTTP_HOST whitespace strip (BL-067), `cyclonedx-bom` pin (BL-071), and systemd base/drop-in de-duplication (BL-087) landed in earlier waves; ADR-0026 adds the Helm `tcpSocket` liveness/readiness probes (http-transport-gated, helm-verified) and the compliance-map path-citation convention. -->
+
 | BL-061 | Test and fuzz wave: Postgres parity suite, evidence tamper matrix, host_type refusal per adapter, SSRF bypass tests, fuzz manifest/merkle/evidence | M | resolved | 0012, 0020 |
 | BL-062 | Route read tools (`query_facts`, `fact_history`, collector/skill reads) through the audited path, or formally document the deliberate exclusion; reconcile with invariant 1 wording | S | resolved | 0012, 0016 |
 | BL-063 | Actuation subprocess hardening: scrub env (`GIT_TERMINAL_PROMPT=0`, `DEBIAN_FRONTEND=noninteractive`, neutralise `*_ASKPASS`) and detach stdin (`DEVNULL`) so a wrapped tool cannot read the MCP stdio stream or hang on a prompt | S | resolved | 0013 |

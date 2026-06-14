@@ -44,6 +44,19 @@ resources:
     cpu: "1"
     memory: 512Mi
 
+# Liveness/readiness probes: a tcpSocket check on the MCP port. Rendered only for
+# the http transport (the chart's target); stdio has no listening port. HTTP serving
+# is staged (NOTES.txt, BL-012), so these arm the production posture for when it
+# lands rather than changing the v0 path (BL-060). A tcpSocket probe is chosen over
+# an httpGet one because the MCP surface needs the bearer token and there is no
+# unauthenticated health route.
+probes:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
 # A hardened runtimeClassName for the code-executing plane (for example gVisor).
 runtimeClassName: ""
 

@@ -30,6 +30,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0021](0021-cross-fleet-pattern-integration-wave-2026-06-13.md) | Cross-fleet pattern integration wave (2026-06-13): machine-checkable compliance catalog + bidirectional validator gated in CI, provider/MySQL redaction hardening, additive Talos partition-scoped reset, content-hash compare-and-set for supersede (BL-027/031/097/098 resolved; BL-036 advanced; CIS baseline, multi-sink, audit correlation, client-side health probe filed) | Accepted |
 | [0022](0022-stpa-traceability-completion-2026-06-14.md) | STPA traceability completion (2026-06-14): every UCA-1..28 mapped to a covering SEC "Prevents" column, mode-ceiling escalation (UCA-23) covered under SEC-3 with a proving test, planned `act_redfish`/`act_cloud` UCAs pre-staged and flagged (BL-089 resolved) | Accepted |
 | [0023](0023-audit-evidence-retention-tiers-2026-06-14.md) | Audit and evidence retention tiers (2026-06-14): `PRAXIS_AUDIT_RETENTION_DAYS`/`PRAXIS_EVIDENCE_RETENTION_DAYS` bound in config (default 365, 0=indefinite), bound into the session record, enforced by storage-layer archival because the trail is append-only (NIS2 Art. 23, ISO 27001 A.8.15; implements ADR-0011 finding 035 / BL-035) | Accepted |
+| [0024](0024-cis-talos-fact-predicate-schema-2026-06-14.md) | CIS-Talos drift baseline: the fact-predicate schema (2026-06-14): `KNOWN_GOOD` facts keyed `host:<name>`/`cluster:<name>` + `cis:<benchmark>:<control_id>`, comparable `value` vs documentation in `reason`, CIS-aware severity via the existing `severity_for` hook, explicit `CIS_SUPPRESSED`/`TALOS_SATISFIED` sets; no engine change (prerequisite decision for BL-099) | Proposed |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -62,3 +63,9 @@ ADR-0023 implements ADR-0011 finding 035 (BL-035): audit and evidence retention
 tiers bound in config and into the session audit record, enforced by storage-layer
 archival because the trail is append-only (no runtime deletion path), mapped to NIS2
 Art. 23 and ISO 27001 A.8.15.
+ADR-0024 is the prerequisite schema decision for BL-099 (recorded Proposed for
+ratification before implementation): it fixes how CIS Kubernetes/Talos controls are
+named as `(subject, predicate, fact_type)` facts, the comparable-`value` versus
+documentation-`reason` split that keeps the equality diff reliable, CIS-aware
+severity through the existing `severity_for` hook, and an explicit, documented
+suppression and Talos-satisfied policy. It changes no code.

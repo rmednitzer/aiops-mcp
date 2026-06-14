@@ -6,6 +6,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- CIS-Talos drift baseline schema (ADR-0024, BL-099; Proposed): the prerequisite
+  fact-predicate schema decision the backlog item requires before implementation.
+  CIS controls become `KNOWN_GOOD` facts keyed on the real asset (`host:<name>` or
+  `cluster:<name>`) and `cis:<benchmark>:<control_id>`, with the comparable setting in
+  `value` and the CIS documentation in `reason` so the equality diff stays reliable,
+  CIS-aware severity supplied through the existing `severity_for` hook (no engine
+  change), and explicit, documented `CIS_SUPPRESSED`/`TALOS_SATISFIED` policy sets.
+  Recorded Proposed for ratification; the baseline data and the read-only collector
+  remain open under BL-099. Documentation-only.
 - Audit/evidence retention tiers (ADR-0023, BL-035): `PRAXIS_AUDIT_RETENTION_DAYS`
   and `PRAXIS_EVIDENCE_RETENTION_DAYS` (default 365 days; `0` retains indefinitely;
   the anchor follows the evidence tier) bind the declared retention as the single

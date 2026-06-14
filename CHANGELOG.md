@@ -6,13 +6,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
-- Completed the `cryptography` v46 advisory fix that Renovate (#55) started: the `tsa`
-  extra and the hash-locked `requirements-dev.txt` were moved to 46.0.7, but the
-  duplicate bound in the `dev` extra was left at `>=43,<46`, so the lock and the
-  declared bound contradicted each other and a `uv pip compile --extra dev` regeneration
-  would have silently downgraded to the affected 45.0.7. The `dev` bound is now in
-  lockstep with the `tsa` extra at `>=46.0.7,<47`; the lock is unchanged and the suite,
-  including the BL-095 stamper verification, passes on cryptography 46.0.7.
+- `cryptography` is bounded in lockstep across the `tsa` and `dev` extras (`>=49,<50`),
+  with the exact pin in the hash-locked `requirements-dev.txt` at 49.0.0. Keeping both
+  bounds aligned closes a recurring hazard: a dependency bot that bumps the `tsa` extra
+  and the lock but leaves the duplicate `dev` bound behind makes the two contradict each
+  other, so a lock regeneration silently changes the installed version (it surfaced
+  first with the v46 advisory fix in #55/#57, and again after the v49 bump in #53, which
+  left the `dev` bound at `>=46.0.7,<47` while the lock moved to 49.0.0; realigned in
+  #62). The suite, including the BL-095 stamper verification, passes on cryptography
+  49.0.0.
 
 ### Added
 - BL-092 (ADR-0032): a repo `Dockerfile` so the deployed image is buildable and

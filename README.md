@@ -72,7 +72,10 @@ honest current state:
   checkpoint stamper is the keyless `LocalStamper`; a non-forgeable RFC 3161 TSA
   stamper is available opt-in (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095,
   ADR-0030). With the default stamper, OS-level append-only storage remains the
-  required control against an attacker who can rewrite the files.
+  required control against an attacker who can rewrite the files. Audit records can
+  also be forwarded best-effort to syslog for SIEM/journald visibility
+  (`PRAXIS_AUDIT_SYSLOG_ADDRESS`, opt-in); the append-only file stays the
+  authoritative, tamper-evident sink (BL-100, ADR-0037).
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

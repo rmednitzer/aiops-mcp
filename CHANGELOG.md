@@ -17,6 +17,21 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-100 resolved (ADR-0037): the audit log is now multi-sink. A new optional
+  secondary sink, `SyslogAuditSink`, forwards each canonical, already-redacted audit
+  line to syslog for SIEM / journald visibility (a Unix socket path such as `/dev/log`,
+  or `host:port` for a remote UDP collector), opt-in via `PRAXIS_AUDIT_SYSLOG_ADDRESS`
+  (default unset, so the single file sink is unchanged). A new `MultiSink` applies the
+  `skills/dispatch` fan-out class to the audit write side: it fans one line to N
+  secondary sinks, contains a per-sink `Exception` (noting a persistently failing sink
+  once per streak, not per record) so one failing sink cannot silence the others, lets
+  `BaseException` propagate, and never raises (invariant 3). The append-only
+  hash-chained file stays authoritative, written first and directly; secondaries are
+  best-effort forwards fanned out after it, so a failing, slow, or oversized secondary
+  can never affect the primary write, the hash chain, the `seq`, or `verify_chain`.
+  Covered by `tests/execution/test_audit_multisink.py` (fan-out, per-sink containment,
+  `BaseException` propagation, once-per-streak noting, primary-unaffected, syslog Unix +
+  UDP delivery, connect- and send-failure containment); the audit module is at 96%.
 - BL-103 resolved: a live-PostgreSQL concurrent-create-if-absent regression test
   (`tests/store/test_postgres.py::test_concurrent_create_if_absent_yields_one_winner_and_versionconflict`).
   Two threads, each on its own `PostgresStore` connection, are released together by a

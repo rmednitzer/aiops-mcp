@@ -17,6 +17,7 @@ from pydantic import Field
 
 from praxis.collectors import (
     AideCollector,
+    CisCollector,
     Collector,
     CommandProbeCollector,
     OsqueryCollector,
@@ -33,7 +34,7 @@ from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 # boundary and nothing is ingested (the trifecta gate is not armed).
 _MAX_RAW_CHARS = 4 * 1024 * 1024
 
-CollectorName = Literal["osquery", "aide", "probe", "talos"]
+CollectorName = Literal["osquery", "aide", "probe", "talos", "cis"]
 
 
 class IngestArgs(ToolArgs):
@@ -52,6 +53,10 @@ def _build_collector(kind: CollectorName, predicate: str) -> Collector:
         return OsqueryCollector(predicate)
     if kind == "talos":
         return TalosCollector(predicate)
+    if kind == "cis":
+        # The CIS evidence declares its own benchmark (predicate is per-control), so
+        # the collector ignores the ingest predicate and reads the payload's benchmark.
+        return CisCollector()
     return CommandProbeCollector(predicate)
 
 

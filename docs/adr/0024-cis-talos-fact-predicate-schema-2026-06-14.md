@@ -157,3 +157,10 @@ work begins, per the backlog item.
   the normalization rules must absorb.
 - A need to rank CIS Level 2 controls below Level 1, which would add the level side
   table referenced in decision 5.
+
+## Ratification note (2026-06-14)
+
+Ratified and implemented by ADR-0028 (BL-099). This decision is the CIS schema of
+record; the Decision above is unchanged. ADR-0028 records the implementing work: the
+baseline data, the suppression and Talos-satisfied policy, the read-only observing
+collector, and the CIS-aware severity wired into the existing drift scan.

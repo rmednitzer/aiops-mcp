@@ -34,6 +34,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0025](0025-ssrf-rebinding-aware-resolution-2026-06-14.md) | Rebinding-aware SSRF egress resolution (2026-06-14): additive `resolve_and_assert_egress_allowed` that resolves a host, checks every resolved IP, and returns the vetted IPs to pin the connection; strict deny-names default unchanged; wiring deferred to the first egress consumer (BL-046 resolver delivered; wiring open) | Accepted |
 | [0026](0026-deploy-config-cleanup-2026-06-14.md) | Deploy and config cleanup; Helm health probes (2026-06-14): configurable `tcpSocket` liveness/readiness probes on the MCP port, rendered only for the http transport (verified with helm); compliance-map path-citation convention; records the BL-067/071/087 sub-items already closed (closes BL-060) | Accepted |
 | [0027](0027-helm-chart-unit-tests-2026-06-14.md) | Helm chart unit tests gated in CI (2026-06-14): helm-unittest suites asserting the PSA-restricted securityContext, digest pinning, secret-ref-only wiring, http-gated probes, and the default-deny NetworkPolicy; a pinned `helm-test` job folded into the required `ci-success` aggregate; `make helm-test` for local parity (closes BL-032) | Accepted |
+| [0028](0028-cis-talos-baseline-implementation-2026-06-14.md) | CIS-Talos drift baseline implementation (2026-06-14): ratifies ADR-0024 and implements BL-099; the vetted `CIS_BASELINE` plus `normalize_value`, `cis_severity`, `cis_baseline_facts`, `cis_drift`, `seed_cis_baseline`, the read-only `CisCollector` wired into `ingest_observation`, and CIS-aware severity in `drift_scan`; no engine change, no new tool/UCA (closes BL-099) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -67,11 +68,11 @@ tiers bound in config and into the session audit record, enforced by storage-lay
 archival because the trail is append-only (no runtime deletion path), mapped to NIS2
 Art. 23 and ISO 27001 A.8.15.
 ADR-0024 is the prerequisite schema decision for BL-099 (recorded Proposed for
-ratification before implementation): it fixes how CIS Kubernetes/Talos controls are
-named as `(subject, predicate, fact_type)` facts, the comparable-`value` versus
-documentation-`reason` split that keeps the equality diff reliable, CIS-aware
-severity through the existing `severity_for` hook, and an explicit, documented
-suppression and Talos-satisfied policy. It changes no code.
+ratification before implementation; ratified and implemented by ADR-0028): it fixes
+how CIS Kubernetes/Talos controls are named as `(subject, predicate, fact_type)`
+facts, the comparable-`value` versus documentation-`reason` split that keeps the
+equality diff reliable, CIS-aware severity through the existing `severity_for` hook,
+and an explicit, documented suppression and Talos-satisfied policy. It changes no code.
 ADR-0025 adds the rebinding-aware SSRF egress primitive
 (`resolve_and_assert_egress_allowed`): it resolves a host, checks every resolved
 address, and returns the vetted IPs so a caller pins the connection, additively
@@ -89,3 +90,11 @@ a pinned `helm-test` job folded into the required `ci-success` aggregate so it i
 required without a new branch-protection rule, with a `make helm-test` target for
 local parity. It adds a CI/dev dependency only and leaves the execution core
 dependency-free posture (ADR-0014) untouched.
+ADR-0028 ratifies ADR-0024 and implements BL-099: the CIS-Talos desired-state baseline
+as drift data. It adds `drift/cis.py` (the vetted baseline, one symmetric
+normalization, the `cis_severity` hook, the suppression and Talos-satisfied policy, and
+the materialization, diff, and seed helpers) and a read-only `CisCollector`, wiring CIS
+through the existing audited surface (the collector via `ingest_observation`, CIS-aware
+severity in `drift_scan`) with no engine change and no new tool or UCA. ADR-0024 stays
+the schema of record (Proposed, with a ratification note); ADR-0028 carries the
+accepted implementation, the parallel to how ADR-0016 ratified ADR-0015.

@@ -11,12 +11,14 @@ from __future__ import annotations
 
 from praxis.collectors.aide import AideCollector
 from praxis.collectors.base import Collector
+from praxis.collectors.cis import CisCollector
 from praxis.collectors.osquery import OsqueryCollector
 from praxis.collectors.probe import CommandProbeCollector
 from praxis.collectors.talos import TalosCollector
 
 __all__ = [
     "AideCollector",
+    "CisCollector",
     "Collector",
     "CommandProbeCollector",
     "OsqueryCollector",

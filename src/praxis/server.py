@@ -23,6 +23,7 @@ from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger, SyslogAuditSink
 from praxis.execution.contract import ApprovalRegistry, BudgetTracker
+from praxis.execution.correlation import request_scope
 from praxis.execution.policy import Policy
 from praxis.execution.runner import ExecutionContext, KillSwitch, bounded_error
 from praxis.store import open_store
@@ -143,7 +144,12 @@ class StdioServer:
         elif method == "tools/list":
             result = {"tools": [spec.to_mcp() for spec in self.registry.specs()]}
         elif method == "tools/call":
-            result = self._call(message.get("params"))
+            # Bind the JSON-RPC request id as the audit correlation id for this call
+            # (BL-101, ADR-0038), so its audit entries carry the request_id. client_id
+            # stays None for the single-client stdio transport; a multi-client transport
+            # (HTTP, BL-012) sets it via request_scope.
+            with request_scope(request_id=mid):
+                result = self._call(message.get("params"))
         else:
             return _error(mid, -32601, f"method not found: {method!r}")
         return {"jsonrpc": "2.0", "id": mid, "result": result}

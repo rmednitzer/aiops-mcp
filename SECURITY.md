@@ -67,7 +67,10 @@ An optional best-effort secondary sink forwards each already-redacted record to 
 (`PRAXIS_AUDIT_SYSLOG_ADDRESS`, opt-in) for SIEM/journald visibility; it is fanned out
 after the authoritative file write through a `MultiSink` that contains a per-sink
 failure, so a failing or oversized syslog endpoint can never affect the file write, the
-hash chain, or `verify_chain` (BL-100, ADR-0037).
+hash chain, or `verify_chain` (BL-100, ADR-0037). Each record also carries optional
+`request_id` / `client_id` correlation fields (inside the hashed payload, so
+tamper-evident); the transport supplies them per request and the client-supplied value
+is length-bounded so a hostile client cannot bloat a record (BL-101, ADR-0038).
 Since ADR-0019 (BL-076) the running server also produces Merkle checkpoints (RFC
 6962 domain separation) over the log: every `PRAXIS_EVIDENCE_EVERY` records
 (default 64) and at orderly shutdown, into `PRAXIS_EVIDENCE_PATH` (default

@@ -49,6 +49,7 @@ from praxis.execution.contract import (
     BudgetTracker,
     Contract,
 )
+from praxis.execution.correlation import current_client_id, current_request_id
 from praxis.execution.patterns import PATTERNS_VERSION, Tier
 from praxis.execution.policy import Decision, Policy
 from praxis.execution.redaction import redact, redact_args
@@ -285,6 +286,8 @@ def run(
             output_sha256=output_sha256,
             output_len=output_len,
             error=error,
+            request_id=current_request_id(),
+            client_id=current_client_id(),
             patterns_version=PATTERNS_VERSION,
         )
 

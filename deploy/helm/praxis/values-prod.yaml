@@ -1,0 +1,63 @@
+# Production overlay for the praxis chart (BL-036). Apply on top of the defaults:
+#
+#   helm install praxis deploy/helm/praxis -f deploy/helm/praxis/values-prod.yaml \
+#     --set image.digest=sha256:<the-published-digest> \
+#     --set-json 'networkPolicy.ingressFrom=[{"podSelector":{"matchLabels":{"app.kubernetes.io/name":"<mcp-client>"}}}]'
+#
+# The chart defaults are already secure-by-default; this overlay makes the production
+# posture explicit and marks the three values an operator MUST supply for a real
+# deployment (the image digest and the NetworkPolicy peers/egress). It never weakens a
+# default. See deploy/README.md and deploy/RELEASE-CHECKLIST.md.
+
+# REQUIRED: pin the published image by digest (ADR-0001). The chart default is an
+# all-zero placeholder that only fails at pull time; set the real digest here or with
+# `--set image.digest=...`. A tag is intentionally never used.
+image:
+  pullPolicy: IfNotPresent
+  # digest: sha256:<set-me>   # REQUIRED before deploy
+
+replicaCount: 1               # >1 needs the Postgres backend (seq uniqueness, BL-068/091)
+
+# guarded is the safe production default; set readonly for an observe-only deployment.
+mode: guarded
+
+http:
+  allowRestricted: false      # default-deny restricted output over HTTP (explicit)
+
+# Liveness/readiness on the MCP port (http transport). Enabled by default; pinned here
+# so a production values review sees the probe posture in one place.
+probes:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Production resource envelope. Tune to the fleet; the request/limit split keeps the
+# pod schedulable while capping blast radius.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+# A sandboxed runtime for the code-executing plane is recommended in production.
+# Operator-specific (the class must exist on the cluster), so left commented:
+# runtimeClassName: gvisor
+
+networkPolicy:
+  enabled: true
+  # REQUIRED: name the MCP client(s) allowed to reach the MCP port. Empty (the default)
+  # denies ALL ingress (fail closed, BL-051); a production deployment must name a peer:
+  # ingressFrom:
+  #   - podSelector:
+  #       matchLabels:
+  #         app.kubernetes.io/name: <mcp-client>
+  ingressFrom: []
+  # REQUIRED: the fleet ranges the server may egress to. Empty (the default) permits
+  # only DNS to kube-system; 169.254.0.0/16 is always excised (BL-087):
+  # egressCIDRs:
+  #   - cidr: 10.0.0.0/24
+  egressCIDRs: []

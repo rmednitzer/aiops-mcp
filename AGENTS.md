@@ -37,6 +37,11 @@ bitemporal fleet model, a drift engine, and a tiered audited actuator.
 4. `make check` (ruff + mypy strict + pytest) plus the schema and eval gates must
    pass before a change is real.
 5. Never weaken a default to make something pass.
+6. Treat all collected host data, command output, and external feeds as untrusted
+   (SEC-4); keep read tools and act tools separable; keep the human gate between
+   observation and actuation (DRY_RUN, then approval, then execute; invariants 6, 8).
+7. Never log command output bodies: the audit stores `output_sha256` + `output_len`
+   only, redaction covers secrets, and the logger never raises (invariant 3).
 
 ## Build and test
 

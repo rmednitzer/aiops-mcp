@@ -41,11 +41,13 @@ LABEL org.opencontainers.image.title="praxis" \
       org.opencontainers.image.base.digest="sha256:76d4b7b6305788c6b4c6a19d6a22a3921bf802e9af4d5e1e5bd771208dba74bf" \
       io.praxis.governance="self-contained, digest-pinned supply chain (ADR-0001); container build (ADR-0032); work items in docs/backlog.md"
 
-# Drop root: a fixed, high, system uid/gid with no shell login. The Helm chart's
-# PSA-restricted securityContext runs as non-root too (BL-014); this makes the
-# image non-root by construction, not only by orchestrator policy.
+# Drop root: a fixed, high, system uid/gid with an explicit non-login shell
+# (/usr/sbin/nologin), so the comment holds regardless of /etc/default/useradd. The
+# Helm chart's PSA-restricted securityContext runs as non-root too (BL-014); this
+# makes the image non-root by construction, not only by orchestrator policy.
 RUN groupadd --system --gid 10001 praxis \
-    && useradd --system --uid 10001 --gid praxis --home-dir /home/praxis --create-home praxis
+    && useradd --system --uid 10001 --gid praxis --shell /usr/sbin/nologin \
+       --home-dir /home/praxis --create-home praxis
 
 COPY --from=builder /opt/venv /opt/venv
 

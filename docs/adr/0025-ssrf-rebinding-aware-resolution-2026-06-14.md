@@ -101,3 +101,14 @@ the check aligned with what the OS would actually connect to.
   socket to a returned IP, and close the wiring half of BL-046.
 - `getaddrinfo` behaviour or a new embedding form requires the resolved-address
   check to be extended (kept in lockstep with `_ip_is_blocked`).
+
+## Audit note (2026-06-14)
+
+The first server-initiated egress consumer has landed: the RFC 3161 timestamp stamper
+(BL-095, ADR-0030). `audit/rfc3161.py::_https_post` calls
+`resolve_and_assert_egress_allowed` and pins the HTTPS connection to each returned
+vetted IP in turn, never re-resolving between the check and the connect, so it honours
+the connection-pinning contract this ADR could previously only document. This satisfies
+the first revisit trigger above and closes the wiring half of BL-046 (now resolved). The
+decision is unchanged; this note records the factual update per the immutable-ADR
+convention.

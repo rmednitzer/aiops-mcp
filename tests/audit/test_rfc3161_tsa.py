@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from praxis._ssrf import SSRFBlocked
 from praxis.audit.rfc3161 import LocalStamper, Rfc3161Stamper, StampError, select_stamper
 
 asn1_tsp = pytest.importorskip("asn1crypto.tsp")
@@ -261,3 +262,13 @@ def test_select_stamper_fails_closed_on_unreadable_cert(tmp_path: Path) -> None:
     missing = tmp_path / "absent" / "tsa.pem"  # parent does not exist either
     with pytest.raises(RuntimeError, match="PRAXIS_TSA_CERT"):
         select_stamper(tsa_url="https://tsa.example/tsr", tsa_cert_path=str(missing))
+
+
+def test_default_transport_routes_through_the_ssrf_egress_filter() -> None:
+    # BL-046 (wiring half): the default, non-injected transport vets the TSA address
+    # through the rebinding-aware egress filter and pins to it, so a private-range URL
+    # is refused before any socket. This proves the stamper is the filter's first live
+    # egress consumer, exercised offline with no real network.
+    stamper = Rfc3161Stamper("https://10.0.0.1/tsr")  # default transport; no cert needed to stamp
+    with pytest.raises(SSRFBlocked):
+        stamper.stamp(hashlib.sha256(b"root").hexdigest())

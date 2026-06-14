@@ -28,13 +28,13 @@ The constraints come from the existing model, which this ADR deliberately does n
 change:
 
 - `Fact` is keyed by `(subject, predicate, fact_type)`; `value` is a dict
-  (`model/facts.py`, ADR-0003).
+  (`src/praxis/model/facts.py`, ADR-0003).
 - `drift.engine.diff(observed, desired, *, flag_unexpected, severity_for)` indexes
   both sides by `(subject, predicate)` and, per desired key, emits `MISSING` when
   observed is absent and `CHANGED` when `have.value != want.value`. Severity is a
-  pluggable `severity_for(predicate, kind)` hook (`drift/engine.py`).
+  pluggable `severity_for(predicate, kind)` hook (`src/praxis/drift/engine.py`).
 - `known_good_from_store` already returns `list_active(fact_type=KNOWN_GOOD)`
-  (`drift/sources.py`).
+  (`src/praxis/drift/sources.py`).
 - Drift is read-only (T0); convergence stays human-gated (SEC-6). A drift-data
   source adds no actuation and so no new UCA (the same status as the tofu and
   ansible sources).
@@ -88,7 +88,7 @@ to separate the comparable setting from its documentation.
 5. Severity uses the existing `severity_for` hook, not an engine change. A
    `cis_severity(predicate, kind)` function treats any `cis:`-prefixed predicate as
    security-relevant and ranks its drift `CRITICAL`, consistent with the existing
-   `_SECURITY_PREDICATES` posture (`drift/engine.py`); a later refinement may read
+   `_SECURITY_PREDICATES` posture (`src/praxis/drift/engine.py`); a later refinement may read
    the CIS level from a side table to rank Level 2 controls `WARNING`. Because `diff`
    already accepts `severity_for`, the CIS drift entry point passes `cis_severity`
    and the engine itself is untouched.

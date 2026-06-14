@@ -6,6 +6,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- STPA traceability completion (ADR-0022, BL-089): every UCA-1..28 now appears in a
+  SEC "Prevents" column in `docs/stpa/07-security-constraints.md`. The already-enforced
+  actuation UCAs are listed under their covering constraints (UCA-4/UCA-6/UCA-10 under
+  SEC-2 minted approval; UCA-4..UCA-7 under SEC-6 human-gated convergence; UCA-10 under
+  SEC-5 talosctl one-target T3). The mode-ceiling escalation (UCA-23) is covered under
+  SEC-3: there is no runtime `set_mode` tool, the mode is bound once at startup and
+  `Policy.check` applies it uniformly, and a new proving test
+  (`test_mode_ceiling_cannot_be_escalated_per_tool`) asserts no tool name, command, or
+  declared `base_tier` lifts a call past the ceiling and that a mode refusal is not
+  approval-gated. The planned `act_redfish`/`act_cloud` adapters have no implementation
+  in this version, so their UCAs (UCA-12/13/14) are pre-staged and flagged `[planned]`
+  in `05-ucas.md` and `(planned ...)` in the SEC table; the flags clear when the
+  adapters land. SEC-3's catalog statement and proving-test list are updated to match,
+  keeping the ADR-0021 compliance validator green. No runtime behavior changes.
 - Machine-checkable compliance catalog (ADR-0021, BL-031; advances BL-036): the
   prose compliance map and the STPA security constraints are projected into
   `docs/governance/compliance-controls.json`, a pydantic-validated catalog keyed by

@@ -45,7 +45,7 @@
     },
     "SEC-3": {
       "title": "Conservative classification (round up)",
-      "statement": "Classification rounds up on ambiguity; sudo/doas/pkexec are at least T2.",
+      "statement": "Classification rounds up on ambiguity; sudo/doas/pkexec are at least T2; the server-wide mode ceiling (open/guarded/readonly) gates which tiers may run and cannot be raised silently or overridden per tool.",
       "invariants": [2],
       "modules": [
         "src/praxis/execution/patterns.py",
@@ -53,7 +53,8 @@
       ],
       "proving_tests": [
         "tests/execution/test_patterns.py::test_classify_rounds_up",
-        "tests/execution/test_patterns.py::test_priv_escalation_is_at_least_t2"
+        "tests/execution/test_patterns.py::test_priv_escalation_is_at_least_t2",
+        "tests/execution/test_policy.py::test_mode_ceiling_cannot_be_escalated_per_tool"
       ],
       "regulatory": [
         {"framework": "EU AI Act", "article": "Art. 9", "note": "risk management"},

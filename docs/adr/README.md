@@ -28,6 +28,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0019](0019-runtime-evidence-and-anchor-2026-06-12.md) | Runtime evidence production and the anchored high-water mark (2026-06-12): the server checkpoints the audit log every N records and at shutdown; optional anchor file detects truncation of log plus evidence together; snapshot hashes Merkle-committed by composition (BL-030/050/076 resolved; BL-095 filed for the non-forgeable stamper) | Accepted |
 | [0020](0020-test-and-deploy-hardening-wave-2026-06-12.md) | Test/fuzz expansion and deploy hardening (2026-06-12): SSRF bypass sweep (6to4 relay anycast blocked), adapter x host_type refusal matrix, SQLite/Postgres parity suite, fuzz manifest/merkle/evidence stages, systemd PrivateUsers/ProcSubset/RemoveIPC, scoped Helm NetworkPolicy egress (BL-061/096 resolved; BL-087 advanced) | Accepted |
 | [0021](0021-cross-fleet-pattern-integration-wave-2026-06-13.md) | Cross-fleet pattern integration wave (2026-06-13): machine-checkable compliance catalog + bidirectional validator gated in CI, provider/MySQL redaction hardening, additive Talos partition-scoped reset, content-hash compare-and-set for supersede (BL-027/031/097/098 resolved; BL-036 advanced; CIS baseline, multi-sink, audit correlation, client-side health probe filed) | Accepted |
+| [0022](0022-stpa-traceability-completion-2026-06-14.md) | STPA traceability completion (2026-06-14): every UCA-1..28 mapped to a covering SEC "Prevents" column, mode-ceiling escalation (UCA-23) covered under SEC-3 with a proving test, planned `act_redfish`/`act_cloud` UCAs pre-staged and flagged (BL-089 resolved) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -51,3 +52,8 @@ fleet-operations patterns natively (a machine-checkable compliance catalog with 
 CI-gated bidirectional validator, redaction hardening, an additive Talos
 partition-scoped reset, and content-hash compare-and-set for supersede), each with a
 regression test, and files the larger findings as tracked backlog items.
+ADR-0022 is a governance-traceability completion: it resolves the last ADR-0015
+finding (BL-089) by mapping every UCA to a covering SEC constraint, covering the
+mode-ceiling escalation (UCA-23) under SEC-3 with a proving test, and pre-staging the
+planned-adapter UCAs; it documents existing enforcement rather than changing runtime
+behavior.

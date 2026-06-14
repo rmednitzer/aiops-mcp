@@ -22,8 +22,8 @@ that action. The covering constraint is in `07-security-constraints.md`.
 | `act_runbook` (subprocess) | UCA-8 run a runbook whose tier was under-rated -> H-3 | n/a | UCA-9 run before precondition/audit -> H-2 | n/a |
 | `act_talos` (talosctl) | UCA-10 issue destructive talosctl (reset/upgrade) without typed token / one-target -> H-1 | n/a | n/a | n/a |
 | `act_talos` against wrong host | UCA-11 SSH path selected for a Talos host -> H-5 | n/a | n/a | n/a |
-| `act_redfish` (OOB power/boot) | UCA-12 power/boot change without approval -> H-1 | n/a | UCA-13 power action mistimed (during write) -> H-6 | n/a |
-| `act_cloud` (cloud API) | UCA-14 mutate cloud resource without approval / SSRF egress check -> H-1, H-7 | n/a | n/a | n/a |
+| `act_redfish` (OOB power/boot) [planned] | UCA-12 power/boot change without approval -> H-1 | n/a | UCA-13 power action mistimed (during write) -> H-6 | n/a |
+| `act_cloud` (cloud API) [planned] | UCA-14 mutate cloud resource without approval / SSRF egress check -> H-1, H-7 | n/a | n/a | n/a |
 
 ## Convergence and state control actions
 
@@ -52,3 +52,10 @@ through the single audited path (SC-1), so each call writes one audit record; a
 read that returns observed facts arms the session untrusted latch, and the ingest
 arms it on the path itself (UCA-27/28). Read feedback is treated as untrusted
 (SC-4). The skills dispatcher's internal reads remain outside the per-call audit.
+
+Planned control actions (ADR-0022, BL-089): `act_redfish` (UCA-12, UCA-13) and
+`act_cloud` (UCA-14) have no adapter in this version; their rows are marked
+`[planned]` and kept here so the UCA is registered before the code lands. Every
+UCA-1..28 maps to a covering SEC constraint in `07-security-constraints.md`, with
+the planned-adapter UCAs flagged there too; the flags clear when the adapters
+are implemented and route through the single audited path.

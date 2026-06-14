@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import secrets
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -199,6 +200,12 @@ class ApprovalRegistry:
         # is refused as "not minted" anyway, so purging them bounds memory
         # without weakening single-use.
         self._consumed: dict[str, float] = {}  # token -> original expiry
+        # Serialise mint/validate/consume so check-and-burn is atomic under a
+        # multi-client (HTTP, BL-012) transport: without this, two concurrent
+        # requests could both validate the same nonce before either burns it and
+        # both execute (BL-104). The lock is process-wide; nonces are short-lived
+        # and per session, so contention is negligible.
+        self._lock = threading.Lock()
 
     def mint(
         self,
@@ -209,19 +216,44 @@ class ApprovalRegistry:
         patterns_version: int,
     ) -> str:
         """Mint a fresh single-use nonce for one classified action."""
-        now = self._clock()
-        self._purge(now)
-        token = secrets.token_urlsafe(16)
-        self._pending[token] = _PendingApproval(
-            action_id=action_id,
-            target=target,
-            tier=tier,
-            patterns_version=patterns_version,
-            expires_at=now + self.ttl_seconds,
-        )
-        return token
+        with self._lock:
+            now = self._clock()
+            self._purge(now)
+            token = secrets.token_urlsafe(16)
+            self._pending[token] = _PendingApproval(
+                action_id=action_id,
+                target=target,
+                tier=tier,
+                patterns_version=patterns_version,
+                expires_at=now + self.ttl_seconds,
+            )
+            return token
 
-    def validate(
+    @staticmethod
+    def _eq(stored: str, presented: str) -> bool:
+        """Constant-time token equality (BL-106). Compares on bytes so a hostile
+        non-ASCII presented token cannot raise; a non-matching token never matches."""
+        return secrets.compare_digest(
+            stored.encode("ascii"), presented.encode("utf-8", "surrogatepass")
+        )
+
+    def _match_pending(self, token: str) -> str | None:
+        """Return the matching pending token, compared in constant time. Scans every
+        entry without breaking early so the timing does not reveal which (if any) matched."""
+        match: str | None = None
+        for stored in self._pending:
+            if self._eq(stored, token):
+                match = stored
+        return match
+
+    def _is_consumed(self, token: str) -> bool:
+        found = False
+        for stored in self._consumed:
+            if self._eq(stored, token):
+                found = True
+        return found
+
+    def _validate_locked(
         self,
         approval: Approval,
         *,
@@ -229,20 +261,21 @@ class ApprovalRegistry:
         target: str | None,
         tier: Tier,
         patterns_version: int,
-    ) -> None:
-        """Check an approval without consuming it. Raises ``ApprovalError`` if invalid."""
+    ) -> str:
+        """Validate under the held lock; return the matched pending token, or raise."""
         if approval.action_id != action_id:
             raise ApprovalError("approval is not bound to this action")
-        if approval.token in self._consumed:
+        if self._is_consumed(approval.token):
             raise ApprovalError("approval already used; a retry requires a fresh approval")
-        pending = self._pending.get(approval.token)
-        if pending is None:
+        token = self._match_pending(approval.token)
+        if token is None:
             raise ApprovalError(
                 "approval token was not minted by this server for a pending action; "
                 "run with dry_run=True to mint one"
             )
+        pending = self._pending[token]
         if self._clock() > pending.expires_at:
-            del self._pending[approval.token]
+            del self._pending[token]
             raise ApprovalError(
                 "approval token has expired; re-run the dry run to mint a fresh one"
             )
@@ -256,6 +289,26 @@ class ApprovalRegistry:
             raise ApprovalError(
                 "classification patterns changed since this approval was minted; re-run the dry run"
             )
+        return token
+
+    def validate(
+        self,
+        approval: Approval,
+        *,
+        action_id: str,
+        target: str | None,
+        tier: Tier,
+        patterns_version: int,
+    ) -> None:
+        """Check an approval without consuming it. Raises ``ApprovalError`` if invalid."""
+        with self._lock:
+            self._validate_locked(
+                approval,
+                action_id=action_id,
+                target=target,
+                tier=tier,
+                patterns_version=patterns_version,
+            )
 
     def consume(
         self,
@@ -266,16 +319,19 @@ class ApprovalRegistry:
         tier: Tier,
         patterns_version: int,
     ) -> None:
-        """Validate, then burn the nonce so it can never authorize a second run."""
-        self.validate(
-            approval,
-            action_id=action_id,
-            target=target,
-            tier=tier,
-            patterns_version=patterns_version,
-        )
-        pending = self._pending.pop(approval.token)
-        self._consumed[approval.token] = pending.expires_at
+        """Validate and burn the nonce atomically (BL-104): the check and the burn
+        happen under one lock acquisition, so two concurrent requests presenting the
+        same nonce cannot both pass validation before either burns it."""
+        with self._lock:
+            token = self._validate_locked(
+                approval,
+                action_id=action_id,
+                target=target,
+                tier=tier,
+                patterns_version=patterns_version,
+            )
+            pending = self._pending.pop(token)
+            self._consumed[token] = pending.expires_at
 
     def _purge(self, now: float) -> None:
         for tok in [t for t, pend in self._pending.items() if now > pend.expires_at]:

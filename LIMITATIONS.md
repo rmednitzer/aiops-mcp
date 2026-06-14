@@ -15,9 +15,12 @@ free-form shell, in-path trifecta containment, audited reads and ingest, and the
 budget, kill-switch actuator, and credential-broker wiring. Several items once listed
 here as open have since landed: hostname-resolving SSRF (BL-046, ADR-0025), runtime
 audit anchoring and Merkle checkpoints (BL-076/050, ADR-0019), the RFC 3161 TSA
-stamper (BL-095, ADR-0030), and CI/deploy gating (BL-052, ADR-0036). The HTTP
-transport remains the notable open item in `docs/backlog.md` (tracked, not yet
-delivered): the stdio surface is the supported v0 deployment.
+stamper (BL-095, ADR-0030), CI/deploy gating (BL-052, ADR-0036), and the multi-client
+HTTP transport (BL-012, ADR-0041): the serving loop is now built (per-session isolation,
+constant-time bearer auth, a body cap, and the per-client consent ceiling). The HTTP
+server is single-threaded in v1, so requests are serialised; concurrent serving over a
+thread-safe store is the tracked follow-up (BL-110). stdio remains the default and the
+simplest deployment.
 
 ## Scope boundaries
 

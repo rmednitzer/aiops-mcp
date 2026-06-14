@@ -103,5 +103,24 @@ together so a retained window stays independently verifiable with
 
 HTTP is opt-in and fails closed: it needs `PRAXIS_HTTP_TOKEN` and, for any
 non-loopback bind, `PRAXIS_HTTP_ALLOW_ANY=yes-i-understand-the-risk`, plus the
-SSRF egress filter. See `deploy/` and ADR-0006. HTTP serving is staged; use stdio
-for v0.
+SSRF egress filter on server-initiated requests. See `deploy/` and ADR-0006.
+
+Since ADR-0041 the HTTP serving loop is delivered (`PRAXIS_TRANSPORT=http`):
+
+- Every request carries `Authorization: Bearer <PRAXIS_HTTP_TOKEN>`; a missing or
+  wrong token is 401. The token is never forwarded to any upstream.
+- `initialize` returns an `Mcp-Session-Id`; subsequent requests must send it
+  (`Mcp-Session-Id: <id>`), or they are 404. Each session is isolated: its own
+  trifecta taint latch, approval nonces, budget, and consent ceiling. Every action
+  across all sessions still lands in the one audit hash chain, tagged with the
+  request and session ids.
+- A session may pin a per-client tier ceiling at `initialize` with a
+  `consentCeiling` param (`T0`..`T3`); an action above it is refused. Absent, the
+  session is gated by `PRAXIS_MODE` like stdio; a malformed value fails closed to
+  `T0` (reads only).
+- Approval is unchanged over HTTP: a T2+ or trifecta-gated action needs a minted
+  nonce, and the nonce is surfaced on the SERVER CONSOLE (never in the HTTP
+  response), so the operator reads it out-of-band and supplies it on the real run.
+- The v1 server is single-threaded (one request at a time); a slow actuation blocks
+  other clients. Concurrent serving is tracked as BL-110. There is no SSE stream;
+  the transport is JSON-RPC over POST.

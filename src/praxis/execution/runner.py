@@ -189,6 +189,11 @@ class ExecutionContext:
     # Where minted approval nonces are surfaced to the operator, OUT-OF-BAND from
     # the MCP channel (BL-072). None means the server's stderr.
     approval_sink: Callable[[str], None] | None = None
+    # Per-session consent ceiling (BL-045, ADR-0006 Decision 4; ADR-0041): the maximum
+    # tier this session may engage, recorded per client by the multi-client transport.
+    # None (the stdio default) imposes no ceiling beyond the server mode; a value denies
+    # any action classified above it, enforced in-path (step 3a of run).
+    consent_ceiling: Tier | None = None
 
 
 def _is_multi_target(target: str | None) -> bool:
@@ -327,6 +332,17 @@ def run(
     decision = context.policy.check(request.tool, request.command, base_tier=request.base_tier)
     if not decision.allowed:
         return denied(decision, decision.reason)
+
+    # 3a. Per-session consent ceiling (BL-045, ADR-0006 Decision 4; ADR-0041). A
+    #     multi-client session may be held to a tier ceiling at or below the server
+    #     mode; an action classified above its recorded consent is denied here, in-path
+    #     and audited. None (the stdio default) imposes no ceiling beyond the mode.
+    if context.consent_ceiling is not None and decision.tier > context.consent_ceiling:
+        reason = (
+            f"action tier {decision.tier.label} exceeds this session's consented ceiling "
+            f"{context.consent_ceiling.label}"
+        )
+        return denied(decision, reason)
 
     # 4. Arm the session taint latch for a call that carries attacker-influenced
     #    content, BEFORE the gate is evaluated, so the very first untrusted call

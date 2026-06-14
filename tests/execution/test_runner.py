@@ -25,6 +25,25 @@ def _ctx(tmp_path: Path, mode: Mode = Mode.OPEN) -> ExecutionContext:
     return ExecutionContext(policy=Policy(mode), audit=AuditLogger(tmp_path / "audit.jsonl"))
 
 
+def test_consent_ceiling_denies_actions_above_it(tmp_path: Path) -> None:
+    # A per-session consent ceiling (BL-045, ADR-0041) denies, in the audited path, any
+    # action classified above it; an action at or below the ceiling still runs. None (the
+    # stdio default) imposes no ceiling beyond the server mode.
+    ctx = ExecutionContext(
+        policy=Policy(Mode.OPEN),
+        audit=AuditLogger(tmp_path / "audit.jsonl"),
+        consent_ceiling=Tier.T1,
+    )
+    high = run(_req(command="sudo reboot"), lambda: "X", context=ctx)  # classifies T3
+    assert high.ok is False
+    assert "consented ceiling" in (high.error or "")
+    assert high.record.decision == "denied"
+    # A T1 preview is at the ceiling and still runs.
+    low = run(_req(command="echo hi", dry_run=True), lambda: "preview", context=ctx)
+    assert low.ok is True
+    ctx.audit.close()
+
+
 def _req(
     *,
     command: str,

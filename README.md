@@ -2,7 +2,8 @@
 
 **praxis**, the unified AI-operations MCP.
 
-> Status: v0, stdio only, single-operator, in iterative security hardening.
+> Status: v0, stdio default with an opt-in HTTP transport, single-operator, in
+> iterative security hardening.
 > `make ci-success` is green (ruff + mypy strict + pytest + the schema-drift guard +
 > the dispatch eval gate) and each of the nine invariants has a passing test, but
 > a deep review (ADR-0015) found that several controls the design treats as
@@ -53,8 +54,13 @@ a robust SSRF filter) and that all nine invariants have a proving test; the
 ADR-0016 enforcement wave (2026-06-10) closed its P1 and wiring findings. The
 honest current state:
 
-- HTTP transport is not implemented. v0 serves stdio only; an unsafe HTTP bind is
-  refused (fails closed), but there is no HTTP server yet.
+- HTTP transport is implemented and opt-in (ADR-0041): a stdlib `http.server` with an
+  `Mcp-Session-Id` session lifecycle, per-session isolation (each session has its own
+  trifecta taint latch, approval nonces, budget, and consent ceiling), constant-time
+  bearer-token auth, a request-body cap, and a per-client consent ceiling. It stays
+  default-closed (token + non-loopback opt-in + SSRF egress, ADR-0006); stdio is still
+  the default. The v1 HTTP server is single-threaded (requests serialised); concurrent
+  serving over a thread-safe store is tracked (BL-110).
 - The human-approval gate is human-binding (ADR-0016, BL-072): a gated dry run
   mints a server-generated, single-use, TTL-bound token surfaced on the operator
   console, out-of-band from the MCP channel. The token never appears in a tool

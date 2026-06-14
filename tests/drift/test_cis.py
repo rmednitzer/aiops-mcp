@@ -43,6 +43,10 @@ def test_normalize_value_is_symmetric_and_order_insensitive() -> None:
     assert normalize_value(["RBAC", "Node"]) == "Node,RBAC"
     assert normalize_value("RBAC,Node") == "Node,RBAC"
     assert normalize_value("Node,RBAC") == "Node,RBAC"
+    # List items are trimmed too, so whitespace in a JSON array cannot drift against
+    # the clean baseline list or the equivalent comma-string.
+    assert normalize_value(["Node ", " RBAC"]) == "Node,RBAC"
+    assert normalize_value([" true "]) == "true"
 
 
 def test_baseline_facts_carry_the_adr_0024_schema() -> None:

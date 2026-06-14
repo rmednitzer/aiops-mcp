@@ -57,9 +57,15 @@ def normalize_value(raw: object) -> str:
     if isinstance(raw, (list, tuple)):
         items = [str(x) for x in raw]
     else:
-        text = str(raw).strip()
-        items = [part.strip() for part in text.split(",")] if "," in text else [text]
-    tokens = [tok.lower() if tok.lower() in ("true", "false") else tok for tok in items]
+        text = str(raw)
+        items = text.split(",") if "," in text else [text]
+    # Trim every token (list items too, not only comma-split scalars) before the
+    # boolean lowercasing, so list-valued evidence with stray whitespace normalizes the
+    # same as the equivalent comma-string and cannot manufacture a spurious CHANGED.
+    tokens: list[str] = []
+    for item in items:
+        token = item.strip()
+        tokens.append(token.lower() if token.lower() in ("true", "false") else token)
     if len(tokens) == 1:
         return tokens[0]
     return ",".join(sorted(tokens))

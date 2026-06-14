@@ -379,6 +379,12 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   deferred Postgres schema proposal.
 
 ### Changed
+- Security CI gates are now enforced in-repo (BL-052, ADR-0036). CodeQL and
+  dependency-review are folded into the required `ci-success` aggregate as
+  reusable-workflow calls, so the single required check transitively requires them
+  rather than relying on external branch-protection config (the ruleset required only
+  `ci-success`, so the prior "required via branch protection" comment was untrue).
+  `fuzz` and `sbom` stay scheduled/publish-only.
 - CI now also tests on Python 3.14 (matrix `3.12`/`3.13`/`3.14`); the universal
   hash-locked dev lock already carries cp314 wheels and the full suite passes on 3.14,
   readying the matrix for the upcoming Renovate python base-image bump.

@@ -76,7 +76,7 @@ helm-test` runs it locally; `.helmignore` keeps the suites out of the packaged c
 | BL-049 | Wire `CredentialBroker` into the actuation path (scoped, revocable enforcement) | M | resolved | 0012, 0016 |
 | BL-050 | Audit hash chain: anchored high-water-mark to detect tail truncation | M | resolved | 0012, 0019 |
 | BL-051 | Helm NetworkPolicy: restrict ingress with a `from:` selector | S | resolved | 0012, 0018 |
-| BL-052 | CI: make CodeQL/fuzz/sbom/dependency-review required gates, not branch-protection-external | S | open | 0012 |
+| BL-052 | CI: make CodeQL/fuzz/sbom/dependency-review required gates, not branch-protection-external | S | resolved | 0012, 0036 |
 | BL-053 | Add coverage tooling and a `cov-fail-under` gate | S | resolved | 0012, 0018 |
 | BL-054 | Store: `_cosine` finite-input guard; `seq` uniqueness or identity column to remove the `MAX(seq)+1` race | S | resolved | 0012, 0013 |
 | BL-055 | Audit logger: do not reopen the file after `_degrade`; close the sink on degraded close | S | resolved | 0012, 0013 |

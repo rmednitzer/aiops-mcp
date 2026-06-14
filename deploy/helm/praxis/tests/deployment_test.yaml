@@ -1,0 +1,159 @@
+suite: deployment security posture, probes, and env wiring
+templates:
+  - templates/deployment.yaml
+release:
+  name: praxis
+tests:
+  - it: renders a single Deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+
+  # PSA restricted (invariant 9). A regression in any of these is a real
+  # security regression, so they are asserted explicitly, not by snapshot.
+  - it: pins the PSA-restricted pod securityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: pins the PSA-restricted container securityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: pins the image by digest (ADR-0001 supply-chain posture)
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr\.io/rmednitzer/praxis@sha256:[0-9a-f]{64}$
+  - it: refuses to render without a digest (helpers `required`)
+    set:
+      image:
+        digest: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "image\\.digest must be set"
+
+  # Secrets never inlined: the http token and the optional store DSN come from a
+  # secretKeyRef, and the legacy inline storeDsn is refused (BL-086).
+  - it: sources the HTTP token from a secretKeyRef
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_HTTP_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: praxis-http-token
+                key: token
+  - it: omits the store DSN env when no store secret is named (SQLite default)
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_STORE_DSN
+          any: true
+  - it: sources the store DSN from a secretKeyRef when named
+    set:
+      store:
+        existingSecret: praxis-store-dsn
+        secretKey: dsn
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_STORE_DSN
+            valueFrom:
+              secretKeyRef:
+                name: praxis-store-dsn
+                key: dsn
+  - it: refuses an inline plaintext store DSN (BL-086)
+    set:
+      storeDsn: postgresql://user:pw@db:5432/praxis
+    asserts:
+      - failedTemplate:
+          errorPattern: "storeDsn is no longer accepted"
+
+  # The non-loopback opt-in env is gated on http.allowAny (ADR-0006).
+  - it: sets the non-loopback opt-in env only when allowAny is true (the default)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_HTTP_ALLOW_ANY
+            value: yes-i-understand-the-risk
+  - it: omits the non-loopback opt-in env when allowAny is false
+    set:
+      http:
+        allowAny: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_HTTP_ALLOW_ANY
+          any: true
+
+  # Health probes (BL-060): tcpSocket on the MCP port, rendered only for the
+  # http transport, gated on probes.enabled, values-driven.
+  - it: renders tcpSocket liveness/readiness probes for the http transport by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: mcp-http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: mcp-http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 3
+  - it: omits probes for the stdio transport (no listening port)
+    set:
+      transport: stdio
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+  - it: omits probes when probes.enabled is false
+    set:
+      probes:
+        enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe

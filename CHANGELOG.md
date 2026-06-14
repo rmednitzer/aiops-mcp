@@ -6,6 +6,19 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Helm chart unit tests gated in CI (ADR-0027, BL-032): three helm-unittest suites
+  under `deploy/helm/praxis/tests/` assert the chart's load-bearing posture, the
+  PSA-restricted pod/container `securityContext`, digest pinning (and the empty-digest
+  `required` refusal), the `secretKeyRef`-only http token and store DSN with the BL-086
+  inline-`storeDsn` refusal, the `http.allowAny` opt-in env gating, the http-gated
+  `tcpSocket` probes (present for http, absent for stdio and when disabled), the
+  default-deny NetworkPolicy (ingress omitted with no peer named, DNS-only egress to
+  `kube-system`, the always-on `169.254.0.0/16` excision, the BL-087 bare-string and
+  missing-`cidr` refusals), and the no-token-automount ServiceAccount. Gated by a
+  pinned `helm-test` job in `ci.yml` (`azure/setup-helm` by SHA, helm `v3.21.0`, plugin
+  `v1.1.1`) folded into the required `ci-success` aggregate, so it is required without a
+  new branch-protection rule; `make helm-test` runs it locally and `.helmignore` keeps
+  the suites out of the packaged chart. 26 assertions, green locally.
 - Helm health probes and deploy/config cleanup (ADR-0026, BL-060): the praxis chart
   Deployment gains configurable `tcpSocket` liveness/readiness probes on the MCP port
   (a `probes` block in `values.yaml`), rendered only for the http transport (stdio has

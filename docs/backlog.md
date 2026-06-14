@@ -37,7 +37,18 @@ XS, S, M, L.
 | BL-029 | Serialise audit hash-chain appends for concurrent writers (process lock now; `pg_advisory_xact_lock` for the PG path) | S | resolved | 0011, 0016 |
 | BL-030 | Stamp `raw_snapshot_hash` of each collected snapshot into the Merkle checkpoint | M | resolved | 0011, 0019 |
 | BL-031 | Machine-checkable compliance map (bidirectional code/control/article validator plus framework coverage) in CI | M | resolved | 0011, 0021 |
-| BL-032 | helm-unittest chart assertions for the praxis chart, gated in CI | M | open | 0011 |
+| BL-032 | helm-unittest chart assertions for the praxis chart, gated in CI | M | resolved | 0011, 0027 |
+<!-- BL-032 audit note (ADR-0027): three helm-unittest suites under
+`deploy/helm/praxis/tests/` assert the PSA-restricted pod/container securityContext,
+digest pinning, the secretKeyRef-only http token and store DSN (and the BL-086 inline
+refusal), the http.allowAny opt-in gating, the http-gated tcpSocket probes (present
+for http, absent for stdio/disabled), the default-deny NetworkPolicy (ingress omitted
+when no peer named, DNS-only egress, the always-on 169.254.0.0/16 excision, the BL-087
+shape refusals), and the no-token-automount ServiceAccount. Gated by a pinned
+`helm-test` job in `ci.yml` folded into the required `ci-success` aggregate; `make
+helm-test` runs it locally; `.helmignore` keeps the suites out of the packaged chart.
+26 assertions, green locally with helm v3.21.0 + plugin v1.1.1. -->
+
 | BL-033 | Supply-chain parity: real zarf digest, CycloneDX SBOM, values/sbom/zarf CI parity, governance-as-code labels | M | open | 0011 |
 | BL-034 | Multi-severity `parse_ansible_check` (FAILED to ERROR, unreachable to CRITICAL, ok to known-good) | S | resolved | 0011, 0013 |
 | BL-035 | Documented audit/evidence retention tiers bound in config (NIS2 Art. 23, ISO 27001 A.8.15) | S | resolved | 0011, 0023 |

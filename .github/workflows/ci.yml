@@ -32,11 +32,27 @@ jobs:
       - name: ci-success (lint + type-check + test + schema-drift + eval)
         run: make ci-success
 
+  # Helm chart assertions (BL-032): render-time tests for the security posture, the
+  # http-gated health probes, and the default-deny NetworkPolicy. Pinned helm and a
+  # pinned plugin keep the gate reproducible (the repo's SHA-pin posture).
+  helm-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.21.0
+      - name: Install helm-unittest (pinned)
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1
+      - name: helm unittest
+        run: make helm-test
+
   # Aggregate gate: branch protection requires this single check, which depends on
-  # the full matrix. The security workflows (codeql, dependency-review, sbom, fuzz)
-  # run alongside and are required via branch protection.
+  # the full matrix and the helm chart tests. The security workflows (codeql,
+  # dependency-review, sbom, fuzz) run alongside and are required via branch
+  # protection.
   ci-success:
-    needs: [check]
+    needs: [check, helm-test]
     runs-on: ubuntu-latest
     steps:
       - run: echo "ci-success required checks passed"

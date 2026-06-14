@@ -6,6 +6,17 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Audit/evidence retention tiers (ADR-0023, BL-035): `PRAXIS_AUDIT_RETENTION_DAYS`
+  and `PRAXIS_EVIDENCE_RETENTION_DAYS` (default 365 days; `0` retains indefinitely;
+  the anchor follows the evidence tier) bind the declared retention as the single
+  source of truth and are written into the first session audit record, so the policy
+  in force is part of the tamper-evident trail (NIS2 Art. 23, ISO 27001 A.8.15).
+  Enforcement is storage-layer archival of whole closed files, never a runtime delete
+  or in-place truncate, because the trail is append-only (invariant 4, SEC-9, SEC-10);
+  `SECURITY.md`, `docs/runbooks/operate.md`, and the compliance map document the
+  archive-then-rotate procedure. Implements ADR-0011 finding 035. Also refreshed the
+  stale BL-076 note on the NIS2 Art. 23 compliance row (runtime checkpoints now ship;
+  the residual is the keyless `LocalStamper`, BL-095).
 - STPA traceability completion (ADR-0022, BL-089): every UCA-1..28 now appears in a
   SEC "Prevents" column in `docs/stpa/07-security-constraints.md`. The already-enforced
   actuation UCAs are listed under their covering constraints (UCA-4/UCA-6/UCA-10 under

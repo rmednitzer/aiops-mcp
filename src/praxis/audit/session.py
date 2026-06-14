@@ -8,6 +8,7 @@ exact build that produced it.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,17 +47,27 @@ def session_header() -> SessionHeader:
     )
 
 
-def bind_session(audit: AuditLogger) -> AuditRecord:
-    """Write the session header as the first audit record (provenance binding)."""
+def bind_session(audit: AuditLogger, *, retention: Mapping[str, int] | None = None) -> AuditRecord:
+    """Write the session header as the first audit record (provenance binding).
+
+    With ``retention`` supplied (the configured audit/evidence retention tiers,
+    ``Config.retention_args``, BL-035), the declared policy is bound into this first
+    record, so the retention in force is part of the tamper-evident trail rather than
+    documentation alone (NIS2 Art. 23, ISO 27001 A.8.15). The argument is additive:
+    omitting it preserves the prior record shape.
+    """
     header = session_header()
+    args: dict[str, object] = {
+        "praxis_version": header.praxis_version,
+        "binary_sha256": header.binary_sha256,
+        "started_at": header.started_at,
+    }
+    if retention is not None:
+        args.update(retention)
     return audit.record(
         tool="praxis",
         tier="T0",
         decision="session",
-        args={
-            "praxis_version": header.praxis_version,
-            "binary_sha256": header.binary_sha256,
-            "started_at": header.started_at,
-        },
+        args=args,
         patterns_version=header.patterns_version,
     )

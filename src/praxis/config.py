@@ -16,6 +16,10 @@ from praxis.execution.policy import Mode
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 ALLOW_ANY_TOKEN = "yes-i-understand-the-risk"  # noqa: S105 - a public opt-in literal, not a secret
+# Default retention tier for the audit and evidence trails (BL-035): one year, a
+# conservative floor for incident reconstruction under NIS2 Art. 23 / ISO 27001
+# A.8.15. Operators tune it per their regime; 0 retains indefinitely.
+DEFAULT_RETENTION_DAYS = 365
 
 
 class TransportError(Exception):
@@ -50,6 +54,17 @@ class Config(BaseModel):
     evidence_path: str | None = None
     evidence_every: int = 64
     anchor_path: str | None = None
+    # Documented audit/evidence retention tiers, bound here as the single source of
+    # truth (BL-035, ADR-0011/0023). The trail is append-only: the audit hash chain
+    # and the evidence/anchor files are never rewritten in place (invariant 4, SEC-9,
+    # SEC-10), so these are the DECLARED retention periods that the storage/deploy
+    # layer enforces by time-based archival of files older than the tier (WORM or an
+    # archive-then-rotate job, never an in-place truncate), not a runtime delete. The
+    # policy is bound into the first session audit record so the retention in force is
+    # itself part of the tamper-evident trail (NIS2 Art. 23, ISO 27001 A.8.15). Days;
+    # 0 means retain indefinitely. The anchor file follows the evidence tier.
+    audit_retention_days: int = 365
+    evidence_retention_days: int = 365
     # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
     # the corresponding adapter outright: fail closed.
     playbook_root: str | None = None
@@ -68,6 +83,19 @@ class Config(BaseModel):
     @property
     def http_is_loopback(self) -> bool:
         return self.http_host in LOOPBACK_HOSTS
+
+    @property
+    def retention_args(self) -> dict[str, int]:
+        """The retention tiers as audit-record args (BL-035).
+
+        Bound into the first session audit record so the declared retention is part
+        of the tamper-evident provenance (NIS2 Art. 23, ISO 27001 A.8.15). A value of
+        0 records as indefinite retention.
+        """
+        return {
+            "audit_retention_days": self.audit_retention_days,
+            "evidence_retention_days": self.evidence_retention_days,
+        }
 
 
 def _truthy(value: str | None) -> bool:
@@ -138,6 +166,12 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         evidence_path=get("EVIDENCE_PATH"),
         evidence_every=_interval_or_default(get("EVIDENCE_EVERY"), 64),
         anchor_path=get("ANCHOR_PATH"),
+        audit_retention_days=_interval_or_default(
+            get("AUDIT_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
+        ),
+        evidence_retention_days=_interval_or_default(
+            get("EVIDENCE_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
+        ),
         playbook_root=get("PLAYBOOK_ROOT"),
         runbook_root=get("RUNBOOK_ROOT"),
         kill_switch_path=get("KILL_SWITCH_PATH"),

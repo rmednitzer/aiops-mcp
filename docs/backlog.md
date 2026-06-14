@@ -40,7 +40,7 @@ XS, S, M, L.
 | BL-032 | helm-unittest chart assertions for the praxis chart, gated in CI | M | open | 0011 |
 | BL-033 | Supply-chain parity: real zarf digest, CycloneDX SBOM, values/sbom/zarf CI parity, governance-as-code labels | M | open | 0011 |
 | BL-034 | Multi-severity `parse_ansible_check` (FAILED to ERROR, unreachable to CRITICAL, ok to known-good) | S | resolved | 0011, 0013 |
-| BL-035 | Documented audit/evidence retention tiers bound in config (NIS2 Art. 23, ISO 27001 A.8.15) | S | open | 0011 |
+| BL-035 | Documented audit/evidence retention tiers bound in config (NIS2 Art. 23, ISO 27001 A.8.15) | S | resolved | 0011, 0023 |
 | BL-036 | Governance hygiene bundle (module back-citation headers, agent hard-rules, values-prod overlay plus version-bump checklist, namespace default-deny NetworkPolicy, regulatory-deadline data, empty-string-not-loopback test) | M | open | 0011 |
 <!-- BL-036 audit note (ADR-0021): the "module back-citation headers" element is delivered. The compliance validator (BL-031) now machine-checks that each SEC control's enforcement modules carry the matching `SEC-N` token and that no `SEC-N` token in `src/praxis` is dangling. The remaining bundle elements (agent hard-rules, values-prod overlay, namespace default-deny NetworkPolicy, regulatory-deadline data, empty-string-not-loopback test) stay open. -->
 | BL-037 | `verify_evidence` fail-closed (return, never raise) and require checkpoints to cover the full log; document `LocalStamper` forgeability | M | resolved | 0012 |

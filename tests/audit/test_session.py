@@ -31,3 +31,20 @@ def test_bind_session_writes_provenance_record(tmp_path: Path) -> None:
     assert record.decision == "session"
     first = json.loads(audit.read_text(encoding="utf-8").splitlines()[0])
     assert first["args"]["binary_sha256"] == server_binary_hash()
+    # Without an explicit policy the record shape is unchanged (additive default).
+    assert "audit_retention_days" not in first["args"]
+
+
+def test_bind_session_binds_retention_policy(tmp_path: Path) -> None:
+    # BL-035: the declared retention tiers are written into the first audit record,
+    # so the retention in force is part of the tamper-evident provenance trail.
+    audit = tmp_path / "audit.jsonl"
+    logger = AuditLogger(audit)
+    retention = {"audit_retention_days": 365, "evidence_retention_days": 0}
+    bind_session(logger, retention=retention)
+    logger.close()
+    first = json.loads(audit.read_text(encoding="utf-8").splitlines()[0])
+    assert first["args"]["audit_retention_days"] == 365
+    assert first["args"]["evidence_retention_days"] == 0  # 0 = retain indefinitely
+    # The provenance fields are still present alongside the retention tiers.
+    assert first["args"]["binary_sha256"] == server_binary_hash()

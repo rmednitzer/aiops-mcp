@@ -205,6 +205,25 @@ def test_evidence_every_parses_fail_safe(raw: str | None, expected: int) -> None
     assert cfg.evidence_every == expected
 
 
+@pytest.mark.parametrize("var", ["AUDIT_RETENTION_DAYS", "EVIDENCE_RETENTION_DAYS"])
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    # Default one year; an explicit 0 means indefinite; a typo or a negative value
+    # degrades to the default (fail safe toward retaining, never to a shorter tier).
+    [(None, 365), ("", 365), ("abc", 365), ("0", 0), ("-1", 365), ("30", 30)],
+)
+def test_retention_days_parse_fail_safe(var: str, raw: str | None, expected: int) -> None:
+    env = {} if raw is None else {f"PRAXIS_{var}": raw}
+    cfg = load_config(env)
+    got = cfg.audit_retention_days if var == "AUDIT_RETENTION_DAYS" else cfg.evidence_retention_days
+    assert got == expected
+    # The other tier keeps its default, and retention_args mirrors the fields exactly.
+    assert cfg.retention_args == {
+        "audit_retention_days": cfg.audit_retention_days,
+        "evidence_retention_days": cfg.evidence_retention_days,
+    }
+
+
 def test_anchor_file_is_owner_only(tmp_path: Path) -> None:
     import stat
 

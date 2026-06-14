@@ -35,6 +35,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0026](0026-deploy-config-cleanup-2026-06-14.md) | Deploy and config cleanup; Helm health probes (2026-06-14): configurable `tcpSocket` liveness/readiness probes on the MCP port, rendered only for the http transport (verified with helm); compliance-map path-citation convention; records the BL-067/071/087 sub-items already closed (closes BL-060) | Accepted |
 | [0027](0027-helm-chart-unit-tests-2026-06-14.md) | Helm chart unit tests gated in CI (2026-06-14): helm-unittest suites asserting the PSA-restricted securityContext, digest pinning, secret-ref-only wiring, http-gated probes, and the default-deny NetworkPolicy; a pinned `helm-test` job folded into the required `ci-success` aggregate; `make helm-test` for local parity (closes BL-032) | Accepted |
 | [0028](0028-cis-talos-baseline-implementation-2026-06-14.md) | CIS-Talos drift baseline implementation (2026-06-14): ratifies ADR-0024 and implements BL-099; the vetted `CIS_BASELINE` plus `normalize_value`, `cis_severity`, `cis_baseline_facts`, `cis_drift`, `seed_cis_baseline`, the read-only `CisCollector` wired into `ingest_observation`, and CIS-aware severity in `drift_scan`; no engine change, no new tool/UCA (closes BL-099) | Accepted |
+| [0029](0029-non-forgeable-checkpoint-stamper-2026-06-14.md) | Non-forgeable checkpoint stamper: RFC 3161 timestamp authority (2026-06-14): replaces the forgeable `LocalStamper` with a real `Rfc3161Stamper` behind an optional `tsa` extra (`asn1crypto` + `cryptography`), egress via the BL-046 resolver, fail-closed offline-verifiable tokens; `LocalStamper` stays the default; recorded Proposed for ratification before implementation (design decision for BL-095) | Proposed |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -98,3 +99,11 @@ through the existing audited surface (the collector via `ingest_observation`, CI
 severity in `drift_scan`) with no engine change and no new tool or UCA. ADR-0024 stays
 the schema of record (Proposed, with a ratification note); ADR-0028 carries the
 accepted implementation, the parallel to how ADR-0016 ratified ADR-0015.
+ADR-0029 is the design decision for BL-095 (recorded Proposed for ratification before
+implementation): replace the forgeable keyless `LocalStamper` with a real RFC 3161
+timestamp-authority `Stamper` behind an optional `tsa` extra (`asn1crypto` +
+`cryptography`), POSTing a DER `TimeStampReq` through the BL-046 SSRF egress resolver
+and storing an offline-verifiable, fail-closed token; `LocalStamper` stays the default
+and the core stays dependency-free. It is recorded Proposed because it adds a
+third-party dependency (an ADR-0014 posture decision) and chooses RFC 3161 over a
+Rekor transparency-log anchor.

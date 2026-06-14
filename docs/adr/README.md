@@ -33,6 +33,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0024](0024-cis-talos-fact-predicate-schema-2026-06-14.md) | CIS-Talos drift baseline: the fact-predicate schema (2026-06-14): `KNOWN_GOOD` facts keyed `host:<name>`/`cluster:<name>` + `cis:<benchmark>:<control_id>`, comparable `value` vs documentation in `reason`, CIS-aware severity via the existing `severity_for` hook, explicit `CIS_SUPPRESSED`/`TALOS_SATISFIED` sets; no engine change (prerequisite decision for BL-099) | Proposed |
 | [0025](0025-ssrf-rebinding-aware-resolution-2026-06-14.md) | Rebinding-aware SSRF egress resolution (2026-06-14): additive `resolve_and_assert_egress_allowed` that resolves a host, checks every resolved IP, and returns the vetted IPs to pin the connection; strict deny-names default unchanged; wiring deferred to the first egress consumer (BL-046 resolver delivered; wiring open) | Accepted |
 | [0026](0026-deploy-config-cleanup-2026-06-14.md) | Deploy and config cleanup; Helm health probes (2026-06-14): configurable `tcpSocket` liveness/readiness probes on the MCP port, rendered only for the http transport (verified with helm); compliance-map path-citation convention; records the BL-067/071/087 sub-items already closed (closes BL-060) | Accepted |
+| [0027](0027-helm-chart-unit-tests-2026-06-14.md) | Helm chart unit tests gated in CI (2026-06-14): helm-unittest suites asserting the PSA-restricted securityContext, digest pinning, secret-ref-only wiring, http-gated probes, and the default-deny NetworkPolicy; a pinned `helm-test` job folded into the required `ci-success` aggregate; `make helm-test` for local parity (closes BL-032) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -81,3 +82,10 @@ liveness/readiness probes on the Helm chart (rendered only for the http transpor
 verified with helm) and a compliance-map path-citation convention, recording that the
 HTTP_HOST strip, the cyclonedx pin, and the systemd de-duplication were already closed
 in earlier waves.
+ADR-0027 closes BL-032: helm-unittest suites assert the chart's load-bearing posture
+(PSA-restricted `securityContext`, digest pinning, secret-ref-only secret wiring, the
+http-gated health probes from ADR-0026, and the default-deny NetworkPolicy), gated by
+a pinned `helm-test` job folded into the required `ci-success` aggregate so it is
+required without a new branch-protection rule, with a `make helm-test` target for
+local parity. It adds a CI/dev dependency only and leaves the execution core
+dependency-free posture (ADR-0014) untouched.

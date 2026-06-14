@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance ci-success
+.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance helm-test ci-success
 
 check: lint type-check test
 
@@ -37,6 +37,13 @@ eval:
 # with the code, the STPA constraints, and the prose compliance map.
 validate-compliance:
 > python scripts/validate_compliance.py
+
+# Helm chart assertions (BL-032): render-time tests for the security posture,
+# the http-gated health probes, and the default-deny NetworkPolicy. Runs in CI
+# (ci.yml helm-test job); locally needs the pinned plugin:
+#   helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1
+helm-test:
+> helm unittest deploy/helm/praxis
 
 # The aggregate gate CI requires: lint + type-check + test, plus the schema-drift
 # guard, the eval gate (DoD), the compliance cross-reference gate, and the coverage

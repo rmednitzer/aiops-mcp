@@ -2,3 +2,5 @@
 *.tmp
 *.bak
 .DS_Store
+# helm-unittest suites (BL-032): run from source, not shipped in the package.
+tests/

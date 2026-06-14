@@ -35,7 +35,7 @@ visible gap (partial or planned controls are exempt; their gap is tracked by a B
 |-----------|-----------------|-----------------|-------------|
 | Art. 21 (risk-management measures) | Least privilege; scoped, revocable credentials (broker wired, opt-in via the first grant, ADR-0016 BL-049); kill switch with an audited operator actuator and a durable sentinel (ADR-0016 BL-075) | SEC-8 / inv 9 | `actuation/credentials.py`, `execution/runner.py::KillSwitch`, `tools/emergency.py` |
 | Art. 21 (asset and configuration management) | Drift detection against desired state | SEC-6 / inv 6 | `drift/engine.py`, `drift/sources.py` |
-| Art. 23 (reporting) | Complete, verifiable audit evidence for incident reconstruction | SEC-2, SEC-9 / inv 3 | `audit/verify_evidence`, `scripts/verify_audit.py` (v0 gap: no runtime checkpoints to verify unless generated out-of-band; BL-076) |
+| Art. 23 (reporting) | Complete, verifiable audit evidence for incident reconstruction; documented audit/evidence retention tiers bound in config | SEC-2, SEC-9 / inv 3 | `audit/verify_evidence`, `scripts/verify_audit.py`, runtime Merkle checkpoints and anchor (ADR-0019, BL-076); retention tiers in `config.py` (`PRAXIS_AUDIT_RETENTION_DAYS`/`PRAXIS_EVIDENCE_RETENTION_DAYS`, BL-035) bound into the session record, enforced by storage-layer archival (`SECURITY.md`, `docs/runbooks/operate.md`) (residual: the keyless `LocalStamper` is forgeable; BL-095) |
 
 ## Cyber Resilience Act (Regulation (EU) 2024/2847)
 
@@ -57,7 +57,7 @@ visible gap (partial or planned controls are exempt; their gap is tracked by a B
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
 | A.5.15 (access control) | Tiered authority; per-role scoped credentials | SEC-3, SEC-8 / inv 2, 9 | `execution/policy.py`, `actuation/credentials.py` |
-| A.8.15 (logging) | Append-only, hash-chained audit; redacted params | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py` |
+| A.8.15 (logging) | Append-only, hash-chained audit; redacted params; documented log retention tiers bound in config | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`; retention tiers in `config.py` (BL-035), enforced by storage-layer archival (`SECURITY.md`, `docs/runbooks/operate.md`) |
 | A.8.16 (monitoring activities) | Drift findings as bitemporal facts | SEC-6 / inv 5 | `drift/`, `store/` |
 | A.8.28 (secure coding) | mypy strict, ruff (incl. bandit S-rules), CodeQL, fuzz | n/a | `pyproject.toml`, CI |
 

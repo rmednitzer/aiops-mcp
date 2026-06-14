@@ -62,6 +62,22 @@ service is deliberately out-of-band: remove the sentinel file and restart (or ca
 remains a coarser fallback. The credential broker's `kill_all` also trips the
 shared switch (BL-049, BL-075).
 
+## Retention and archival
+
+The audit and evidence retention tiers are declared in config:
+`PRAXIS_AUDIT_RETENTION_DAYS` and `PRAXIS_EVIDENCE_RETENTION_DAYS` (default 365;
+`0` is indefinite; the anchor follows the evidence tier). They are recorded in the
+first session audit record for traceability (NIS2 Art. 23, ISO 27001 A.8.15).
+
+praxis never deletes from the trail (it is append-only). Enforce a tier by archiving
+whole files older than it, then rotating to a fresh `PRAXIS_AUDIT_PATH`: stop the
+server, move `audit.jsonl` with its `.evidence.jsonl` and anchor sidecars to your
+archive (WORM or a write-once bucket), and restart so a new chain begins with a fresh
+session header. Do not `truncate` or `copytruncate` a live file: that breaks the hash
+chain, the Merkle coverage, and the `O_APPEND` owner-only sink. Keep the three files
+together so a retained window stays independently verifiable with
+`scripts/verify_audit.py`.
+
 ## Networked (HTTP) deployment
 
 HTTP is opt-in and fails closed: it needs `PRAXIS_HTTP_TOKEN` and, for any

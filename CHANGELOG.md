@@ -544,6 +544,11 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   generated `docs/schema/tools.schema.json` is regenerated accordingly.
 
 ### Fixed
+- `cryptography` dependency bounds are back in lockstep. The `dev` extra pinned
+  `>=46.0.7,<47` while `tsa` (and the committed `requirements-dev.txt` lock) had moved
+  to `>=49,<50` after #53, so `pip install .[dev,tsa]` — or any regeneration of the dev
+  lock — was unsatisfiable; CI missed it because it installs with `--no-deps`. The `dev`
+  bound is aligned to `>=49,<50` (the lock is already at 49.0.0, so it is unchanged).
 - SBOM workflow (`.github/workflows/sbom.yml`): the CycloneDX generator step failed
   with `cyclonedx-py: error: unrecognized arguments: --outfile`. The
   `cyclonedx-py environment` subcommand's output flag is `--output-file`, not

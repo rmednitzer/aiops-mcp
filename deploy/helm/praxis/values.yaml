@@ -77,3 +77,10 @@ networkPolicy:
   #     - cidr: 10.1.0.0/16
   #       except: ["10.1.5.0/24"]
   egressCIDRs: []
+  # Opt-in (default false): also install a namespace-wide default-deny NetworkPolicy
+  # that selects every pod in the namespace and permits no traffic, a baseline so any
+  # co-tenant pod without its own policy is denied. NetworkPolicies are additive, so
+  # the praxis pod keeps the allows above. Off by default because a deny-all baseline
+  # can brick co-tenant workloads; enable only in a namespace praxis owns (BL-036,
+  # ADR-0034).
+  namespaceDefaultDeny: false

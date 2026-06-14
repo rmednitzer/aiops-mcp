@@ -157,3 +157,18 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe
       - notExists:
           path: spec.template.spec.containers[0].readinessProbe
+
+  # BL-087: an optional hardened runtimeClassName for the code-executing plane
+  # (e.g. gVisor/Kata), off by default (an empty string renders nothing) and wired
+  # through when the operator sets it.
+  - it: sets no runtimeClassName by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.runtimeClassName
+  - it: wires runtimeClassName through when set
+    set:
+      runtimeClassName: gvisor
+    asserts:
+      - equal:
+          path: spec.template.spec.runtimeClassName
+          value: gvisor

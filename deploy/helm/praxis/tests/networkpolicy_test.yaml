@@ -118,3 +118,43 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "every entry needs a non-empty"
+
+  # BL-036 (opt-in): a namespace-wide default-deny baseline, OFF by default so it
+  # never bricks co-tenant workloads; by default only the pod-scoped policy renders.
+  - it: adds no namespace default-deny policy by default
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: adds an opt-in namespace-wide default-deny NetworkPolicy when enabled
+    set:
+      networkPolicy:
+        namespaceDefaultDeny: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: NetworkPolicy
+      - documentIndex: 1
+        matchRegex:
+          path: metadata.name
+          pattern: -namespace-default-deny$
+      # An empty podSelector selects every pod (no matchLabels narrowing it).
+      - documentIndex: 1
+        notExists:
+          path: spec.podSelector.matchLabels
+      - documentIndex: 1
+        contains:
+          path: spec.policyTypes
+          content: Ingress
+      - documentIndex: 1
+        contains:
+          path: spec.policyTypes
+          content: Egress
+      # Deny-all: no ingress or egress allow-rules on the namespace baseline.
+      - documentIndex: 1
+        notExists:
+          path: spec.ingress
+      - documentIndex: 1
+        notExists:
+          path: spec.egress

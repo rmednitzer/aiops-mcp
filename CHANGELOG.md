@@ -17,6 +17,18 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- Opt-in deploy network hardening (ADR-0034; closes BL-036, BL-087), all default off
+  so the install posture is unchanged. A `networkPolicy.namespaceDefaultDeny` Helm
+  value (default false) renders an additive namespace-wide default-deny NetworkPolicy
+  (empty `podSelector`, no allow-rules) so any co-tenant pod without its own policy is
+  denied; the praxis pod keeps its allows (policies are additive). A
+  `deploy/systemd/praxis.service.d/network-lockdown.conf.example` drop-in carries the
+  IP-level lockdown (`IPAddressDeny=any` + an `IPAddressAllow` allowlist +
+  `SocketBindDeny=any`) as a turnkey opt-in the operator copies and scopes. The sandbox
+  `runtimeClassName` Helm value gains regression tests (absent by default, wired when
+  set). Deny-all is never preset because it bricks co-tenant workloads or SSH
+  actuation. helm-unittest covers the namespace policy (absent by default, deny-all
+  when enabled) and `runtimeClassName`.
 - BL-092 (ADR-0032): a repo `Dockerfile` so the deployed image is buildable and
   inspectable from source. Multi-stage, non-root (uid 10001) by construction, on a
   digest-pinned `python:3.12-slim-bookworm` base (distroless ships 3.11, below the

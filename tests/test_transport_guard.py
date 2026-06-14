@@ -65,6 +65,24 @@ def test_http_host_whitespace_is_stripped() -> None:
     assert load_config({"PRAXIS_HTTP_HOST": "   "}).http_host == "127.0.0.1"
 
 
+def test_http_host_empty_defaults_to_loopback_not_open_bind() -> None:
+    # An empty or blank PRAXIS_HTTP_HOST must default to loopback: it must never
+    # reach the socket as "" (which binds every interface) and must never be
+    # classified as a non-loopback bind that the opt-in would otherwise have to
+    # gate. The whitespace-strip case above covers the strip; this pins the empty
+    # string itself and the loopback classification of the defaulted value
+    # (BL-036 residual; residual of BL-067/BL-060).
+    for raw in ("", "\n", "\t ", "   "):
+        cfg = load_config({"PRAXIS_HTTP_HOST": raw})
+        assert cfg.http_host == "127.0.0.1"
+        assert cfg.http_is_loopback is True
+    # The defaulted host clears the fail-closed transport gate without the
+    # non-loopback opt-in, precisely because it is loopback (no TransportError).
+    validate_transport(
+        load_config({"PRAXIS_TRANSPORT": "http", "PRAXIS_HTTP_TOKEN": "t", "PRAXIS_HTTP_HOST": ""})
+    )
+
+
 def test_http_rejects_out_of_range_port() -> None:
     with pytest.raises(TransportError):
         validate_transport(Config(transport="http", http_token="t", http_port=70000))

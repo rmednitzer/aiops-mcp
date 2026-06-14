@@ -41,6 +41,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0032](0032-container-image-build-2026-06-14.md) | Container image build (2026-06-14): implements BL-092 and advances BL-033; a multi-stage, non-root, digest-pinned (`python:3.12-slim-bookworm`) `Dockerfile` that installs the default runtime and runs `python -m praxis`, with governance-as-code OCI labels, build-validated by a new `image` CI workflow (never pushed); the published digest stays a release step (the remaining BL-033 element) | Accepted |
 | [0033](0033-consolidate-dependency-automation-on-renovate.md) | Consolidate dependency automation on Renovate (2026-06-14): curated `renovate.json5` (github-actions + dockerfile + pip-compile managers, digest pinning, grouped/scheduled PRs), the uv lock header normalised to `--output-file` so the pip-compile manager maintains it, and Dependabot security-updates turned off so the two bots stop raising duplicate PRs (#54/#55); Dependabot vulnerability alerts kept for detection | Accepted |
 | [0034](0034-opt-in-deploy-network-hardening-2026-06-14.md) | Opt-in deploy network hardening (2026-06-14): closes the BL-036 namespace-NetworkPolicy element and the BL-087 residual as turnkey opt-ins, all default off so the install posture is unchanged; a `networkPolicy.namespaceDefaultDeny` Helm value renders an additive deny-every-pod baseline, a `network-lockdown.conf.example` systemd drop-in carries the `IPAddressDeny`/`SocketBindDeny` lockdown, and `runtimeClassName` stays the optional value (now tested); deny-all is never preset because it bricks co-tenants/actuation | Accepted |
+| [0035](0035-release-publish-pipeline-2026-06-14.md) | Release publish pipeline with signed provenance and SBOM attestation (2026-06-14): closes the remaining BL-033 element; a tag-triggered (`v*`) `release` workflow is the sole publisher (PR CI never pushes), builds and pushes a plain single-arch image to GHCR, and binds a Sigstore-signed SLSA provenance and a CycloneDX SBOM attestation to the digest (`gh attestation verify`-able); least privilege (no `contents: write`), no moving tags, all actions SHA-pinned; the operator pins the recorded digest per RELEASE-CHECKLIST (the human gate stays on the digest) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -153,3 +154,14 @@ renders an additive namespace-wide deny-every-pod baseline (BL-036), a
 `IPAddressDeny`/`SocketBindDeny` lockdown, and the sandbox `runtimeClassName` stays the
 optional Helm value, now with regression tests (BL-087). Deny-all is never preset
 because it bricks co-tenant workloads or SSH actuation; the operator opts in.
+ADR-0035 closes the remaining BL-033 element (the published, attested digest) by
+satisfying ADR-0032's revisit trigger: a tag-triggered (`v*`) `release` workflow is the
+sole publisher (PR CI keeps build-validating and never pushes), builds and pushes a
+plain single-arch image to GHCR with no moving tags, and binds a Sigstore-signed SLSA
+provenance attestation and a CycloneDX SBOM attestation to the image digest
+(`push-to-registry`, verifiable with one `gh attestation verify`). It runs least
+privilege (`packages`/`id-token`/`attestations` write, no `contents: write`), never
+publishes from a fork, and pins every action by commit SHA. The pipeline records the
+digest in its job summary; the operator pins it into the deploy manifests per
+RELEASE-CHECKLIST, so the human gate stays on the digest. The all-zero placeholder
+remains the fail-closed default until the operator's first release.

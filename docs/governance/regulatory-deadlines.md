@@ -20,7 +20,7 @@ serves applies. The "Relevant project controls" column names where to look.
 | EU AI Act | High-risk obligations (Annex I products) apply | 2027-08-02 | as above |
 | NIS2, Directive (EU) 2022/2555 | Member-State transposition deadline | 2024-10-17 | compliance-map "NIS2" rows |
 | NIS2 | Measures apply in transposing States | 2024-10-18 | SEC-8 least privilege/kill switch; SEC-2/SEC-9 audit evidence |
-| NISG 2026 (Austria) | National NIS2 transposition | in progress (expected 2026) | as NIS2; tracked because Austria missed the 2024-10-17 deadline |
+| NISG 2026 (Austria) | National NIS2 transposition (in progress) | 2026 | as NIS2; expected 2026, tracked because Austria missed the 2024-10-17 deadline |
 | Cyber Resilience Act, Regulation (EU) 2024/2847 | Entry into force | 2024-12-10 | compliance-map "Cyber Resilience Act" rows |
 | CRA | Reporting obligations (Art. 14) apply | 2026-09-11 | SEC-2/SEC-9 audit evidence; vulnerability handling CI |
 | CRA | Main obligations apply | 2027-12-11 | secure-by-default posture; digest-pin/SBOM (BL-033, BL-092) |

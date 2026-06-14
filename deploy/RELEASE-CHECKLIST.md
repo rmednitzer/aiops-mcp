@@ -28,9 +28,8 @@ this is` posture in `CLAUDE.md` (never weaken a default to make a step pass).
 
 - [ ] Bump `deploy/helm/praxis/Chart.yaml` `version` (chart) on any chart change.
 - [ ] Bump `Chart.yaml` `appVersion` to the released application version.
-- [ ] `helm lint deploy/helm/praxis` and `helm template deploy/helm/praxis
-      -f deploy/helm/praxis/values-prod.yaml --set image.digest=sha256:...` render
-      cleanly.
+- [ ] `helm lint deploy/helm/praxis` passes.
+- [ ] `helm template deploy/helm/praxis -f deploy/helm/praxis/values-prod.yaml --set image.digest=sha256:...` renders cleanly.
 
 ## 4. Tag and record
 

@@ -18,7 +18,7 @@ from typing import TextIO
 
 from praxis import __version__
 from praxis.actuation.credentials import CredentialBroker
-from praxis.audit import EvidenceScheduler, bind_session
+from praxis.audit import EvidenceScheduler, bind_session, select_stamper
 from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
 from praxis.execution.audit import AuditLogger
@@ -51,11 +51,15 @@ def build_context(config: Config) -> ServerContext:
             if config.evidence_path
             else audit_path.with_suffix(".evidence.jsonl")
         )
+        # Non-forgeable RFC 3161 stamping when a TSA is configured, else the offline
+        # LocalStamper (BL-095, ADR-0029). select_stamper fails closed at startup if a
+        # TSA URL is set without its certificate or the `tsa` extra.
         scheduler = EvidenceScheduler(
             audit_path,
             evidence_path,
             every=config.evidence_every,
             anchor_path=Path(config.anchor_path) if config.anchor_path else None,
+            stamper=select_stamper(tsa_url=config.tsa_url, tsa_cert_path=config.tsa_cert_path),
         )
     audit = (
         AuditLogger(audit_path, on_record=scheduler.on_record if scheduler else None)

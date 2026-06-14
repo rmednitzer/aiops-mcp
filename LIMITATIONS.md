@@ -43,13 +43,14 @@ CI/deploy gating) are tracked, not yet delivered.
   high-water mark (`PRAXIS_ANCHOR_PATH`) when an audit file is configured
   (ADR-0019; BL-076, BL-050). The remaining gaps: the default `LocalStamper` is
   keyless self-attestation (its token is forgeable by anyone who can write the
-  evidence file) and the real RFC 3161 TSA backend raises `NotImplementedError`,
-  tracked as BL-095; a crash leaves an uncovered audit tail that `verify_evidence`
-  flags (the intended visible seam, not silent loss); and the anchor only helps if
-  the operator places it on a different trust domain than the audit log.
-  Operating-system append-only storage (`chattr +a` or WORM) on the audit,
-  evidence, and anchor files remains a required deploy control for attacker-grade
-  tamper-evidence. With no `PRAXIS_AUDIT_PATH`, or on a file-open failure, records
+  evidence file); a non-forgeable RFC 3161 TSA stamper is now available opt-in
+  (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095, ADR-0030) but is off by default;
+  a crash leaves an uncovered audit tail that `verify_evidence` flags (the intended
+  visible seam, not silent loss); and the anchor only helps if the operator places
+  it on a different trust domain than the audit log. Operating-system append-only
+  storage (`chattr +a` or WORM) on the audit, evidence, and anchor files remains a
+  required deploy control for attacker-grade tamper-evidence while the default
+  `LocalStamper` is in use. With no `PRAXIS_AUDIT_PATH`, or on a file-open failure, records
   go to stderr and no evidence is produced.
 - The minted approval nonce is surfaced on the server's stderr (the operator
   console). Over stdio that stream belongs to the process that launched the

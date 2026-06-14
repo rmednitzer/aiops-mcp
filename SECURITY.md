@@ -71,10 +71,12 @@ also appended to an anchor file that `verify_audit.py` cross-checks, so rewritin
 both the log and the evidence file to a shorter consistent history is detected
 (BL-050); the anchor earns that property only when it lives on a different trust
 domain (another filesystem, host, or WORM store). The remaining boundary: the
-default `LocalStamper` is keyless self-attestation and the real RFC 3161 backend is
-not implemented (BL-095), so an attacker who can rewrite all three files is outside
-the detectable set. Operating-system append-only storage (`chattr +a` or WORM) on
-those files remains a required deploy control. See ADR-0008, ADR-0015, ADR-0019.
+default `LocalStamper` is keyless self-attestation, so an attacker who can rewrite
+all three files is outside the detectable set; a non-forgeable RFC 3161 TSA stamper
+is available opt-in (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095, ADR-0030).
+Operating-system append-only storage (`chattr +a` or WORM) on those files remains a
+required deploy control while the default `LocalStamper` is in use. See ADR-0008,
+ADR-0019, ADR-0030.
 
 ## Retention
 

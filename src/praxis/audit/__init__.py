@@ -17,7 +17,13 @@ from praxis.audit.evidence import (
     write_anchor,
 )
 from praxis.audit.merkle import merkle_root, merkle_root_hex
-from praxis.audit.rfc3161 import LocalStamper, Rfc3161Stamper, Stamper
+from praxis.audit.rfc3161 import (
+    LocalStamper,
+    Rfc3161Stamper,
+    Stamper,
+    StampError,
+    select_stamper,
+)
 from praxis.audit.session import SessionHeader, bind_session, server_binary_hash, session_header
 
 __all__ = [
@@ -27,11 +33,13 @@ __all__ = [
     "MerkleCheckpoint",
     "Rfc3161Stamper",
     "SessionHeader",
+    "StampError",
     "Stamper",
     "bind_session",
     "make_checkpoint",
     "merkle_root",
     "merkle_root_hex",
+    "select_stamper",
     "server_binary_hash",
     "session_header",
     "verify_evidence",

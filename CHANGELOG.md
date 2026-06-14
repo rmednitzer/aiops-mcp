@@ -6,14 +6,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
-- Non-forgeable checkpoint stamper design (ADR-0029, BL-095; Proposed): the design
-  decision recorded for ratification before implementation. It replaces the forgeable
-  keyless `LocalStamper` with a real RFC 3161 timestamp-authority `Stamper` behind an
-  optional `tsa` extra (`asn1crypto` + `cryptography`), POSTing a DER `TimeStampReq`
-  through the BL-046 SSRF egress resolver and storing an offline-verifiable, fail-closed
-  token; `LocalStamper` stays the default and the core stays dependency-free. Rekor is
-  the considered alternative. Documentation-only; implementation (and the dependency)
-  begin once the approach is ratified.
+- Non-forgeable checkpoint stamper (ADR-0029 design, ratified and implemented by
+  ADR-0030, BL-095): the evidence layer can now stamp Merkle checkpoints with a real
+  RFC 3161 timestamp authority instead of the forgeable keyless `LocalStamper`.
+  `Rfc3161Stamper` (`audit/rfc3161.py`) uses `asn1crypto` and `cryptography` behind a
+  new optional `tsa` extra, imported lazily so the execution core and the default
+  `LocalStamper` stay dependency-free. `stamp` POSTs a DER `TimeStampReq` through the
+  BL-046 SSRF egress resolver (its first live consumer; HTTPS, IP-pinned) and `verify`
+  is fail-closed, checking the message imprint and verifying the CMS signature against
+  the configured TSA certificate. `select_stamper` (config `PRAXIS_TSA_URL` /
+  `PRAXIS_TSA_CERT`) is wired into the evidence scheduler and fails closed at startup on
+  misconfiguration; `LocalStamper` remains the default and OS append-only storage the
+  documented control when no TSA is set (SECURITY.md, ADR-0019). Tested offline with a
+  self-signed TSA (round trip plus fail-closed cases); Rekor remains the considered
+  alternative behind the same `Stamper` Protocol.
 - Governance-hygiene wave (BL-036, partial): three bundle elements delivered.
   `docs/governance/regulatory-deadlines.md` records the EU AI Act, NIS2/NISG, CRA,
   GDPR, and ISO 27001 application/transition dates (ISO 8601), linked from the

@@ -37,6 +37,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0028](0028-cis-talos-baseline-implementation-2026-06-14.md) | CIS-Talos drift baseline implementation (2026-06-14): ratifies ADR-0024 and implements BL-099; the vetted `CIS_BASELINE` plus `normalize_value`, `cis_severity`, `cis_baseline_facts`, `cis_drift`, `seed_cis_baseline`, the read-only `CisCollector` wired into `ingest_observation`, and CIS-aware severity in `drift_scan`; no engine change, no new tool/UCA (closes BL-099) | Accepted |
 | [0029](0029-non-forgeable-checkpoint-stamper-2026-06-14.md) | Non-forgeable checkpoint stamper: RFC 3161 timestamp authority (2026-06-14): proposes replacing the forgeable `LocalStamper` with a real `Rfc3161Stamper` behind an optional `tsa` extra (`asn1crypto` + `cryptography`), egress via the BL-046 resolver, fail-closed offline-verifiable tokens; `LocalStamper` stays the default; recorded Proposed for ratification before implementation (design decision for BL-095) | Proposed |
 | [0030](0030-rfc3161-stamper-implementation-2026-06-14.md) | RFC 3161 stamper implementation (2026-06-14): ratifies ADR-0029 and implements BL-095; the real `Rfc3161Stamper` (asn1crypto + cryptography behind the `tsa` extra), SSRF-pinned egress via the BL-046 resolver, fail-closed CMS verification against a configured TSA certificate, `select_stamper` wired into the evidence scheduler; `LocalStamper` stays the default and the core dependency-free (closes BL-095) | Accepted |
+| [0031](0031-talosctl-client-side-health-probe-2026-06-14.md) | Opt-in client-side-only talosctl pre-upgrade health probe (2026-06-14): implements BL-102 (the operator decision deferred by ADR-0021); an additive `health_client_side_only` param runs `talosctl health --server=false` so a post-bootstrap cluster's spurious server-side checks cannot block an upgrade; the HARD gate (BL-023, SEC-5) still always runs, the default keeps the full check, and a non-boolean flag is a fail-closed HARD refusal | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -119,3 +120,10 @@ certificate; `select_stamper` is wired into the evidence scheduler and fails clo
 misconfiguration. The whole path is unit-tested offline with a self-signed TSA. ADR-0029
 stays the design of record (Proposed, with a ratification note); ADR-0030 carries the
 accepted implementation, the parallel to how ADR-0028 implemented ADR-0024.
+ADR-0031 takes the operator decision ADR-0021 deferred as BL-102: an additive,
+opt-in `health_client_side_only` param narrows the HARD pre-upgrade `talosctl health`
+gate (BL-023, SEC-5) to `--server=false` (client-side checks only), for a
+post-bootstrap cluster whose server-side checks spuriously block an upgrade. The gate
+still always runs and stays HARD; the default keeps the full server-side check; a
+non-boolean flag is coerced fail-closed into a HARD audited refusal. The capability is
+audited (a structured `run_action` param) and never weakens the default.

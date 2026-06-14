@@ -114,15 +114,24 @@ jobs:
           {
             echo "## praxis image published"
             echo
-            echo "Pin this immutable digest in the deploy manifests (never a tag):"
+            echo 'Pin by digest, never a tag (ADR-0001). The digest is consumed in two'
+            echo 'forms, in different places (deploy/RELEASE-CHECKLIST.md step 2):'
+            echo
+            echo 'A. Bare digest only, for Helm `image.digest` in'
+            echo '   deploy/helm/praxis/values-prod.yaml (the chart joins it to'
+            echo '   `image.repository`; do not include the repository here):'
+            echo
+            echo '```'
+            echo "${DIGEST}"
+            echo '```'
+            echo
+            echo 'B. Full image reference, for deploy/zarf.yaml and `gh attestation verify`:'
             echo
             echo '```'
             echo "${IMAGE}@${DIGEST}"
             echo '```'
             echo
-            echo "Next (deploy/RELEASE-CHECKLIST.md step 2): set image.digest in"
-            echo "deploy/helm/praxis/values-prod.yaml and deploy/zarf.yaml to the"
-            echo "digest above, then verify the signed provenance and SBOM:"
+            echo 'Then verify the signed provenance and SBOM against the published digest:'
             echo
             echo '```'
             echo "gh attestation verify oci://${IMAGE}@${DIGEST} -R ${GITHUB_REPOSITORY}"

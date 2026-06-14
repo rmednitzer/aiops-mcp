@@ -2,8 +2,10 @@
 
 image:
   repository: ghcr.io/rmednitzer/praxis
-  # Digest-pinned (ADR-0001 supply-chain posture). Set to the published digest;
-  # a tag is intentionally not used so the deployed bytes are immutable.
+  # Digest-pinned (ADR-0001 supply-chain posture). The image is built from the repo
+  # Dockerfile (BL-092, ADR-0032); set this to the published build's digest (see
+  # deploy/RELEASE-CHECKLIST.md). A tag is intentionally not used so the deployed
+  # bytes are immutable. The all-zero placeholder must be replaced before install.
   digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   pullPolicy: IfNotPresent
 

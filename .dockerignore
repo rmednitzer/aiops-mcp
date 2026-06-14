@@ -1,0 +1,21 @@
+# Keep the build context to what the wheel build needs (pyproject + src + the
+# readme/license metadata, which the Dockerfile COPYs explicitly). Everything else
+# is excluded so local state never leaks into a layer or the build cache.
+.git
+.github
+.venv
+.sbom-venv
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+tests
+docs
+deploy
+*.md
+!README.md
+sbom.cdx.json
+requirements-dev.txt

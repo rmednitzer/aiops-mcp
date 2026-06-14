@@ -17,7 +17,8 @@ this is` posture in `CLAUDE.md` (never weaken a default to make a step pass).
 
 ## 2. Image (supply chain, ADR-0001)
 
-- [ ] Build the image from the repo `Dockerfile` (BL-092) on a pinned base.
+- [ ] Build the image from the repo `Dockerfile` (BL-092, ADR-0032) on the
+      digest-pinned base; the CI `image` workflow build-validates it on every PR.
 - [ ] Publish it and capture the immutable `sha256:` digest (never a tag).
 - [ ] Set `image.digest` in `deploy/helm/praxis/values-prod.yaml` (or pass
       `--set image.digest=...` at install); confirm `deploy/zarf.yaml` references the
@@ -44,5 +45,6 @@ this is` posture in `CLAUDE.md` (never weaken a default to make a step pass).
       confirm the pod reaches Ready (the probes, BL-060) and the NetworkPolicy admits
       only the named MCP client (BL-051/BL-087).
 - [ ] Confirm the audit log and evidence files are on OS append-only storage
-      (`chattr +a` / WORM) per `SECURITY.md` until the non-forgeable stamper lands
-      (BL-095).
+      (`chattr +a` / WORM) per `SECURITY.md`, the required control while the default
+      keyless `LocalStamper` is in use; the opt-in RFC 3161 TSA stamper (BL-095,
+      ADR-0030) is the non-forgeable alternative.

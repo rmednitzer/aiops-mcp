@@ -46,6 +46,11 @@ class AuditRecord:
     output_sha256: str
     output_len: int
     error: str | None
+    # Optional request-scoped correlation ids (BL-101, ADR-0038): the MCP request id and
+    # the client id, so concurrent calls can be tied to their audit entries. None outside
+    # a request scope (e.g. the session header) and for the single-client stdio transport.
+    request_id: str | None
+    client_id: str | None
     patterns_version: int
     prev_hash: str
     entry_hash: str
@@ -307,6 +312,8 @@ class AuditLogger:
         output_len: int = 0,
         target: str | None = None,
         error: str | None = None,
+        request_id: str | None = None,
+        client_id: str | None = None,
         patterns_version: int,
     ) -> AuditRecord:
         """Append one record and advance the chain. Never raises on write."""
@@ -322,6 +329,8 @@ class AuditLogger:
                 "output_sha256": output_sha256,
                 "output_len": output_len,
                 "error": error,
+                "request_id": request_id,
+                "client_id": client_id,
                 "patterns_version": patterns_version,
                 "prev_hash": self._prev_hash,
             }

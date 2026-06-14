@@ -17,6 +17,19 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-101 resolved (ADR-0038): optional request/client correlation on the audit record.
+  `AuditRecord` and `AuditLogger.record` gain two additive fields, `request_id` and
+  `client_id` (default None), inside the hashed payload so they are tamper-evident and
+  `verify_chain` stays consistent. They are threaded ambiently via a new
+  `execution/correlation.py` (`request_scope` set by the transport;
+  `current_request_id`/`current_client_id` read by `run`'s audit helper), so no tool
+  signature changes and they are absent outside a request scope. The stdio transport
+  binds the JSON-RPC request id as `request_id` around the `tools/call` dispatch;
+  `client_id` stays None for the single-client stdio transport and is set by a
+  multi-client transport (HTTP, BL-012). The client-supplied id is coerced, stripped, and
+  truncated to 128 chars by `bound_id`, which never raises, so a hostile client cannot
+  bloat a record. Covered by `tests/execution/test_correlation.py`; `correlation.py` at
+  100%, the audit module at 96%.
 - BL-100 resolved (ADR-0037): the audit log is now multi-sink. A new optional
   secondary sink, `SyslogAuditSink`, forwards each canonical, already-redacted audit
   line to syslog for SIEM / journald visibility (a Unix socket path such as `/dev/log`,

@@ -44,6 +44,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0035](0035-release-publish-pipeline-2026-06-14.md) | Release publish pipeline with signed provenance and SBOM attestation (2026-06-14): closes the remaining BL-033 element; a tag-triggered (`v*`) `release` workflow is the sole publisher (PR CI never pushes), builds and pushes a plain single-arch image to GHCR, and binds a Sigstore-signed SLSA provenance and a CycloneDX SBOM attestation to the digest (`gh attestation verify`-able); least privilege (no `contents: write`), no moving tags, all actions SHA-pinned; the operator pins the recorded digest per RELEASE-CHECKLIST (the human gate stays on the digest) | Accepted |
 | [0036](0036-required-security-gates-in-ci-2026-06-14.md) | Required security gates folded into the ci-success aggregate (2026-06-14): CodeQL and dependency-review become reusable-workflow calls invoked by `ci.yml` so the single required `ci-success` check transitively requires them in-repo (not via external branch protection); `if: always()` + a per-gate result check tolerates legitimate skips; fuzz/sbom stay scheduled/publish (BL-052) | Accepted |
 | [0037](0037-multi-sink-audit-fanout-2026-06-14.md) | Multi-sink audit fan-out with per-sink containment (2026-06-14): closes BL-100 by adding a second audit sink (`SyslogAuditSink`, opt-in `PRAXIS_AUDIT_SYSLOG_ADDRESS`, default off) and a `MultiSink` (the `skills/dispatch` fan-out class applied to the audit write side) that contains a per-sink `Exception` so one failing sink cannot silence the others, while `BaseException` propagates; the append-only hash-chained file stays authoritative (written first, directly) and secondaries are best-effort forwards fanned out after it | Accepted |
+| [0038](0038-audit-request-client-correlation-2026-06-14.md) | Audit request/client correlation identifiers (2026-06-14): closes BL-101 with two optional, additive audit fields (`request_id`, `client_id`, inside the hashed payload) threaded ambiently via `contextvars` (`request_scope` set by the transport, read by `run`), so concurrent calls correlate to their entries without timestamp matching and no tool signature changes; the stdio transport binds the JSON-RPC request id, `client_id` awaits a multi-client transport (HTTP, BL-012), and the client-supplied id is length-bounded so it cannot bloat a record | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -177,3 +178,11 @@ contained (noted once per streak) so one failing sink cannot silence the others,
 `BaseException` propagates and `emit` never raises. The append-only hash-chained file
 stays authoritative, written first and directly; secondary sinks are fanned out after
 it, so no best-effort sink can affect the primary write, the chain, or `verify_chain`.
+ADR-0038 closes BL-101 by adding optional request/client correlation to the audit
+record. `AuditRecord` and `record` gain `request_id` and `client_id` (inside the hashed
+payload, so tamper-evident); they are threaded ambiently via `contextvars`
+(`execution/correlation.py`: `request_scope` set by the transport, read by `run`), so no
+tool signature changes. The stdio transport binds the JSON-RPC request id; `client_id`
+stays `None` until a multi-client transport (HTTP, BL-012) sets it. The client-supplied
+id is coerced and truncated to `MAX_ID_LEN` and never raises, so a hostile client cannot
+bloat a record (SEC-9, invariant 3).

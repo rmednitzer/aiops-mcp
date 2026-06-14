@@ -5,6 +5,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 
 ## [Unreleased]
 
+### Security
+- Completed the `cryptography` v46 advisory fix that Renovate (#55) started: the `tsa`
+  extra and the hash-locked `requirements-dev.txt` were moved to 46.0.7, but the
+  duplicate bound in the `dev` extra was left at `>=43,<46`, so the lock and the
+  declared bound contradicted each other and a `uv pip compile --extra dev` regeneration
+  would have silently downgraded to the affected 45.0.7. The `dev` bound is now in
+  lockstep with the `tsa` extra at `>=46.0.7,<47`; the lock is unchanged and the suite,
+  including the BL-095 stamper verification, passes on cryptography 46.0.7.
+
 ### Added
 - BL-046 fully resolved: the rebinding-aware SSRF egress filter is now wired into a
   live path. The RFC 3161 stamper (BL-095, ADR-0030) is the first server-initiated

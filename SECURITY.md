@@ -81,10 +81,22 @@ both the log and the evidence file to a shorter consistent history is detected
 domain (another filesystem, host, or WORM store). The remaining boundary: the
 default `LocalStamper` is keyless self-attestation, so an attacker who can rewrite
 all three files is outside the detectable set; a non-forgeable RFC 3161 TSA stamper
-is available opt-in (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095, ADR-0030).
+is available opt-in (`PRAXIS_TSA_URL` plus `PRAXIS_TSA_CERT`, the TSA signing
+certificate in PEM, plus the `tsa` extra; BL-095, ADR-0030; `select_stamper` fails
+closed at startup if a URL is set without its certificate).
 Operating-system append-only storage (`chattr +a` or WORM) on those files remains a
 required deploy control while the default `LocalStamper` is in use. See ADR-0008,
 ADR-0019, ADR-0030.
+
+Redaction of audited parameters and error strings is pattern-based: secret-named keys
+(`password`, `token`, `api_key`, ...) have their value redacted regardless of shape,
+and a curated set of value shapes (private keys, provider tokens, JWTs, DSN passwords,
+credential flags) is matched and collapsed. It is therefore best-effort on values: a
+high-entropy secret in no recognised format, carried as a plain value under a
+non-secret-named key, is not detected. The load-bearing controls remain that output
+bodies are never logged (only `output_sha256` + `output_len`) and that secret-named
+keys are always redacted; pattern coverage is extended as new token shapes appear
+(BL-097, F-006).
 
 ## Retention
 

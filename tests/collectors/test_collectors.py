@@ -89,3 +89,13 @@ def test_talos_parses_json_list() -> None:
 def test_talos_non_json_degrades_to_status() -> None:
     facts = TalosCollector("health").parse("all checks passed", subject="host:k8s")
     assert facts[0].value["status"] == "all checks passed"
+
+
+def test_talos_non_json_status_is_capped() -> None:
+    # F-008: a hostile/malfunctioning node returning a huge non-JSON blob must not store
+    # unbounded attacker-controlled text in the fact store (invariant 8).
+    facts = TalosCollector("health").parse("x" * 10_000, subject="host:k8s")
+    status = facts[0].value["status"]
+    assert isinstance(status, str)
+    assert status.endswith("...[truncated]")
+    assert len(status) <= 4096 + len("...[truncated]")

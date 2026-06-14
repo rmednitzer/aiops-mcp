@@ -284,11 +284,18 @@ class SqliteStore:
         with self._conn:
             # The supersession actor/reason are recorded in dedicated columns; the
             # original recording reason stays immutable (append-only).
-            self._conn.execute(
+            cur = self._conn.execute(
                 "UPDATE facts SET t_invalid = ?, t_superseded = ?, superseded_actor = ?, "
                 "superseded_reason = ? WHERE fact_id = ? AND t_superseded IS NULL",
                 (now, now, actor, reason, existing.fact_id),
             )
+            # F-007: a concurrent supersede may have won between get_active above and this
+            # UPDATE, so the WHERE clause matched 0 rows. Report the lost race as None
+            # rather than returning a row another actor superseded with their own
+            # actor/reason, which would falsely claim this caller's supersede won
+            # (provenance fidelity, SEC-10).
+            if cur.rowcount != 1:
+                return None
         row = self._conn.execute(
             "SELECT * FROM facts WHERE fact_id = ?", (existing.fact_id,)
         ).fetchone()

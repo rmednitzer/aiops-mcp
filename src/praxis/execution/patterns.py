@@ -30,7 +30,7 @@ from enum import IntEnum
 # Bump on EVERY change to the pattern sets below. The audit record stamps this
 # value so a reviewer can tie a classification to the exact ruleset that produced
 # it (SEC-3).
-PATTERNS_VERSION = 3
+PATTERNS_VERSION = 4
 
 
 class Tier(IntEnum):
@@ -54,8 +54,14 @@ def _compile(patterns: list[str]) -> tuple[re.Pattern[str], ...]:
 # small and unambiguous: it is the unconditional floor beneath every gate (SEC-1).
 DENY: tuple[re.Pattern[str], ...] = _compile(
     [
-        r"\brm\s+(-[a-z]*r[a-z]*\s+)?(-[a-z]*f[a-z]*\s+)?/\s*($|\s)",  # rm -rf /
-        r"\brm\s+-[a-z]*\s+/\s*($|\s)",
+        # rm -rf / and its root-equivalent spellings: any run of slashes, dots, and stars
+        # rooted at / (/, //, ///, /., /./, /*, ...), optionally after a -- end-of-options
+        # marker (F-004, ADR-0039). A real path char after the slash (/etc, /var/...) does
+        # not match, so benign subpaths are not over-denied. The deny wall is the
+        # unconditional floor; the recursive-rm T3 gate is the backstop for the long tail
+        # of spellings a regex cannot enumerate (e.g. long-form --recursive flags).
+        r"\brm\s+(-[a-z]*r[a-z]*\s+)?(-[a-z]*f[a-z]*\s+)?(--\s+)?/[/.*]*\s*($|\s)",  # rm -rf /
+        r"\brm\s+-[a-z]+\s+(--\s+)?/[/.*]*\s*($|\s)",
         r":\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",  # classic fork bomb
         r"\bmkfs(\.\w+)?\b.*/dev/(sd|nvme|vd|hd)",  # format a real disk
         r"\bdd\b[^\n]*\bof=/dev/(sd|nvme|vd|hd)",  # dd onto a raw disk

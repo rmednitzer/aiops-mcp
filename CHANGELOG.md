@@ -6,6 +6,21 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Security
+- Deep audit, validation, and adversarial-testing pass (ADR-0040, the parallel deeper
+  pass alongside the ADR-0039 refresh; recorded under `audit/2026-06-14/`). No critical or
+  high findings; the nine invariants and the STPA traceability re-validated (compliance
+  validator 0 violations; fuzz 20000 iterations clean). Six findings remediated in-pass,
+  each with a regression test: the audit canonicaliser now never raises on a hostile
+  `__str__` or a circular reference (F-001); redaction covers Anthropic (`sk-ant-`),
+  HuggingFace (`hf_`), and DigitalOcean (`do[opr]_v1_`) tokens (F-006); `supersede` checks
+  the UPDATE rowcount on both store backends so a concurrent loser no longer gets a false
+  success (F-007); the `rm -rf /` deny now also catches `//`, `/*`, and `/.` (F-004,
+  `PATTERNS_VERSION` 3->4); the Talos non-JSON status fallback is length-capped (F-008);
+  the OpenTofu adapter no longer passes an unconfined `chdir` (F-003, safe re-add tracked
+  as BL-105). Three dispositions are documented (F-002 pattern-based redaction; F-005
+  operator-trusted syslog destination; F-009 ADR-0015 ratification note). Deferred
+  hardening filed as BL-105..109. Prose docs brought current (architecture, README,
+  SECURITY, LIMITATIONS, runbooks, compliance map).
 - `cryptography` is bounded in lockstep across the `tsa` and `dev` extras (`>=49,<50`),
   with the exact pin in the hash-locked `requirements-dev.txt` at 49.0.0. Keeping both
   bounds aligned closes a recurring hazard: a dependency bot that bumps the `tsa` extra

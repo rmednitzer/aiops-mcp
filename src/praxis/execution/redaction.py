@@ -46,7 +46,14 @@ _VALUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{16,}"), REDACTED),  # PyPI upload token
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), REDACTED),  # Slack tokens
     (re.compile(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{16,}"), REDACTED),  # OpenAI scoped
+    # Anthropic keys carry hyphens in the body (`sk-ant-api03-...`), so the generic `sk-`
+    # value pattern below (alnum-only body) does not match them; redact them explicitly
+    # before it (F-006). The body runs unbounded from its floor so a longer key collapses
+    # whole rather than leaving a tail (BL-097 style).
+    (re.compile(r"\bsk-ant-[a-z0-9]+-[A-Za-z0-9_\-]{20,}"), REDACTED),  # Anthropic API key
     (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), REDACTED),  # OpenAI / generic sk- key
+    (re.compile(r"\bhf_[A-Za-z0-9]{20,}"), REDACTED),  # HuggingFace token (F-006)
+    (re.compile(r"\bdo[opr]_v1_[0-9a-f]{40,}"), REDACTED),  # DigitalOcean PAT/OAuth (F-006)
     (re.compile(r"\b[sr]k_(?:live|test|prod)_[A-Za-z0-9]{10,}"), REDACTED),  # Stripe
     (re.compile(r"\bAIza[A-Za-z0-9_\-]{35,}"), REDACTED),  # Google API key
     (re.compile(r"\bya29\.[A-Za-z0-9._\-]{20,}"), REDACTED),  # Google OAuth token

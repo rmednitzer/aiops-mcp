@@ -168,3 +168,11 @@ residual risk than the agentic path this ADR is written to protect.
 - An open item here is found exploitable in a wired path before it is scheduled.
 - A later review contradicts a recorded verdict (append an audit note, never
   rewrite a resolved row).
+
+## Ratification note (2026-06-14)
+
+Decisions 3a (the single audited execution path) and 3b (the server-minted, single-use,
+out-of-band approval nonce) were ratified and implemented by ADR-0016 (BL-072 and the
+BL-073..BL-085 enforcement wave). This note records that cross-reference for parity with
+the other originally-Proposed ADRs (0024, 0029); the decision body above is unchanged
+(ADRs are immutable). Added during the 2026-06-14 deep audit (ADR-0040, finding F-009).

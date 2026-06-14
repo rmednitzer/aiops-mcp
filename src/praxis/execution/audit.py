@@ -59,15 +59,64 @@ class AuditRecord:
         return asdict(self)
 
 
+def _safe_str(value: object) -> str:
+    """``str`` that never raises: a hostile ``__str__`` must not break the logger."""
+    try:
+        return str(value)
+    except Exception:  # noqa: BLE001 - invariant 3: the audit logger never raises
+        return "<unserializable>"
+
+
+_MAX_ACYCLIC_DEPTH = 64
+
+
+def _acyclic(value: object, _seen: frozenset[int] = frozenset(), _depth: int = 0) -> object:
+    """A structurally-acyclic, JSON-safe copy: replaces a reference cycle with a marker,
+    bounds depth, and stringifies dict keys (``json`` rejects a non-string key even with a
+    ``default=``).
+
+    Used only as the fallback when ``json.dumps`` reports a cycle, a non-string key, or
+    over-deep nesting. None is reachable from JSON-RPC args (acyclic, string-keyed,
+    depth-bounded by the parser) or ``redact_args`` (depth-capped), but the audit logger
+    must still not raise on one (invariant 3, F-001, ADR-0039)."""
+    if _depth > _MAX_ACYCLIC_DEPTH:
+        return "<truncated>"
+    if isinstance(value, dict):
+        if id(value) in _seen:
+            return "<circular>"
+        seen = _seen | {id(value)}
+        return {_safe_str(k): _acyclic(v, seen, _depth + 1) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        if id(value) in _seen:
+            return "<circular>"
+        seen = _seen | {id(value)}
+        return [_acyclic(item, seen, _depth + 1) for item in value]
+    return value
+
+
 def _canonical(payload: dict[str, object]) -> str:
-    # default=str (BL-078): a non-JSON-native arg value (a Path, an Enum, a
-    # datetime) canonicalizes as its str() form instead of raising, so
-    # AuditLogger.record can never raise on hostile or unusual arg shapes
-    # (logger-never-raises by construction, invariant 3). The written line is
-    # produced by this same function, so verification stays consistent.
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
-    )
+    # default=_safe_str (BL-078, F-001): a non-JSON-native arg value (a Path, an Enum, a
+    # datetime) canonicalizes as its str() form instead of raising, and _safe_str contains
+    # even a hostile __str__. The dumps is wrapped so a circular reference (ValueError), a
+    # non-string dict key (TypeError), or over-deep nesting (RecursionError) cannot break
+    # the logger either: invariant 3 holds for ANY input, not only JSON-native ones
+    # (ADR-0039). The written line is produced by this same function, so verification
+    # stays consistent.
+    try:
+        return json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_safe_str
+        )
+    except (ValueError, TypeError, RecursionError):
+        try:
+            return json.dumps(
+                _acyclic(payload),
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                default=_safe_str,
+            )
+        except (ValueError, TypeError, RecursionError):  # pragma: no cover - last resort
+            return json.dumps({"_unserializable": _safe_str(payload)[:1000]})
 
 
 def compute_entry_hash(payload: dict[str, object]) -> str:
@@ -149,6 +198,13 @@ class SyslogAuditSink:
     construction never raises and a daemon that starts later is picked up. The file
     sink stays authoritative: syslog may truncate or drop an oversized datagram, and
     any such failure is contained by ``MultiSink``.
+
+    Trust boundary (F-005): ``address`` is operator-supplied deploy configuration
+    (``PRAXIS_AUDIT_SYSLOG_ADDRESS``), not a model- or attacker-influenced value, so it
+    is deliberately NOT run through the SSRF egress filter the way the RFC 3161 TSA URL
+    is. A local SIEM on an RFC1918 / CGNAT / Tailscale address is the normal case, and
+    filtering private ranges here would break it. The forwarded records are already
+    redacted, so the operator chooses where their own audit copy goes.
     """
 
     name = "syslog"

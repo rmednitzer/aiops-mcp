@@ -170,3 +170,17 @@ def test_opentofu_dry_run_is_a_full_plan() -> None:
     assert "-refresh-only" not in dry
     real = adapter.build_argv(host, "apply", {}, dry_run=False)
     assert real == ["tofu", "apply", "-auto-approve"]
+
+
+def test_opentofu_ignores_unconfined_chdir() -> None:
+    # F-003: a raw chdir would be an unconfined path into the filesystem; build_argv must
+    # not emit a -chdir flag even if a chdir param is supplied (it is not wired pending a
+    # PRAXIS_TOFU_ROOT confinement, BL-105).
+    from praxis.actuation.opentofu import OpenTofuAdapter
+
+    adapter = OpenTofuAdapter()
+    host = HostInfo(name="cloud", host_type=HostType.CLOUD)
+    for dry in (True, False):
+        argv = adapter.build_argv(host, "apply", {"chdir": "/etc"}, dry_run=dry)
+        assert not any(token.startswith("-chdir") for token in argv), argv
+        assert "/etc" not in argv

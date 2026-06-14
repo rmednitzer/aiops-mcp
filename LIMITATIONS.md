@@ -8,13 +8,16 @@ v0 implemented and gated, in iterative security hardening. The execution core,
 store (SQLite default, Postgres+AGE optional), collectors, drift engine, actuation
 adapters, skills engine, tamper-evident audit, and the MCP stdio surface are built
 and tested; `make ci-success` is green and each of the nine invariants has a passing
-test. Hardening proceeds through the audit waves (ADR-0011 through ADR-0016). The
-ADR-0016 wave delivered the human-binding approval gate (server-minted, single-use,
-TTL-bound nonces surfaced out-of-band), the T2 floor for free-form shell, in-path
-trifecta containment, audited reads and ingest, and the budget, kill-switch
-actuator, and credential-broker wiring. The open items in `docs/backlog.md`
-(notably the HTTP transport, hostname-resolving SSRF, runtime audit anchoring, and
-CI/deploy gating) are tracked, not yet delivered.
+test. Hardening proceeds through the audit and feature waves (ADR-0011 through
+ADR-0040). The ADR-0016 wave delivered the human-binding approval gate
+(server-minted, single-use, TTL-bound nonces surfaced out-of-band), the T2 floor for
+free-form shell, in-path trifecta containment, audited reads and ingest, and the
+budget, kill-switch actuator, and credential-broker wiring. Several items once listed
+here as open have since landed: hostname-resolving SSRF (BL-046, ADR-0025), runtime
+audit anchoring and Merkle checkpoints (BL-076/050, ADR-0019), the RFC 3161 TSA
+stamper (BL-095, ADR-0030), and CI/deploy gating (BL-052, ADR-0036). The HTTP
+transport remains the notable open item in `docs/backlog.md` (tracked, not yet
+delivered): the stdio surface is the supported v0 deployment.
 
 ## Scope boundaries
 
@@ -44,7 +47,8 @@ CI/deploy gating) are tracked, not yet delivered.
   (ADR-0019; BL-076, BL-050). The remaining gaps: the default `LocalStamper` is
   keyless self-attestation (its token is forgeable by anyone who can write the
   evidence file); a non-forgeable RFC 3161 TSA stamper is now available opt-in
-  (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095, ADR-0030) but is off by default;
+  (`PRAXIS_TSA_URL` plus `PRAXIS_TSA_CERT`, the PEM signing certificate, plus the `tsa`
+  extra; BL-095, ADR-0030) but is off by default;
   a crash leaves an uncovered audit tail that `verify_evidence` flags (the intended
   visible seam, not silent loss); and the anchor only helps if the operator places
   it on a different trust domain than the audit log. Operating-system append-only

@@ -33,7 +33,7 @@ visible gap (partial or planned controls are exempt; their gap is tracked by a B
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
 | Art. 9 (risk management) | Conservative pre-execution tier classification | SEC-3 / inv 2 | `execution/patterns.py`, `execution/policy.py::classify` |
-| Art. 12 (logging and traceability) | Tamper-evident, append-only audit trail | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`, `audit/evidence.py` (v0 gap: runtime Merkle/RFC 3161 anchoring not produced; BL-076) |
+| Art. 12 (logging and traceability) | Tamper-evident, append-only audit trail; runtime Merkle checkpoints and optional anchor; opt-in RFC 3161 TSA stamper | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`, `audit/evidence.py` (runtime checkpoints produced since ADR-0019/BL-076; RFC 3161 TSA opt-in, ADR-0030/BL-095; OS append-only the control for the default `LocalStamper`) |
 | Art. 14 (human oversight) | Tiered HITL at T2+; server-minted, single-use, TTL-bound approval nonce surfaced out-of-band (human-binding since ADR-0016, BL-072) | SEC-2, SEC-6 / inv 6 | `execution/runner.py`, `execution/contract.py::ApprovalRegistry`, `drift/converge.py` |
 | Art. 15 (accuracy, robustness, cybersecurity) | Bitemporal source of truth; drift detection; SSRF filter | SEC-7, SEC-10 / inv 4, 7 | `store/sqlite.py`, `drift/`, `_ssrf.py` |
 
@@ -49,8 +49,8 @@ visible gap (partial or planned controls are exempt; their gap is tracked by a B
 
 | Reference | Project control | SEC / invariant | Enforcement |
 |-----------|-----------------|-----------------|-------------|
-| Annex I 1 (secure by design / default) | Default-deny posture; stdio default; fail-closed HTTP | SEC-7 / inv 7 | `config.py::validate_transport`, the Helm default-deny NetworkPolicy (v0 gap: NetworkPolicy ingress has no `from:` selector; BL-051) |
-| Annex I 1 (no known exploitable vulns; supply chain) | Digest-pinned image; SBOM; dependency review; SHA-pinned CI | inv (supply chain) | `deploy/`, `.github/workflows/{sbom,dependency-review}.yml` (v0 gap: placeholder image digest; SBOM enumerates the environment; BL-033, BL-088) |
+| Annex I 1 (secure by design / default) | Default-deny posture; stdio default; fail-closed HTTP | SEC-7 / inv 7 | `config.py::validate_transport`, the Helm default-deny NetworkPolicy with a scoped `from:` ingress selector (BL-051, ADR-0018) |
+| Annex I 1 (no known exploitable vulns; supply chain) | Digest-pinned image; SBOM; dependency review; SHA-pinned CI; signed release with SLSA provenance and image SBOM attestations | inv (supply chain) | `deploy/`, `.github/workflows/{sbom,dependency-review,release}.yml` (BL-033 ADR-0032/0035, BL-088 ADR-0018; the all-zero image digest is the fail-closed default until the operator's first tagged release) |
 | Annex I 2 (vulnerability handling) | CodeQL, nightly fuzz, the STPA revisit triggers | SEC-1..SEC-10 | `.github/workflows/{codeql,fuzz}.yml` |
 
 ## GDPR (Regulation (EU) 2016/679) and Austrian DSG
@@ -66,7 +66,7 @@ visible gap (partial or planned controls are exempt; their gap is tracked by a B
 |-----------|-----------------|-----------------|-------------|
 | A.5.15 (access control) | Tiered authority; per-role scoped credentials | SEC-3, SEC-8 / inv 2, 9 | `execution/policy.py`, `actuation/credentials.py` |
 | A.8.15 (logging) | Append-only, hash-chained audit; redacted params; documented log retention tiers bound in config | SEC-2, SEC-9 / inv 1, 3 | `execution/audit.py`; retention tiers in `config.py` (BL-035), enforced by storage-layer archival (`SECURITY.md`, `docs/runbooks/operate.md`) |
-| A.8.16 (monitoring activities) | Drift findings as bitemporal facts | SEC-6 / inv 5 | `drift/`, `store/` |
+| A.8.16 (monitoring activities) | Drift findings as bitemporal facts | SEC-6 / inv 4 | `drift/`, `store/` |
 | A.8.28 (secure coding) | mypy strict, ruff (incl. bandit S-rules), CodeQL, fuzz | n/a | `pyproject.toml`, CI |
 
 Every row traces through a SEC constraint to a proving test in

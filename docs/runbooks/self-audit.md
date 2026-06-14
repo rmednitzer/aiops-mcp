@@ -22,10 +22,12 @@ anchors.
 The server produces checkpoints at runtime (every `PRAXIS_EVIDENCE_EVERY` records
 and at orderly shutdown; ADR-0019). Pass the anchor path only if
 `PRAXIS_ANCHOR_PATH` is configured; keep that file on a different trust domain
-than the audit log (another filesystem, host, or WORM store). The stamper is the
-keyless `LocalStamper` until BL-095 lands, so operating-system append-only storage
-(`chattr +a` or WORM) on all three files remains the control against an attacker
-who can rewrite them.
+than the audit log (another filesystem, host, or WORM store). The default stamper is
+the keyless `LocalStamper`; a non-forgeable RFC 3161 TSA stamper is available opt-in
+(`PRAXIS_TSA_URL` + `PRAXIS_TSA_CERT` + the `tsa` extra; BL-095, ADR-0030). While the
+default `LocalStamper` is in use, operating-system append-only storage (`chattr +a`
+or WORM) on all three files remains the control against an attacker who can rewrite
+them.
 
 ## 2. Invariant gates
 

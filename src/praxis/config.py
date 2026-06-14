@@ -65,6 +65,12 @@ class Config(BaseModel):
     # 0 means retain indefinitely. The anchor file follows the evidence tier.
     audit_retention_days: int = DEFAULT_RETENTION_DAYS
     evidence_retention_days: int = DEFAULT_RETENTION_DAYS
+    # Optional best-effort secondary audit sink (BL-100, ADR-0037): forward each audit
+    # line to syslog for SIEM / journald visibility, alongside the authoritative
+    # append-only file. A Unix socket path (e.g. `/dev/log`) or `host:port` for a remote
+    # UDP collector. None (default) keeps the single file sink unchanged; a failing
+    # syslog endpoint is contained and never affects the file write or the hash chain.
+    audit_syslog_address: str | None = None
     # Non-forgeable timestamp stamper (BL-095, ADR-0029). With tsa_url set, evidence
     # checkpoints are stamped by an RFC 3161 timestamp authority instead of the
     # forgeable LocalStamper, and tsa_cert_path (the TSA signing certificate, PEM) is
@@ -174,6 +180,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         evidence_path=get("EVIDENCE_PATH"),
         evidence_every=_interval_or_default(get("EVIDENCE_EVERY"), 64),
         anchor_path=get("ANCHOR_PATH"),
+        audit_syslog_address=get("AUDIT_SYSLOG_ADDRESS"),
         audit_retention_days=_interval_or_default(
             get("AUDIT_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
         ),

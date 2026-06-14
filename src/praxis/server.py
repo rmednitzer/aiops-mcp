@@ -21,7 +21,7 @@ from praxis.actuation.credentials import CredentialBroker
 from praxis.audit import EvidenceScheduler, bind_session, select_stamper
 from praxis.config import CONFIG, Config, validate_transport
 from praxis.context import ServerContext
-from praxis.execution.audit import AuditLogger
+from praxis.execution.audit import AuditLogger, SyslogAuditSink
 from praxis.execution.contract import ApprovalRegistry, BudgetTracker
 from praxis.execution.policy import Policy
 from praxis.execution.runner import ExecutionContext, KillSwitch, bounded_error
@@ -61,10 +61,20 @@ def build_context(config: Config) -> ServerContext:
             anchor_path=Path(config.anchor_path) if config.anchor_path else None,
             stamper=select_stamper(tsa_url=config.tsa_url, tsa_cert_path=config.tsa_cert_path),
         )
+    # Optional best-effort secondary audit sink (BL-100, ADR-0037): forward audit lines
+    # to syslog alongside the authoritative file. Construction is lazy, so a misconfigured
+    # or down endpoint never blocks startup; failures are contained per record.
+    secondary_sinks: list[SyslogAuditSink] = (
+        [SyslogAuditSink(config.audit_syslog_address)] if config.audit_syslog_address else []
+    )
     audit = (
-        AuditLogger(audit_path, on_record=scheduler.on_record if scheduler else None)
+        AuditLogger(
+            audit_path,
+            on_record=scheduler.on_record if scheduler else None,
+            extra_sinks=secondary_sinks,
+        )
         if audit_path
-        else AuditLogger()
+        else AuditLogger(extra_sinks=secondary_sinks)
     )
     # Bind the server-binary hash into the trail as the first record (ADR-0008),
     # carrying the declared audit/evidence retention tiers (BL-035, ADR-0023) so the

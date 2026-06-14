@@ -13,13 +13,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Protocol, TextIO
 
 from praxis.clock import utc_now_iso
 
@@ -69,6 +70,122 @@ def compute_entry_hash(payload: dict[str, object]) -> str:
     return sha256_text(_canonical(payload))
 
 
+def _stderr_note(message: str) -> None:
+    """Best-effort operator-visible note on stderr; never raises (invariant 3)."""
+    with suppress(Exception):
+        print(f"[praxis.audit] {message}", file=sys.stderr)
+
+
+class AuditSink(Protocol):
+    """A secondary destination for canonical audit lines (BL-100, ADR-0037).
+
+    ``emit`` receives the same canonical JSON line written to the primary file and
+    must be fast and non-blocking (a datagram, not a blocking stream). A sink may
+    raise on failure; ``MultiSink`` contains it so one failing sink can never
+    silence the others. Secondary sinks are best-effort forwards: the append-only
+    hash-chained file stays the authoritative, tamper-evident source of truth
+    (ADR-0008), so a secondary is never required for an audited run to proceed.
+    """
+
+    name: str
+
+    def emit(self, line: str) -> None: ...
+
+    def close(self) -> None: ...
+
+
+class MultiSink:
+    """Fan one audit line out to several secondary sinks with per-sink failure
+    containment (the BL fan-out class from ``skills.dispatch`` applied to the audit
+    write side; BL-100, ADR-0037).
+
+    A sink whose ``emit`` raises ``Exception`` is reported once and skipped, so one
+    failing sink can never silence the others (or the primary file write, which runs
+    before this fan-out). ``BaseException`` (such as ``KeyboardInterrupt``) still
+    propagates. ``emit`` itself never raises (invariant 3).
+    """
+
+    def __init__(self, sinks: Sequence[AuditSink] = ()) -> None:
+        self._sinks: tuple[AuditSink, ...] = tuple(sinks)
+        # Names of sinks currently in a failure streak, so a persistently down sink
+        # is noted once rather than on every record; a later success clears it.
+        self._failed: set[str] = set()
+
+    @property
+    def sinks(self) -> tuple[AuditSink, ...]:
+        return self._sinks
+
+    def emit(self, line: str) -> None:
+        for sink in self._sinks:
+            try:
+                sink.emit(line)
+            except Exception:  # noqa: BLE001 - per-sink containment (BL-100); a failing sink must not silence the others
+                if sink.name not in self._failed:
+                    self._failed.add(sink.name)
+                    _stderr_note(f"audit sink {sink.name!r} failed; other sinks unaffected")
+                continue
+            else:
+                self._failed.discard(sink.name)
+
+    def close(self) -> None:
+        for sink in self._sinks:
+            with suppress(Exception):
+                sink.close()
+
+
+class SyslogAuditSink:
+    """Best-effort syslog forward of each audit line (BL-100, ADR-0037).
+
+    A secondary sink for SIEM / journald visibility: it sends the same canonical,
+    already-redacted audit line (no output body, never a secret; SEC-9) to a syslog
+    endpoint over a datagram socket. ``address`` is a Unix socket path (the default
+    ``/dev/log``) when it starts with ``/``, otherwise ``host:port`` for a remote UDP
+    collector. The connection is lazy and re-established after a failure, so
+    construction never raises and a daemon that starts later is picked up. The file
+    sink stays authoritative: syslog may truncate or drop an oversized datagram, and
+    any such failure is contained by ``MultiSink``.
+    """
+
+    name = "syslog"
+    # RFC 3164 priority: facility AUTHPRIV (10) << 3 | severity NOTICE (5).
+    _PRIORITY = 10 * 8 + 5
+
+    def __init__(self, address: str = "/dev/log", *, tag: str = "praxis-audit") -> None:
+        self._address = address
+        self._tag = tag
+        self._sock: socket.socket | None = None
+
+    def _connect(self) -> socket.socket:
+        if self._address.startswith("/"):
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            sock.connect(self._address)
+        else:
+            host, _, port = self._address.rpartition(":")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.connect((host, int(port)))
+        return sock
+
+    def emit(self, line: str) -> None:
+        if self._sock is None:
+            self._sock = self._connect()  # may raise OSError/ValueError -> contained by MultiSink
+        frame = f"<{self._PRIORITY}>{self._tag}: {line}".encode("utf-8", errors="surrogatepass")
+        try:
+            self._sock.send(frame)
+        except OSError:
+            # Drop the socket so the next emit reconnects, then re-raise so MultiSink
+            # records the failure; the authoritative primary write is unaffected.
+            with suppress(OSError):
+                self._sock.close()
+            self._sock = None
+            raise
+
+    def close(self) -> None:
+        if self._sock is not None:
+            with suppress(OSError):
+                self._sock.close()
+            self._sock = None
+
+
 class AuditLogger:
     """The audit writer. A single instance owns one append-only JSONL sink."""
 
@@ -78,9 +195,15 @@ class AuditLogger:
         *,
         clock: Callable[[], str] = utc_now_iso,
         on_record: Callable[[AuditRecord], None] | None = None,
+        extra_sinks: Sequence[AuditSink] = (),
     ) -> None:
         self._clock = clock
         self._path = path
+        # Best-effort secondary sinks (BL-100, ADR-0037). The primary append-only file
+        # below stays authoritative; these are fanned out after each primary write with
+        # per-sink failure containment, so none can affect the file, the hash chain, or
+        # each other. Empty by default: the default posture is the single file sink.
+        self._secondary = MultiSink(extra_sinks)
         # Optional post-record hook (additive; BL-076: the evidence scheduler).
         # Invoked AFTER the record is written and the lock released; contained,
         # so a failing hook can never lose or block a record (invariant 3).
@@ -243,6 +366,10 @@ class AuditLogger:
                     self._sink.flush()
                 except OSError:
                     pass
+        # Fan out to the best-effort secondary sinks after the authoritative primary
+        # write (BL-100). Contained: a failing secondary can never affect the primary
+        # write above, the hash chain, or the other sinks; emit never raises.
+        self._secondary.emit(line)
 
     def close(self) -> None:
         # Release the real file if one was ever opened, even after a later degrade
@@ -253,6 +380,8 @@ class AuditLogger:
             except OSError:  # pragma: no cover - defensive
                 pass
             self._file = None
+        # Release any secondary sinks (sockets); contained, never raises.
+        self._secondary.close()
 
 
 @dataclass(frozen=True)

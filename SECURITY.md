@@ -63,6 +63,11 @@ At runtime the audit log is a per-entry, append-only hash chain (each record com
 to the previous record's hash). When `PRAXIS_AUDIT_PATH` is set (the recommended
 operational config) the sink is an owner-only `O_APPEND` file; with no audit path the
 logger writes to stderr, and it degrades to stderr if the file sink cannot be opened.
+An optional best-effort secondary sink forwards each already-redacted record to syslog
+(`PRAXIS_AUDIT_SYSLOG_ADDRESS`, opt-in) for SIEM/journald visibility; it is fanned out
+after the authoritative file write through a `MultiSink` that contains a per-sink
+failure, so a failing or oversized syslog endpoint can never affect the file write, the
+hash chain, or `verify_chain` (BL-100, ADR-0037).
 Since ADR-0019 (BL-076) the running server also produces Merkle checkpoints (RFC
 6962 domain separation) over the log: every `PRAXIS_EVIDENCE_EVERY` records
 (default 64) and at orderly shutdown, into `PRAXIS_EVIDENCE_PATH` (default

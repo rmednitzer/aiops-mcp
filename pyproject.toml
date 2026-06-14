@@ -29,7 +29,7 @@ dev = [
     # directly (kept in lockstep with the tsa extra below) rather than as a
     # self-referential praxis[tsa], which trips strict resolvers building from source.
     "asn1crypto>=1.5,<2",
-    "cryptography>=43,<46",
+    "cryptography>=46.0.7,<47",
 ]
 postgres = ["psycopg[binary]>=3.2,<4"]  # production store backend (BL-006)
 # Optional RFC 3161 timestamp-authority stamper (BL-095, ADR-0029): asn1crypto (MIT)

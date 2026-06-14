@@ -39,6 +39,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0030](0030-rfc3161-stamper-implementation-2026-06-14.md) | RFC 3161 stamper implementation (2026-06-14): ratifies ADR-0029 and implements BL-095; the real `Rfc3161Stamper` (asn1crypto + cryptography behind the `tsa` extra), SSRF-pinned egress via the BL-046 resolver, fail-closed CMS verification against a configured TSA certificate, `select_stamper` wired into the evidence scheduler; `LocalStamper` stays the default and the core dependency-free (closes BL-095) | Accepted |
 | [0031](0031-talosctl-client-side-health-probe-2026-06-14.md) | Opt-in client-side-only talosctl pre-upgrade health probe (2026-06-14): implements BL-102 (the operator decision deferred by ADR-0021); an additive `health_client_side_only` param runs `talosctl health --server=false` so a post-bootstrap cluster's spurious server-side checks cannot block an upgrade; the HARD gate (BL-023, SEC-5) still always runs, the default keeps the full check, and a non-boolean flag is a fail-closed HARD refusal | Accepted |
 | [0032](0032-container-image-build-2026-06-14.md) | Container image build (2026-06-14): implements BL-092 and advances BL-033; a multi-stage, non-root, digest-pinned (`python:3.12-slim-bookworm`) `Dockerfile` that installs the default runtime and runs `python -m praxis`, with governance-as-code OCI labels, build-validated by a new `image` CI workflow (never pushed); the published digest stays a release step (the remaining BL-033 element) | Accepted |
+| [0033](0033-consolidate-dependency-automation-on-renovate.md) | Consolidate dependency automation on Renovate (2026-06-14): curated `renovate.json5` (github-actions + dockerfile + pip-compile managers, digest pinning, grouped/scheduled PRs), the uv lock header normalised to `--output-file` so the pip-compile manager maintains it, and Dependabot security-updates turned off so the two bots stop raising duplicate PRs (#54/#55); Dependabot vulnerability alerts kept for detection | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -135,3 +136,12 @@ digest-pinned `python:3.12-slim-bookworm` base; distroless is rejected for shipp
 Python 3.11). It carries governance-as-code OCI labels and is build-validated by a new
 `image` CI workflow that never pushes; the real published digest stays a release-time
 step, the remaining BL-033 element.
+
+ADR-0033 consolidates dependency automation on Renovate: it replaces the bare
+`renovate.json` with a curated `renovate.json5` (the `github-actions`, `dockerfile`, and
+`pip-compile` managers, digest pinning, grouped and scheduled PRs), normalises the `uv`
+lock header to the long-form `--output-file` so Renovate's `pip-compile` manager
+maintains the hashed `requirements-dev.txt`, and turns off GitHub's Dependabot
+security-updates so the two bots stop raising the duplicate PRs seen in the #54/#55
+cryptography pair. Dependabot vulnerability alerts stay on for detection and Renovate
+raises the fix PRs.

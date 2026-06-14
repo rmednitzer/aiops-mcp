@@ -339,6 +339,16 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   deferred Postgres schema proposal.
 
 ### Changed
+- Consolidated dependency automation on Renovate (ADR-0033). `renovate.json` is
+  replaced by a curated `renovate.json5` (best-practices; the `github-actions`,
+  `dockerfile`, and `pip-compile` managers; digest pinning; grouped, scheduled PRs).
+  The `requirements-dev.txt` uv header now records the long-form `--output-file` so
+  Renovate's pip-compile manager maintains the hash-lock (the short `-o` is rejected
+  by its allowlist and was why #55 landed incomplete and needed #57). GitHub's
+  Dependabot security-updates are turned off so the two bots no longer raise duplicate
+  PRs (the #54/#55 cryptography pair); Dependabot vulnerability *alerts* stay on for
+  detection and Renovate raises the fix PRs. A `make lock` target regenerates the
+  lock in the required form.
 - Documentation honesty pass (ADR-0015): README, SECURITY, LIMITATIONS,
   architecture, the compliance map, the STPA constraint table, the operate and
   self-audit runbooks, and the deploy README now state the v0 enforcement gaps

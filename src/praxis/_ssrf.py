@@ -91,9 +91,16 @@ def is_blocked_address(host: str) -> bool:
 
 
 def _normalized_host(url: str) -> str:
-    """The lowercased, de-bracketed hostname of ``url`` (no scheme, userinfo, or port)."""
+    """The lowercased, de-bracketed hostname of ``url`` (no scheme, userinfo, port, or zone).
+
+    An IPv6 zone/scope id (``fe80::1%eth0``, RFC 6874) is stripped so a scoped literal
+    is classified as the address it names (and blocked if that address is) rather than
+    falling through to the name path, mirroring the ``%`` strip applied to resolved
+    addresses in ``resolve_and_assert_egress_allowed``.
+    """
     parsed = urlparse(url if "://" in url else f"//{url}")
-    return (parsed.hostname or "").strip().strip("[]").lower()
+    host = (parsed.hostname or "").strip().strip("[]").lower()
+    return host.split("%", 1)[0]
 
 
 def assert_egress_allowed(url: str) -> None:

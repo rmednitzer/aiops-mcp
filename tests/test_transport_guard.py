@@ -232,3 +232,16 @@ def test_resolve_egress_uses_urlparse_host_not_userinfo() -> None:
         resolve_and_assert_egress_allowed(
             "http://8.8.8.8@evil.example/", resolver=lambda n: ["127.0.0.1"]
         )
+
+
+def test_egress_strips_ipv6_zone_id_and_classifies_literal() -> None:
+    # A scoped link-local literal (RFC 6874 zone id) is classified as the address it
+    # names (fe80::1, link-local) and blocked, not waved through the name path. Both
+    # entry points strip the zone id; the resolver refuses on the literal before it
+    # would consult the resolver.
+    with pytest.raises(SSRFBlocked):
+        assert_egress_allowed("http://[fe80::1%25eth0]/")
+    with pytest.raises(SSRFBlocked):
+        resolve_and_assert_egress_allowed(
+            "http://[fe80::1%25eth0]/", resolver=lambda n: ["8.8.8.8"]
+        )

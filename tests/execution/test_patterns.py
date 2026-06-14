@@ -26,12 +26,18 @@ def test_classify_rounds_up() -> None:
 def test_deny_catches_root_wipe_and_forkbomb() -> None:
     assert deny_match("rm -rf /") is not None
     assert deny_match("rm -rf / ") is not None
+    # F-004: root-equivalent spellings are denied too, not merely T3-gated.
+    assert deny_match("rm -rf //") is not None
+    assert deny_match("rm -rf /*") is not None
+    assert deny_match("rm -rf /.") is not None
+    assert deny_match("rm -r //") is not None
     assert deny_match(":(){ :|:& };:") is not None
     assert deny_match("mkfs.ext4 /dev/sda1") is not None
     assert deny_match("dd if=/dev/zero of=/dev/nvme0n1") is not None
-    # A benign read is not denied.
+    # A benign read is not denied, and a real subpath of / is not over-matched.
     assert deny_match("ls -la /var/log") is None
     assert deny_match("rm -rf /var/tmp/build") is None
+    assert deny_match("rm -rf /etc") is None
 
 
 def test_deny_catches_recursive_perms_on_root() -> None:

@@ -30,7 +30,7 @@ from enum import IntEnum
 # Bump on EVERY change to the pattern sets below. The audit record stamps this
 # value so a reviewer can tie a classification to the exact ruleset that produced
 # it (SEC-3).
-PATTERNS_VERSION = 3
+PATTERNS_VERSION = 4
 
 
 class Tier(IntEnum):
@@ -54,8 +54,11 @@ def _compile(patterns: list[str]) -> tuple[re.Pattern[str], ...]:
 # small and unambiguous: it is the unconditional floor beneath every gate (SEC-1).
 DENY: tuple[re.Pattern[str], ...] = _compile(
     [
-        r"\brm\s+(-[a-z]*r[a-z]*\s+)?(-[a-z]*f[a-z]*\s+)?/\s*($|\s)",  # rm -rf /
-        r"\brm\s+-[a-z]*\s+/\s*($|\s)",
+        # rm -rf / and its root-equivalent spellings: // (kernel-normalised to /),
+        # /* (glob over the root), and /. (F-004). /etc and the like do not match,
+        # because a real path char follows the slash rather than EOL/whitespace.
+        r"\brm\s+(-[a-z]*r[a-z]*\s+)?(-[a-z]*f[a-z]*\s+)?/{1,2}[.*]?\s*($|\s)",  # rm -rf /
+        r"\brm\s+-[a-z]*\s+/{1,2}[.*]?\s*($|\s)",
         r":\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",  # classic fork bomb
         r"\bmkfs(\.\w+)?\b.*/dev/(sd|nvme|vd|hd)",  # format a real disk
         r"\bdd\b[^\n]*\bof=/dev/(sd|nvme|vd|hd)",  # dd onto a raw disk

@@ -212,7 +212,8 @@ class PostgresStore:
         is no row yet), so a concurrent create that wins the race trips the partial
         unique index; that ``IntegrityError`` is translated to ``VersionConflict`` so
         the create path honours the CAS contract like the supersede path and the
-        SQLite backend (live-PG concurrency verification tracked as BL-103). Mirrors
+        SQLite backend (live-PG concurrency covered by the BL-103 regression test in
+        tests/store/test_postgres.py). Mirrors
         the SQLite backend's ``put_fact_if`` so the two stay behaviourally identical.
         """
         if not fact.actor:
@@ -290,11 +291,16 @@ class PostgresStore:
             return None
         now = utc_now_iso()
         with self._conn.transaction():
-            self._conn.execute(
+            cur = self._conn.execute(
                 "UPDATE facts SET t_invalid = %s, t_superseded = %s, superseded_actor = %s, "
                 "superseded_reason = %s WHERE fact_id = %s AND t_superseded IS NULL",
                 (now, now, actor, reason, existing.fact_id),
             )
+            # F-007: see the SQLite backend. A concurrent supersede that won between
+            # get_active and here leaves rowcount 0; report the lost race as None rather
+            # than returning a row another actor superseded (provenance fidelity, SEC-10).
+            if cur.rowcount != 1:
+                return None
         row = self._conn.execute(
             "SELECT * FROM facts WHERE fact_id = %s", (existing.fact_id,)
         ).fetchone()

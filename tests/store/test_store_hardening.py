@@ -124,3 +124,22 @@ def test_put_fact_if_writes_nothing_on_conflict(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0].value == {"v": "ubuntu"}
     store.close()
+
+
+def test_supersede_reports_a_lost_race_as_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # F-007: if a concurrent supersede wins between get_active and the guarded UPDATE,
+    # the UPDATE matches 0 rows. supersede must return None (this caller lost) rather
+    # than falsely returning a row another actor superseded with their own actor/reason.
+    db = tmp_path / "praxis.db"
+    store = SqliteStore(db)
+    store.put_fact(_fact("kernel", "6.17"))
+    won = store.supersede("host:axiom", "kernel", OBSERVED, actor="a", reason="r1")
+    assert won is not None  # the winner gets the superseded row back
+    # The losing caller's read is stale: get_active hands back the now-superseded row,
+    # so the guarded UPDATE (WHERE t_superseded IS NULL) matches nothing.
+    monkeypatch.setattr(store, "get_active", lambda *a, **k: won)
+    lost = store.supersede("host:axiom", "kernel", OBSERVED, actor="b", reason="r2")
+    assert lost is None
+    store.close()

@@ -95,3 +95,38 @@ def test_concurrent_records_keep_an_unbroken_chain(tmp_path: Path) -> None:
     result = verify_chain(log)
     assert result.ok is True, result.reason
     assert result.count == 4 * per_thread
+
+
+def test_record_never_raises_on_hostile_str_or_circular_args(tmp_path: Path) -> None:
+    # F-001: the logger must never raise (invariant 3) even on an arg value whose
+    # __str__ raises, or a circular reference. Neither is reachable from JSON-RPC args
+    # (native, acyclic), but the "never raises by construction" guarantee must hold for
+    # any input, not only JSON-native ones.
+    class Boom:
+        def __str__(self) -> str:
+            raise RuntimeError("hostile __str__")
+
+    log = tmp_path / "audit.jsonl"
+    logger = AuditLogger(log)
+    logger.record(
+        tool="t",
+        tier="T0",
+        decision="allowed",
+        args={"x": Boom()},
+        patterns_version=PATTERNS_VERSION,
+    )
+    cyclic: dict[str, Any] = {}
+    cyclic["self"] = cyclic
+    logger.record(
+        tool="t",
+        tier="T0",
+        decision="allowed",
+        args={"c": cyclic},
+        patterns_version=PATTERNS_VERSION,
+    )
+    logger.close()
+    # Both records were written and the chain still verifies (the contained renderings
+    # are deterministic, so each line hashes to its stored entry_hash).
+    result = verify_chain(log)
+    assert result.ok is True, result.reason
+    assert result.count == 2

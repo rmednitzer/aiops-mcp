@@ -125,3 +125,21 @@ def test_non_secret_passthrough() -> None:
     assert redact("just a normal line") == "just a normal line"
     out = redact_args({"count": 3, "flag": True})
     assert out == {"count": 3, "flag": True}
+
+
+def test_anthropic_huggingface_digitalocean_tokens_redacted() -> None:
+    # F-006: these provider shapes carry hyphens (Anthropic) or distinct prefixes that
+    # the generic `sk-`/alnum patterns miss, so they are matched explicitly. Each token
+    # is assembled from fragments so this file holds no contiguous token literal; even
+    # under a non-secret key (`note`) they must not reach the audit record.
+    body = "A1b2C3d4E5f6G7h8I9j0KLMN"  # 24 placeholder chars, clearly not a real secret
+    hexbody = "0123456789abcdef0123456789abcdef01234567"  # 40 hex chars
+    cases = [
+        "sk-" + "ant-" + "api03-" + body + "OPQRstuvwx",  # Anthropic
+        "hf_" + body + "OPQRstuvwx",  # HuggingFace
+        "dop_" + "v1_" + hexbody,  # DigitalOcean PAT
+        "doo_" + "v1_" + hexbody,  # DigitalOcean OAuth
+    ]
+    for secret in cases:
+        assert secret not in redact(f"free text {secret} trailing"), secret
+        assert redact_args({"note": secret})["note"] == REDACTED, secret

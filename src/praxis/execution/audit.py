@@ -59,15 +59,52 @@ class AuditRecord:
         return asdict(self)
 
 
+def _safe_str(value: object) -> str:
+    """``str`` that never raises: a hostile ``__str__`` must not break the logger."""
+    try:
+        return str(value)
+    except Exception:  # noqa: BLE001 - invariant 3: the audit logger never raises
+        return "<unserializable>"
+
+
+def _acyclic(value: object, _seen: frozenset[int] = frozenset()) -> object:
+    """A structurally-acyclic copy, replacing any reference cycle with a marker.
+
+    Used only as the fallback when ``json.dumps`` reports a circular reference. Not
+    reachable from JSON-RPC args (acyclic) or ``redact_args`` (depth-capped), but the
+    audit logger must still not raise on one (invariant 3, F-001)."""
+    if isinstance(value, dict):
+        if id(value) in _seen:
+            return "<circular>"
+        seen = _seen | {id(value)}
+        return {k: _acyclic(v, seen) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        if id(value) in _seen:
+            return "<circular>"
+        seen = _seen | {id(value)}
+        return [_acyclic(item, seen) for item in value]
+    return value
+
+
 def _canonical(payload: dict[str, object]) -> str:
-    # default=str (BL-078): a non-JSON-native arg value (a Path, an Enum, a
-    # datetime) canonicalizes as its str() form instead of raising, so
-    # AuditLogger.record can never raise on hostile or unusual arg shapes
-    # (logger-never-raises by construction, invariant 3). The written line is
-    # produced by this same function, so verification stays consistent.
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
-    )
+    # default=_safe_str (BL-078, F-001): a non-JSON-native arg value (a Path, an Enum, a
+    # datetime) canonicalizes as its str() form instead of raising. _safe_str contains
+    # even a hostile __str__, and the dumps is wrapped so a circular reference (which json
+    # raises on before default= is consulted) also cannot break the logger: invariant 3
+    # holds for ANY input, not only JSON-native ones. The written line is produced by this
+    # same function, so verification stays consistent.
+    try:
+        return json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_safe_str
+        )
+    except ValueError:  # circular reference (unreachable from JSON args; contained anyway)
+        return json.dumps(
+            _acyclic(payload),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=_safe_str,
+        )
 
 
 def compute_entry_hash(payload: dict[str, object]) -> str:

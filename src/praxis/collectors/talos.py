@@ -14,6 +14,12 @@ from typing import ClassVar
 from praxis.collectors.base import Collector
 from praxis.model.facts import Fact
 
+# Cap on the non-JSON status fallback (F-008): a hostile or malfunctioning node could
+# return megabytes of non-JSON text, and the bitemporal fact store must not accept an
+# unbounded attacker-controlled blob every collection cycle (invariant 8). The cap is
+# generous for a real status line; oversized text is truncated with a visible marker.
+_MAX_STATUS_CHARS = 4096
+
 
 class TalosCollector(Collector):
     name: ClassVar[str] = "talos"
@@ -30,7 +36,10 @@ class TalosCollector(Collector):
             # non-finite float, so collected telemetry cannot inject a NaN (BL-026).
             parsed = json.loads(raw, parse_constant=lambda _const: None)
         except (json.JSONDecodeError, RecursionError):
-            return [self._fact(subject, self.predicate, {"status": raw}, actor)]
+            status = (
+                raw if len(raw) <= _MAX_STATUS_CHARS else raw[:_MAX_STATUS_CHARS] + "...[truncated]"
+            )
+            return [self._fact(subject, self.predicate, {"status": status}, actor)]
         if isinstance(parsed, list):
             items = [item for item in parsed if isinstance(item, dict)]
             value: dict[str, object] = {"items": items, "count": len(items)}

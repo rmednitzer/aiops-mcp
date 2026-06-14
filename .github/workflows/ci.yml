@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -47,12 +47,26 @@ jobs:
       - name: helm unittest
         run: make helm-test
 
+  # Dependency-bound consistency (prevents the #57/#62 cryptography drift): the dev
+  # and tsa extras carry duplicate, hand-maintained bounds that Renovate bumps
+  # independently. A dry-run resolve of both extras together fails fast if they
+  # diverge again (the hashed install uses --no-deps and would not catch it).
+  deps-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Resolve dev+tsa extras together (no install)
+        run: python -m pip install --dry-run '.[dev,tsa]'
+
   # Aggregate gate: branch protection requires this single check, which depends on
   # the full matrix and the helm chart tests. The security workflows (codeql,
   # dependency-review, sbom, fuzz) run alongside and are required via branch
   # protection.
   ci-success:
-    needs: [check, helm-test]
+    needs: [check, helm-test, deps-consistency]
     runs-on: ubuntu-latest
     steps:
       - run: echo "ci-success required checks passed"

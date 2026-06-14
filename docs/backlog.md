@@ -52,7 +52,9 @@ XS, S, M, L.
 | BL-043 | OpenTofu DRY_RUN uses a full `tofu plan` so the preview scope matches the apply scope | XS | resolved | 0012 |
 | BL-044 | `_bounded_error` never raises, so `run()` always writes exactly one audit record | XS | resolved | 0012 |
 | BL-045 | Docs honesty: ADR-0006 consent audit note; qualify `SECURITY.md`/`LIMITATIONS.md`; fix STPA `_ssrf.py` path and read-tool audit claim | S | resolved | 0012 |
-| BL-046 | SSRF: resolve hostnames and check every resolved IP (rebinding-aware); wire the filter into the egress path | M | open | 0012 |
+| BL-046 | SSRF: resolve hostnames and check every resolved IP (rebinding-aware); wire the filter into the egress path | M | open | 0012, 0025 |
+<!-- BL-046 audit note (ADR-0025): the rebinding-aware resolver is delivered: `resolve_and_assert_egress_allowed` resolves a host once, checks every resolved IP against the blocked ranges, fails closed, and returns the vetted IPs so the caller pins the connection (no re-resolution). The strict deny-names `assert_egress_allowed` default is unchanged. The remaining "wire into the egress path" stays open until a server-initiated egress consumer exists (HTTP transport BL-012, or a cloud/redfish adapter); there is none in v0. -->
+
 | BL-047 | talosctl: enforce the T3 single-target rule on `host.nodes`, not only `host.name` | S | resolved | 0012, 0013 |
 | BL-048 | talosctl: replace `action.split()` with a verb allowlist; pass structured params | S | resolved | 0012, 0013 |
 | BL-049 | Wire `CredentialBroker` into the actuation path (scoped, revocable enforcement) | M | resolved | 0012, 0016 |

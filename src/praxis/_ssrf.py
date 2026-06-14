@@ -7,12 +7,19 @@ multicast, reserved, unspecified, and the deprecated 6to4 relay anycast
 (192.88.99.0/24, RFC 7526) are blocked. IPv4 embedded in IPv6 (v4-mapped
 ::ffff:0:0/96, NAT64 64:ff9b::/96, 6to4 2002::/16) is covered by the standard
 registry data the ``ipaddress`` module carries on the supported interpreters.
+
+Two egress entry points (BL-046): ``assert_egress_allowed`` is the strict default
+that refuses a bare DNS name (a name cannot be proven public without resolving it);
+``resolve_and_assert_egress_allowed`` is the rebinding-aware variant that resolves a
+name once, checks every resolved address, and returns the vetted IP literals so the
+caller pins the connection to exactly the addresses checked here.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import socket
+from collections.abc import Callable, Iterable
 from urllib.parse import urlparse
 
 _CGNAT_V4 = ipaddress.ip_network("100.64.0.0/10")
@@ -83,28 +90,98 @@ def is_blocked_address(host: str) -> bool:
     return _ip_is_blocked(ip)
 
 
+def _normalized_host(url: str) -> str:
+    """The lowercased, de-bracketed hostname of ``url`` (no scheme, userinfo, port, or zone).
+
+    An IPv6 zone/scope id (``fe80::1%eth0``, RFC 6874) is stripped so a scoped literal
+    is classified as the address it names (and blocked if that address is) rather than
+    falling through to the name path, mirroring the ``%`` strip applied to resolved
+    addresses in ``resolve_and_assert_egress_allowed``.
+    """
+    parsed = urlparse(url if "://" in url else f"//{url}")
+    host = (parsed.hostname or "").strip().strip("[]").lower()
+    return host.split("%", 1)[0]
+
+
 def assert_egress_allowed(url: str) -> None:
     """Raise SSRFBlocked unless the URL's host is a verifiably public IP literal.
 
     Fail-closed (SEC-7, invariant 7). A blocked-range IP in any encoding is
-    refused, and so is a bare DNS name: v0 does not resolve names, and an
-    unresolved name cannot be proven to point outside the private fleet, so a
-    name is the easiest SSRF pivot and is denied rather than waved through. A
-    caller that must reach a named host resolves it itself and passes the
+    refused, and so is a bare DNS name: this strict variant does not resolve
+    names, and an unresolved name cannot be proven to point outside the private
+    fleet, so a name is the easiest SSRF pivot and is denied rather than waved
+    through. A caller that must reach a named host uses
+    ``resolve_and_assert_egress_allowed`` (which resolves and pins) or passes a
     public IP literal.
     """
-    parsed = urlparse(url if "://" in url else f"//{url}")
-    host = parsed.hostname or ""
-    name = host.strip().strip("[]").lower()
+    name = _normalized_host(url)
     if not name:
         raise SSRFBlocked(f"egress to {url!r} is blocked: no host")
     if name in _BLOCKED_NAMES:
-        raise SSRFBlocked(f"egress to {host!r} is blocked by the SSRF filter")
+        raise SSRFBlocked(f"egress to {name!r} is blocked by the SSRF filter")
     ip = _as_ip(name)
     if ip is None:
         raise SSRFBlocked(
-            f"egress to hostname {host!r} is blocked: v0 does not resolve names; "
-            "pass a public IP literal"
+            f"egress to hostname {name!r} is blocked: the strict filter does not resolve "
+            "names; pass a public IP literal or use resolve_and_assert_egress_allowed"
         )
     if _ip_is_blocked(ip):
-        raise SSRFBlocked(f"egress to {host!r} is blocked by the SSRF filter")
+        raise SSRFBlocked(f"egress to {name!r} is blocked by the SSRF filter")
+
+
+def _default_resolver(name: str) -> list[str]:
+    """Resolve ``name`` to its addresses via the system resolver (A and AAAA records)."""
+    infos = socket.getaddrinfo(name, None, type=socket.SOCK_STREAM)
+    return [str(info[4][0]) for info in infos]
+
+
+def resolve_and_assert_egress_allowed(
+    url: str, *, resolver: Callable[[str], Iterable[str]] | None = None
+) -> list[str]:
+    """Resolve the URL's host and return the vetted public IPs, or raise SSRFBlocked.
+
+    Rebinding-aware (SEC-7, invariant 7, BL-046). Unlike ``assert_egress_allowed``,
+    which refuses a bare name, this resolves the host once, checks EVERY resolved
+    address against the blocked ranges, and returns the validated IP literals so the
+    caller connects to exactly the addresses vetted here, never re-resolving between
+    the check and the connect (the DNS-rebinding pin). Fail-closed: an unresolvable
+    host, a host that resolves to nothing, an unparseable address, or any resolved
+    address in a blocked range raises. An IP literal is checked directly without
+    resolution. The ``resolver`` seam (default ``socket.getaddrinfo``) is injectable.
+    """
+    name = _normalized_host(url)
+    if not name:
+        raise SSRFBlocked(f"egress to {url!r} is blocked: no host")
+    if name in _BLOCKED_NAMES:
+        raise SSRFBlocked(f"egress to {name!r} is blocked by the SSRF filter")
+    literal = _as_ip(name)
+    if literal is not None:
+        if _ip_is_blocked(literal):
+            raise SSRFBlocked(f"egress to {name!r} is blocked by the SSRF filter")
+        return [str(literal)]
+    resolve = resolver if resolver is not None else _default_resolver
+    try:
+        addresses = list(resolve(name))
+    except OSError as exc:
+        raise SSRFBlocked(
+            f"egress to {name!r} is blocked: the host does not resolve ({exc})"
+        ) from exc
+    vetted: list[str] = []
+    seen: set[str] = set()
+    for addr in addresses:
+        ip = _as_ip(addr.split("%", 1)[0])
+        if ip is None:
+            raise SSRFBlocked(
+                f"egress to {name!r} is blocked: unparseable resolved address {addr!r}"
+            )
+        if _ip_is_blocked(ip):
+            raise SSRFBlocked(
+                f"egress to {name!r} is blocked: it resolves to {ip}, a blocked range"
+            )
+        text = str(ip)
+        if text not in seen:
+            seen.add(text)
+            vetted.append(text)
+    if not vetted:
+        raise SSRFBlocked(f"egress to {name!r} is blocked: the host resolved to no addresses")
+    return vetted

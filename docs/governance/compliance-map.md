@@ -6,6 +6,13 @@ use the original-language convention (Art. for EU law). This is a working mappin
 not legal advice. The authoritative control derivation is
 `docs/stpa/07-security-constraints.md`.
 
+Path-citation convention (BL-060): an enforcement path in the Enforcement column is
+repo-relative when it begins with a top-level directory (`scripts/`, `deploy/`,
+`.github/`) or a root file (`pyproject.toml`); every other module path is relative to
+`src/praxis/` (so `execution/audit.py` means `src/praxis/execution/audit.py`). The
+machine-checked projection in `docs/governance/compliance-controls.json` always uses the full
+repo-relative form, which `scripts/validate_compliance.py` verifies exists.
+
 Honesty note (ADR-0015, 2026-06-08): some rows name a control that is specified or
 partly built but not yet fully wired in v0. Those rows are annotated inline with the
 v0 gap and the tracking `BL-NNN`; treat them as in-progress, not delivered, until

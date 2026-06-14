@@ -32,6 +32,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0023](0023-audit-evidence-retention-tiers-2026-06-14.md) | Audit and evidence retention tiers (2026-06-14): `PRAXIS_AUDIT_RETENTION_DAYS`/`PRAXIS_EVIDENCE_RETENTION_DAYS` bound in config (default 365, 0=indefinite), bound into the session record, enforced by storage-layer archival because the trail is append-only (NIS2 Art. 23, ISO 27001 A.8.15; implements ADR-0011 finding 035 / BL-035) | Accepted |
 | [0024](0024-cis-talos-fact-predicate-schema-2026-06-14.md) | CIS-Talos drift baseline: the fact-predicate schema (2026-06-14): `KNOWN_GOOD` facts keyed `host:<name>`/`cluster:<name>` + `cis:<benchmark>:<control_id>`, comparable `value` vs documentation in `reason`, CIS-aware severity via the existing `severity_for` hook, explicit `CIS_SUPPRESSED`/`TALOS_SATISFIED` sets; no engine change (prerequisite decision for BL-099) | Proposed |
 | [0025](0025-ssrf-rebinding-aware-resolution-2026-06-14.md) | Rebinding-aware SSRF egress resolution (2026-06-14): additive `resolve_and_assert_egress_allowed` that resolves a host, checks every resolved IP, and returns the vetted IPs to pin the connection; strict deny-names default unchanged; wiring deferred to the first egress consumer (BL-046 resolver delivered; wiring open) | Accepted |
+| [0026](0026-deploy-config-cleanup-2026-06-14.md) | Deploy and config cleanup; Helm health probes (2026-06-14): configurable `tcpSocket` liveness/readiness probes on the MCP port, rendered only for the http transport (verified with helm); compliance-map path-citation convention; records the BL-067/071/087 sub-items already closed (closes BL-060) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -75,3 +76,8 @@ ADR-0025 adds the rebinding-aware SSRF egress primitive
 address, and returns the vetted IPs so a caller pins the connection, additively
 beside the unchanged strict deny-names default. It resolves BL-046's resolution half;
 the wiring into a live egress path is deferred (no egress consumer exists in v0).
+ADR-0026 closes the BL-060 deploy/config residuals: configurable `tcpSocket`
+liveness/readiness probes on the Helm chart (rendered only for the http transport,
+verified with helm) and a compliance-map path-citation convention, recording that the
+HTTP_HOST strip, the cyclonedx pin, and the systemd de-duplication were already closed
+in earlier waves.

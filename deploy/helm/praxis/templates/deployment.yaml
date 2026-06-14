@@ -73,6 +73,22 @@ spec:
           ports:
             - name: mcp-http
               containerPort: {{ .Values.http.port }}
+          {{- if and .Values.probes.enabled (eq .Values.transport "http") }}
+          livenessProbe:
+            tcpSocket:
+              port: mcp-http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: mcp-http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

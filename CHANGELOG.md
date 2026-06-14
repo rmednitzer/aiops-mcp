@@ -6,6 +6,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Helm health probes and deploy/config cleanup (ADR-0026, BL-060): the praxis chart
+  Deployment gains configurable `tcpSocket` liveness/readiness probes on the MCP port
+  (a `probes` block in `values.yaml`), rendered only for the http transport (stdio has
+  no listening port); `tcpSocket` is used because the MCP surface has no
+  unauthenticated health route. Verified with `helm lint`/`helm template`. The
+  compliance map gains a path-citation convention (module paths are `src/praxis/`-
+  relative unless prefixed by a top-level dir or root file; the catalog uses the full
+  form). The other BL-060 sub-items were already closed: HTTP_HOST whitespace strip
+  (BL-067), `cyclonedx-bom` pin (BL-071), systemd base/drop-in de-duplication (BL-087).
 - CIS-Talos drift baseline schema (ADR-0024, BL-099; Proposed): the prerequisite
   fact-predicate schema decision the backlog item requires before implementation.
   CIS controls become `KNOWN_GOOD` facts keyed on the real asset (`host:<name>` or

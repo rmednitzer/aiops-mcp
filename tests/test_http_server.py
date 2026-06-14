@@ -56,6 +56,8 @@ def test_bearer_ok() -> None:
     assert _bearer_ok("s3cret", "s3cret") is False  # missing the scheme
     assert _bearer_ok(None, "s3cret") is False
     assert _bearer_ok("Bearer é", "s3cret") is False  # non-ASCII must not raise
+    assert _bearer_ok("Bearer ", "") is False  # empty configured token fails closed
+    assert _bearer_ok("Bearer x", "") is False
 
 
 # --- unit: per-session isolation (BL-104) ---
@@ -108,6 +110,29 @@ def test_session_manager_create_get_and_evict(tmp_path: Path) -> None:
         for _ in range(5):
             manager.create(None)
         assert manager.count() <= 3
+    finally:
+        base.execution.audit.close()
+
+
+def test_session_manager_get_expires_idle_session(tmp_path: Path) -> None:
+    # The idle TTL must be enforced on the read path, not only lazily on create():
+    # a session idle past ttl_seconds is treated as expired (returns None, 404 over HTTP)
+    # and removed, never revived.
+    config = _base(tmp_path)
+    base = build_context(config)
+    now = {"t": 1000.0}
+    try:
+        manager = SessionManager(
+            base, config, clock=lambda: now["t"], max_sessions=8, ttl_seconds=100.0
+        )
+        sid = manager.create(None)
+        now["t"] += 50.0
+        assert manager.get(sid) is not None  # within TTL; refreshes last_seen to t=1050
+        now["t"] += 50.0
+        assert manager.get(sid) is not None  # 50 s since refresh, still within TTL
+        now["t"] += 200.0  # 200 s idle, past the 100 s TTL
+        assert manager.get(sid) is None  # expired
+        assert manager.count() == 0  # and removed, not just hidden
     finally:
         base.execution.audit.close()
 
@@ -228,6 +253,28 @@ def test_http_request_without_session_is_404(tmp_path: Path) -> None:
         status, _, body = _post(port, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         assert status == 404
         assert "session not found" in body["error"]["message"]
+
+
+def test_http_initialize_without_id_mints_no_session(tmp_path: Path) -> None:
+    # An id-less "initialize" is a JSON-RPC notification: it must not mint a session (no
+    # slot churn or eviction of other clients) and is acked with 202, no Mcp-Session-Id.
+    config = _base(tmp_path)
+    base = build_context(config)
+    httpd = build_http_server(config, base, build_registry(), mcp_handle)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = int(httpd.server_address[1])
+        status, headers, body = _post(port, {"jsonrpc": "2.0", "method": "initialize"})
+        assert status == 202
+        assert "Mcp-Session-Id" not in headers
+        assert body is None
+        assert httpd.manager.count() == 0  # no session slot leaked by a notification
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+        base.execution.audit.close()
 
 
 def test_http_oversize_body_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

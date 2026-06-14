@@ -203,8 +203,10 @@ class ApprovalRegistry:
         # Serialise mint/validate/consume so check-and-burn is atomic under a
         # multi-client (HTTP, BL-012) transport: without this, two concurrent
         # requests could both validate the same nonce before either burns it and
-        # both execute (BL-104). The lock is process-wide; nonces are short-lived
-        # and per session, so contention is negligible.
+        # both execute (BL-104). The lock is per registry instance; the HTTP
+        # transport gives each session its own registry, so this is one lock per
+        # session: cross-session calls never contend, and a session's own nonces
+        # are short-lived, so even same-session contention is negligible.
         self._lock = threading.Lock()
 
     def mint(

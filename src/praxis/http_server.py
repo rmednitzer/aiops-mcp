@@ -143,7 +143,14 @@ class SessionManager:
             session = self._sessions.get(session_id)
             if session is None:
                 return None
-            session.last_seen = self.clock()
+            now = self.clock()
+            if now - session.last_seen > self.ttl_seconds:
+                # Idle past the TTL: treat as expired (404), do not revive. Eviction on
+                # create() is lazy and only fires when a new session is minted, so the
+                # idle timeout must also be enforced here on the read path.
+                del self._sessions[session_id]
+                return None
+            session.last_seen = now
             return session.ctx
 
     def count(self) -> int:
@@ -163,6 +170,11 @@ class SessionManager:
 
 def _bearer_ok(header: str | None, token: str) -> bool:
     """Constant-time check of an ``Authorization: Bearer`` header (BL-106)."""
+    if not token:
+        # An unset/empty configured token can never authenticate. validate_transport
+        # already refuses to start HTTP without a token; this keeps the helper itself
+        # fail-closed (compare_digest(b"", b"") is true) for any other caller.
+        return False
     if not header:
         return False
     prefix = "Bearer "
@@ -231,14 +243,21 @@ class _McpHandler(BaseHTTPRequestHandler):
         self._dispatch(server, message)
 
     def _dispatch(self, server: _McpHTTPServer, message: dict[str, object]) -> None:
+        # A JSON-RPC notification (no "id") must have no side effects: it never mints a
+        # session (so an id-less "initialize" cannot churn or evict session slots) and is
+        # acknowledged with 202, never dispatched (mcp_handle returns None for it anyway).
+        is_request = "id" in message
         new_session: str | None = None
-        if message.get("method") == "initialize":
+        if is_request and message.get("method") == "initialize":
             new_session = server.manager.create(_parse_ceiling(message.get("params")))
             session_id: str | None = new_session
         else:
             session_id = self.headers.get("Mcp-Session-Id")
         ctx = server.manager.get(session_id)
         if ctx is None:
+            if not is_request:
+                self._send_status(202)  # accept the notification; no session, no side effect
+                return
             self._send_json(
                 404, _rpc_error(message.get("id"), -32002, "session not found; initialize first")
             )

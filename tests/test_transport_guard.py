@@ -208,9 +208,7 @@ def test_resolve_egress_fail_closed_on_unresolvable_or_empty() -> None:
 def test_resolve_egress_fail_closed_on_unparseable_address() -> None:
     # A resolver returning a non-IP string is refused, never waved through.
     with pytest.raises(SSRFBlocked):
-        resolve_and_assert_egress_allowed(
-            "http://weird.example/", resolver=lambda n: ["not-an-ip"]
-        )
+        resolve_and_assert_egress_allowed("http://weird.example/", resolver=lambda n: ["not-an-ip"])
 
 
 def test_resolve_egress_ip_literal_skips_resolution() -> None:

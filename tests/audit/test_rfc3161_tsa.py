@@ -1,9 +1,10 @@
 """RFC 3161 stamper (BL-095, ADR-0029): offline build/parse/verify and fail-closed.
 
 No live TSA: the suite generates a self-signed TSA certificate and signs RFC 3161
-tokens itself (the inverse of ``verify``), then drives ``Rfc3161Stamper`` through an
-injected transport. The SSRF-pinned HTTPS transport is covered by the egress filter's
-own tests (BL-046); here the transport is faked.
+tokens itself (the inverse of ``verify``). Most cases drive ``Rfc3161Stamper`` through
+an injected, faked transport; one regression test exercises the default SSRF-pinned
+transport to prove it fails closed on a blocked address (BL-046), with no real network
+I/O (the socket layer of that path is covered by the egress filter's own tests).
 """
 
 from __future__ import annotations

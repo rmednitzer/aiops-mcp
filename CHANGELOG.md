@@ -8,7 +8,7 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ### Added
 - BL-046 fully resolved: the rebinding-aware SSRF egress filter is now wired into a
   live path. The RFC 3161 stamper (BL-095, ADR-0030) is the first server-initiated
-  egress consumer; `audit/rfc3161.py::_https_post` resolves and pins through
+  egress consumer; `src/praxis/audit/rfc3161.py::_https_post` resolves and pins through
   `resolve_and_assert_egress_allowed`, and a new regression test
   (`tests/audit/test_rfc3161_tsa.py::test_default_transport_routes_through_the_ssrf_egress_filter`)
   proves the default transport fails closed on a private-range TSA URL before any

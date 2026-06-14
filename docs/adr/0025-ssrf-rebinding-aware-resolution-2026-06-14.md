@@ -105,7 +105,7 @@ the check aligned with what the OS would actually connect to.
 ## Audit note (2026-06-14)
 
 The first server-initiated egress consumer has landed: the RFC 3161 timestamp stamper
-(BL-095, ADR-0030). `audit/rfc3161.py::_https_post` calls
+(BL-095, ADR-0030). `src/praxis/audit/rfc3161.py::_https_post` calls
 `resolve_and_assert_egress_allowed` and pins the HTTPS connection to each returned
 vetted IP in turn, never re-resolving between the check and the connect, so it honours
 the connection-pinning contract this ADR could previously only document. This satisfies

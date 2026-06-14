@@ -1,0 +1,86 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+    ':semanticCommits',
+    ':timezone(Europe/Vienna)',
+  ],
+  labels: [
+    'dependencies',
+  ],
+  reviewers: [
+    'rmednitzer',
+  ],
+  // Single dependency-automation tool for the repo (ADR-0033). Renovate owns
+  // GitHub Actions, the Dockerfile base image, and the uv-compiled hashed dev
+  // lock, and raises the security (vulnerability) PRs. Dependabot version
+  // updates were never configured (no .github/dependabot.yml); Dependabot
+  // security updates are turned off at the repo setting so the two bots no
+  // longer raise duplicate PRs (the #54/#55 cryptography pair). This
+  // enabledManagers list is load-bearing: a manager that overlaps a
+  // re-introduced dependabot.yml would resurrect the duplicates.
+  enabledManagers: [
+    'github-actions',
+    'dockerfile',
+    'pip-compile',
+  ],
+  'pip-compile': {
+    // requirements-dev.txt records `uv pip compile ... --output-file
+    // requirements-dev.txt`; Renovate replays it to regenerate a universal,
+    // fully-hashed lock. The long-form --output-file is required: Renovate's uv
+    // option allowlist rejects the short -o and would skip the lock (the cause
+    // of the incomplete #55 that needed #57). pip-compile needs uv in the
+    // Renovate runtime (present in the Mend-hosted app).
+    managerFilePatterns: [
+      '/(^|/)requirements-dev\\.txt$/',
+    ],
+  },
+  pinDigests: true,
+  prConcurrentLimit: 8,
+  prHourlyLimit: 2,
+  packageRules: [
+    {
+      // Minor + patch + digest grouped; majors kept individual for review.
+      matchManagers: [
+        'github-actions',
+      ],
+      groupName: 'github-actions minor/patch',
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+        'digest',
+      ],
+      schedule: [
+        'before 9am on monday',
+      ],
+      labels: [
+        'dependencies',
+        'github-actions',
+      ],
+    },
+    {
+      matchManagers: [
+        'dockerfile',
+      ],
+      schedule: [
+        'before 9am on wednesday',
+      ],
+      labels: [
+        'dependencies',
+        'container-images',
+      ],
+    },
+    {
+      matchManagers: [
+        'pip-compile',
+      ],
+      schedule: [
+        'before 9am on wednesday',
+      ],
+      labels: [
+        'dependencies',
+        'python',
+      ],
+    },
+  ],
+}

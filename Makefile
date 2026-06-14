@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance helm-test ci-success
+.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance helm-test ci-success lock
 
 check: lint type-check test
 
@@ -50,3 +50,8 @@ helm-test:
 # floor (BL-053).
 ci-success: check schema-check eval validate-compliance coverage
 > @echo "ci-success: all gates green"
+
+# Regenerate the hash-locked dev requirements. --output-file (not -o) is required
+# so the Renovate pip-compile manager maintains the lock (ADR-0033).
+lock:
+> uv pip compile pyproject.toml --extra dev --generate-hashes --universal --output-file requirements-dev.txt

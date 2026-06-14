@@ -124,7 +124,8 @@
         "src/praxis/_ssrf.py"
       ],
       "proving_tests": [
-        "tests/test_transport_guard.py::test_http_refuses_nonloopback_without_optin"
+        "tests/test_transport_guard.py::test_http_refuses_nonloopback_without_optin",
+        "tests/test_transport_guard.py::test_resolve_egress_checks_every_resolved_ip"
       ],
       "regulatory": [
         {"framework": "EU AI Act", "article": "Art. 15", "note": "cybersecurity"},

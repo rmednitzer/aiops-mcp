@@ -68,6 +68,18 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   the documented `system-disk` default (BL-025) is unchanged; the reset stays T3.
 
 ### Security
+- Rebinding-aware SSRF egress resolution (ADR-0025, BL-046): a new
+  `resolve_and_assert_egress_allowed` in `src/praxis/_ssrf.py` resolves a URL host
+  once, checks EVERY resolved address against the blocked ranges, fails closed (an
+  unresolvable host, an empty answer, an unparseable address, or any blocked address
+  raises), and returns the vetted IP literals so the caller pins the connection and
+  never re-resolves between check and connect (the DNS-rebinding defence, SEC-7).
+  It is additive: the strict `assert_egress_allowed` (deny bare names) default is
+  unchanged, so nothing is weakened; a host-resolving egress consumer opts in. The
+  "wire into the egress path" half of BL-046 stays open until a server-initiated
+  egress consumer exists (HTTP transport BL-012 or a cloud/redfish adapter); none
+  does in v0. The resolver seam is injectable; seven regression tests cover the
+  rebinding, multi-IP, fail-closed, IP-literal, and userinfo-mask cases.
 - Redaction hardening (ADR-0021, BL-097): `execution/redaction.py` adds the PyPI
   upload-token shape, runs the npm and GitLab token bodies unbounded from their
   length floor so a longer token collapses whole (no audit-log tail), and adds a

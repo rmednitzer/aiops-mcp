@@ -40,6 +40,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0031](0031-talosctl-client-side-health-probe-2026-06-14.md) | Opt-in client-side-only talosctl pre-upgrade health probe (2026-06-14): implements BL-102 (the operator decision deferred by ADR-0021); an additive `health_client_side_only` param runs `talosctl health --server=false` so a post-bootstrap cluster's spurious server-side checks cannot block an upgrade; the HARD gate (BL-023, SEC-5) still always runs, the default keeps the full check, and a non-boolean flag is a fail-closed HARD refusal | Accepted |
 | [0032](0032-container-image-build-2026-06-14.md) | Container image build (2026-06-14): implements BL-092 and advances BL-033; a multi-stage, non-root, digest-pinned (`python:3.12-slim-bookworm`) `Dockerfile` that installs the default runtime and runs `python -m praxis`, with governance-as-code OCI labels, build-validated by a new `image` CI workflow (never pushed); the published digest stays a release step (the remaining BL-033 element) | Accepted |
 | [0033](0033-consolidate-dependency-automation-on-renovate.md) | Consolidate dependency automation on Renovate (2026-06-14): curated `renovate.json5` (github-actions + dockerfile + pip-compile managers, digest pinning, grouped/scheduled PRs), the uv lock header normalised to `--output-file` so the pip-compile manager maintains it, and Dependabot security-updates turned off so the two bots stop raising duplicate PRs (#54/#55); Dependabot vulnerability alerts kept for detection | Accepted |
+| [0034](0034-opt-in-deploy-network-hardening-2026-06-14.md) | Opt-in deploy network hardening (2026-06-14): closes the BL-036 namespace-NetworkPolicy element and the BL-087 residual as turnkey opt-ins, all default off so the install posture is unchanged; a `networkPolicy.namespaceDefaultDeny` Helm value renders an additive deny-every-pod baseline, a `network-lockdown.conf.example` systemd drop-in carries the `IPAddressDeny`/`SocketBindDeny` lockdown, and `runtimeClassName` stays the optional value (now tested); deny-all is never preset because it bricks co-tenants/actuation | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -145,3 +146,10 @@ maintains the hashed `requirements-dev.txt`, and turns off GitHub's Dependabot
 security-updates so the two bots stop raising the duplicate PRs seen in the #54/#55
 cryptography pair. Dependabot vulnerability alerts stay on for detection and Renovate
 raises the fix PRs.
+ADR-0034 closes the two deferred deploy-network controls as turnkey opt-ins, all
+default off so the install posture is unchanged: `networkPolicy.namespaceDefaultDeny`
+renders an additive namespace-wide deny-every-pod baseline (BL-036), a
+`network-lockdown.conf.example` systemd drop-in carries the IP-level
+`IPAddressDeny`/`SocketBindDeny` lockdown, and the sandbox `runtimeClassName` stays the
+optional Helm value, now with regression tests (BL-087). Deny-all is never preset
+because it bricks co-tenant workloads or SSH actuation; the operator opts in.

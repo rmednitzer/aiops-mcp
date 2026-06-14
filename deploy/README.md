@@ -15,17 +15,23 @@ Hardened deployment artifacts for praxis (BL-014).
     denied, BL-051); egress only to DNS (scoped to the `kube-system` namespace)
     and explicitly listed fleet CIDRs that always excise 169.254.0.0/16, cloud
     metadata and link-local (the in-cluster complement to the in-process SSRF
-    filter, SEC-7; BL-087).
+    filter, SEC-7; BL-087). Optionally (`networkPolicy.namespaceDefaultDeny`, default
+    off) an additive namespace-wide deny-every-pod baseline, for a namespace praxis
+    owns (BL-036, ADR-0034).
   - A digest-pinned image (no tags; ADR-0001 supply-chain posture), built from the
     repo `Dockerfile` (BL-092, ADR-0032). Set `image.digest` before installing.
     (v0 gap: the default `image.digest` is an all-zero placeholder that only fails
     at pull time, until a release publishes a real digest; BL-033.)
-  - An optional hardened `runtimeClassName` for the code-executing plane.
+  - An optional hardened `runtimeClassName` for the code-executing plane (default off;
+    BL-087, ADR-0034).
   - `values-prod.yaml`: a production overlay (BL-036) that makes the hardened posture
     explicit and marks the operator-supplied values (the image digest, the NetworkPolicy
     peers and egress) a real deployment must set. It never weakens a default.
 - `systemd/praxis.service` plus `praxis.service.d/hardening.conf` for a host
-  install. Verify with `systemd-analyze security praxis.service`.
+  install. Verify with `systemd-analyze security praxis.service`. An optional
+  `praxis.service.d/network-lockdown.conf.example` carries the turnkey IP-level
+  lockdown (`IPAddressDeny`/`SocketBindDeny`); copy it to `.conf` and scope the
+  allowlist to your fleet to enable (default off; BL-087, ADR-0034).
 - `Dockerfile` (repo root): a minimal, non-root, multi-stage build (digest-pinned
   `python:3.12-slim-bookworm` base) that installs the default runtime and runs
   `python -m praxis`. Carries governance-as-code OCI labels. Built and smoke-tested
@@ -62,9 +68,10 @@ unit against the drop-in (BL-087). Still open:
   release publishes one, the default `image.digest` in `values.yaml`/`zarf.yaml` is
   an all-zero placeholder that must be set before install (the remaining BL-033
   element, a real published digest, needs an actual ghcr publish).
-- `IPAddressDeny`/`SocketBindDeny` and a sandbox `runtimeClassName` are documented
-  in the drop-in but left for the operator to scope to their fleet (a deny-all
-  default would brick SSH actuation). BL-087 note.
+
+The IP-level systemd lockdown (`IPAddressDeny`/`SocketBindDeny`), the sandbox
+`runtimeClassName`, and the namespace-wide default-deny NetworkPolicy are now turnkey
+opt-ins (default off; BL-087, BL-036, ADR-0034), described under Contents above.
 
 ## Quickstart (stdio, no cluster)
 

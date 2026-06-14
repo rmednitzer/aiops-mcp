@@ -62,3 +62,23 @@ spec:
         {{- end }}
     {{- end }}
 {{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.namespaceDefaultDeny }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "praxis.fullname" . }}-namespace-default-deny
+  labels:
+    {{- include "praxis.labels" . | nindent 4 }}
+spec:
+  # Namespace-wide default-deny baseline (BL-036, opt-in via
+  # networkPolicy.namespaceDefaultDeny). An empty podSelector selects every pod in the
+  # namespace and, with no ingress/egress rules, permits nothing, so any pod lacking
+  # its own allow-policy is denied. NetworkPolicies are additive: the praxis pod above
+  # keeps its specific allows. Off by default because a deny-all baseline can brick
+  # co-tenant workloads; enable only in a namespace praxis owns (ADR-0034).
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}

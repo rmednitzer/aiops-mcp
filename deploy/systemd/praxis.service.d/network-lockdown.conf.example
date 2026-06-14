@@ -1,0 +1,22 @@
+# Optional network lockdown for praxis (BL-087, ADR-0034). OFF by default.
+#
+# To enable: copy this file to network-lockdown.conf (drop the .example) in
+# /etc/systemd/system/praxis.service.d/, scope IPAddressAllow to YOUR fleet, then
+#   systemctl daemon-reload && systemctl restart praxis
+# Verify with: systemd-analyze security praxis.service
+#
+# This is a deny-all-then-allowlist at the IP level. praxis MUST reach the managed
+# fleet over SSH/API to actuate, so a wrong or empty allowlist BRICKS actuation;
+# that is why the default install does not preset it. Set IPAddressAllow to exactly
+# the hosts/subnets praxis manages, nothing wider.
+
+[Service]
+# Deny all egress/ingress addresses, then allow back only loopback and the fleet.
+IPAddressDeny=any
+IPAddressAllow=localhost
+# IPAddressAllow=10.0.0.0/24        # <-- your managed fleet subnet(s); repeat as needed
+# IPAddressAllow=192.0.2.10         # <-- or individual hosts
+
+# praxis v0 listens on nothing (stdio), so binding any socket is unexpected; deny it.
+# Revisit when the HTTP transport lands (BL-012) and the chart/unit expose a port.
+SocketBindDeny=any

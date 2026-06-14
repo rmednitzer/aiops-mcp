@@ -10,7 +10,8 @@ components:
   - name: praxis
     required: true
     images:
-      # Digest-pinned for airgap reproducibility (set to the published digest).
+      # Digest-pinned for airgap reproducibility. Built from the repo Dockerfile
+      # (BL-092, ADR-0032); set to the published build's digest (RELEASE-CHECKLIST.md).
       - "ghcr.io/rmednitzer/praxis@sha256:0000000000000000000000000000000000000000000000000000000000000000"
     charts:
       - name: praxis

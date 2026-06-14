@@ -15,6 +15,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   including the BL-095 stamper verification, passes on cryptography 46.0.7.
 
 ### Added
+- BL-092 (ADR-0032): a repo `Dockerfile` so the deployed image is buildable and
+  inspectable from source. Multi-stage, non-root (uid 10001) by construction, on a
+  digest-pinned `python:3.12-slim-bookworm` base (distroless ships 3.11, below the
+  3.12 floor), installing the default runtime only and running `python -m praxis`.
+  Carries governance-as-code OCI labels. A new `image` CI workflow build-validates it
+  (build + a non-root import smoke test) and never pushes; publishing the real digest
+  is a release step (`deploy/RELEASE-CHECKLIST.md`). Advances BL-033 (the remaining
+  element is the real published digest, which needs an actual ghcr publish).
 - BL-102 (ADR-0031): an opt-in `health_client_side_only` param on `run_action` for
   the talosctl pre-upgrade health gate. When set it runs `talosctl health
   --server=false` (client-side checks only) so a post-bootstrap cluster whose

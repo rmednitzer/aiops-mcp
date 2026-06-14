@@ -38,6 +38,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0029](0029-non-forgeable-checkpoint-stamper-2026-06-14.md) | Non-forgeable checkpoint stamper: RFC 3161 timestamp authority (2026-06-14): proposes replacing the forgeable `LocalStamper` with a real `Rfc3161Stamper` behind an optional `tsa` extra (`asn1crypto` + `cryptography`), egress via the BL-046 resolver, fail-closed offline-verifiable tokens; `LocalStamper` stays the default; recorded Proposed for ratification before implementation (design decision for BL-095) | Proposed |
 | [0030](0030-rfc3161-stamper-implementation-2026-06-14.md) | RFC 3161 stamper implementation (2026-06-14): ratifies ADR-0029 and implements BL-095; the real `Rfc3161Stamper` (asn1crypto + cryptography behind the `tsa` extra), SSRF-pinned egress via the BL-046 resolver, fail-closed CMS verification against a configured TSA certificate, `select_stamper` wired into the evidence scheduler; `LocalStamper` stays the default and the core dependency-free (closes BL-095) | Accepted |
 | [0031](0031-talosctl-client-side-health-probe-2026-06-14.md) | Opt-in client-side-only talosctl pre-upgrade health probe (2026-06-14): implements BL-102 (the operator decision deferred by ADR-0021); an additive `health_client_side_only` param runs `talosctl health --server=false` so a post-bootstrap cluster's spurious server-side checks cannot block an upgrade; the HARD gate (BL-023, SEC-5) still always runs, the default keeps the full check, and a non-boolean flag is a fail-closed HARD refusal | Accepted |
+| [0032](0032-container-image-build-2026-06-14.md) | Container image build (2026-06-14): implements BL-092 and advances BL-033; a multi-stage, non-root, digest-pinned (`python:3.12-slim-bookworm`) `Dockerfile` that installs the default runtime and runs `python -m praxis`, with governance-as-code OCI labels, build-validated by a new `image` CI workflow (never pushed); the published digest stays a release step (the remaining BL-033 element) | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -127,3 +128,10 @@ post-bootstrap cluster whose server-side checks spuriously block an upgrade. The
 still always runs and stays HARD; the default keeps the full server-side check; a
 non-boolean flag is coerced fail-closed into a HARD audited refusal. The capability is
 audited (a structured `run_action` param) and never weakens the default.
+ADR-0032 implements BL-092 and advances BL-033: a multi-stage, non-root,
+digest-pinned `Dockerfile` makes the deployed image buildable and inspectable from
+source (the runtime stage runs `python -m praxis` as a fixed non-root uid on a
+digest-pinned `python:3.12-slim-bookworm` base; distroless is rejected for shipping
+Python 3.11). It carries governance-as-code OCI labels and is build-validated by a new
+`image` CI workflow that never pushes; the real published digest stays a release-time
+step, the remaining BL-033 element.

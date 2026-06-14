@@ -16,15 +16,20 @@ Hardened deployment artifacts for praxis (BL-014).
     and explicitly listed fleet CIDRs that always excise 169.254.0.0/16, cloud
     metadata and link-local (the in-cluster complement to the in-process SSRF
     filter, SEC-7; BL-087).
-  - A digest-pinned image (no tags; ADR-0001 supply-chain posture). Set
-    `image.digest` before installing. (v0 gap: the default `image.digest` is an
-    all-zero placeholder that only fails at pull time; BL-033.)
+  - A digest-pinned image (no tags; ADR-0001 supply-chain posture), built from the
+    repo `Dockerfile` (BL-092, ADR-0032). Set `image.digest` before installing.
+    (v0 gap: the default `image.digest` is an all-zero placeholder that only fails
+    at pull time, until a release publishes a real digest; BL-033.)
   - An optional hardened `runtimeClassName` for the code-executing plane.
   - `values-prod.yaml`: a production overlay (BL-036) that makes the hardened posture
     explicit and marks the operator-supplied values (the image digest, the NetworkPolicy
     peers and egress) a real deployment must set. It never weakens a default.
 - `systemd/praxis.service` plus `praxis.service.d/hardening.conf` for a host
   install. Verify with `systemd-analyze security praxis.service`.
+- `Dockerfile` (repo root): a minimal, non-root, multi-stage build (digest-pinned
+  `python:3.12-slim-bookworm` base) that installs the default runtime and runs
+  `python -m praxis`. Carries governance-as-code OCI labels. Built and smoke-tested
+  in CI by the `image` workflow; never pushed from CI. BL-092, ADR-0032.
 - `zarf.yaml` for an airgap package (chart plus the pinned image).
 - `RELEASE-CHECKLIST.md`: the ordered version-bump checklist (gates, image digest,
   chart `version`/`appVersion`, SBOM, tag) so a release never ships an unpinned image
@@ -51,8 +56,12 @@ deny-all by default, BL-051). The ADR-0020 wave scoped the DNS egress to
 `PrivateUsers`/`ProcSubset=pid`/`RemoveIPC` lockdown plus de-duplicated the base
 unit against the drop-in (BL-087). Still open:
 
-- The default image digest is an all-zero placeholder. BL-033. No Dockerfile in
-  the repo builds the referenced image. BL-092.
+- The repo `Dockerfile` (BL-092, ADR-0032) builds the referenced image, validated
+  in CI by the `image` workflow (build plus a non-root import smoke test). The
+  published digest is produced by the release build (RELEASE-CHECKLIST.md); until a
+  release publishes one, the default `image.digest` in `values.yaml`/`zarf.yaml` is
+  an all-zero placeholder that must be set before install (the remaining BL-033
+  element, a real published digest, needs an actual ghcr publish).
 - `IPAddressDeny`/`SocketBindDeny` and a sandbox `runtimeClassName` are documented
   in the drop-in but left for the operator to scope to their fleet (a deny-all
   default would brick SSH actuation). BL-087 note.

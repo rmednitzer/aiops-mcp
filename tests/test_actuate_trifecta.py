@@ -63,6 +63,29 @@ def _mint_token(ctx: ServerContext, args: dict[str, object]) -> str:
     return token
 
 
+def test_run_action_plumbs_health_client_side_only(tmp_path: Path) -> None:
+    # BL-102: the run_action tool accepts and plumbs the health_client_side_only flag.
+    # The dry run exercises the tool-level plumbing; the --server=false behaviour itself
+    # is proven at the adapter level (test_hardening.py).
+    ctx = _ctx(tmp_path)
+    ctx.execution.approval_sink = lambda _msg: None  # absorb the minted nonce
+    body = json.loads(
+        _run(
+            {
+                "adapter": "talosctl",
+                "host": "cp",
+                "host_type": "talos",
+                "action": "upgrade",
+                "nodes": ["10.0.0.1"],
+                "dry_run": True,
+                "health_client_side_only": True,
+            },
+            ctx,
+        )
+    )
+    assert body["ok"] is True
+
+
 def test_free_form_shell_floors_at_t2(tmp_path: Path) -> None:
     # BL-073: even a benign-looking free-form command via ssh is T2 and refused
     # without an approval; the patterns denylist alone is not trusted to be complete.

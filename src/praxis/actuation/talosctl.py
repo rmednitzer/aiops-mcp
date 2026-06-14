@@ -17,7 +17,12 @@ alternative (BL-098): it maps to ``--system-labels-to-wipe`` (for example
 ``EPHEMERAL``), which preserves the ``STATE`` partition so the node rejoins the
 cluster instead of needing a full re-provision; it is mutually exclusive with
 ``wipe_mode`` (supplying both is refused). A real-run upgrade is gated on a
-pre-flight ``talosctl health`` HARD precondition (BL-023).
+pre-flight ``talosctl health`` HARD precondition (BL-023). That gate runs the full
+(server-side) health check by default; the additive ``health_client_side_only``
+param (BL-102, ADR-0031) lets an operator opt into ``talosctl health --server=false``
+when a post-bootstrap cluster's server-side checks spuriously block an upgrade. The
+gate stays HARD and always runs; only its scope narrows, and only on explicit,
+audited request, so the default is never weakened.
 """
 
 from __future__ import annotations
@@ -130,6 +135,19 @@ def _validate_system_labels(value: str) -> str:
     return ",".join(tokens)
 
 
+def _as_health_flag(value: object) -> bool:
+    """Coerce the ``health_client_side_only`` param to a strict boolean (BL-102).
+
+    ``None`` (omitted) is the default ``False`` (full server-side check). A real
+    boolean passes through. Anything else raises, and because this runs inside the
+    health predicate's ``test`` it becomes a HARD audited refusal (fail closed): a
+    malformed flag never silently relaxes the upgrade health gate.
+    """
+    if value is None or isinstance(value, bool):
+        return bool(value)
+    raise ValueError(f"talosctl health_client_side_only must be a boolean, got {value!r} (BL-102)")
+
+
 class TalosctlAdapter(ActuationAdapter):
     name: ClassVar[str] = "talosctl"
     supported: ClassVar[frozenset[HostType]] = frozenset({HostType.TALOS})
@@ -208,14 +226,21 @@ class TalosctlAdapter(ActuationAdapter):
     def extra_preconditions(
         self, host: HostInfo, action: str, params: Mapping[str, object], *, dry_run: bool
     ) -> list[Predicate[ExecutionRequest]]:
-        """A real-run upgrade requires a passing pre-flight health check (BL-023)."""
+        """A real-run upgrade requires a passing pre-flight health check (BL-023).
+
+        The check is full (server-side) by default; a truthy ``health_client_side_only``
+        param narrows it to ``--server=false`` (BL-102). The flag is coerced inside the
+        predicate ``test`` so a non-boolean value is a HARD audited refusal, not a silent
+        relaxation of the gate.
+        """
         verb = action.split()[0] if action.split() else ""
         if dry_run or verb not in _HEALTH_GATED_VERBS:
             return []
+        raw_flag = params.get("health_client_side_only")
         return [
             Predicate[ExecutionRequest](
                 name="talos_health",
-                test=lambda _req: self._health_ok(host),
+                test=lambda _req: self._health_ok(host, client_side_only=_as_health_flag(raw_flag)),
                 severity=Severity.HARD,
                 message=(
                     f"talosctl health pre-flight failed for {host.name}; refusing {verb} (BL-023)"
@@ -224,12 +249,17 @@ class TalosctlAdapter(ActuationAdapter):
         ]
 
     @staticmethod
-    def _health_ok(host: HostInfo) -> bool:
+    def _health_ok(host: HostInfo, *, client_side_only: bool = False) -> bool:
         """Run ``talosctl health`` against the host; any failure refuses (fail closed).
 
         Nodes and endpoints are re-validated here, not only in ``build_argv``, so
         the probe stays injection-safe even if a future code path reaches the
         precondition without building the main argv first (BL-082).
+
+        With ``client_side_only`` (BL-102, the operator opt-in) the probe passes
+        ``--server=false`` so only the client-side checks run, for a post-bootstrap
+        cluster whose server-side checks would spuriously fail. The default keeps the
+        full server-side check. Either way the probe still runs and still gates.
         """
         for value in (*host.nodes, *host.endpoints):
             _validate_node(value)  # a throwing predicate is a HARD audited refusal
@@ -239,6 +269,8 @@ class TalosctlAdapter(ActuationAdapter):
         if host.endpoints:
             argv += ["--endpoints", ",".join(host.endpoints)]
         argv += ["health"]
+        if client_side_only:
+            argv += ["--server=false"]
         if shutil.which(argv[0]) is None:
             return False
         try:

@@ -68,6 +68,11 @@ class RunActionArgs(ToolArgs):
     # Structured wipe scope for `talosctl reset` (BL-025). Never implicit: omitting
     # it means the safe default (system-disk); `all` must be asked for by name.
     wipe_mode: Literal["system-disk", "user-disks", "all"] | None = None
+    # Narrow the talosctl pre-upgrade health gate to client-side checks
+    # (`talosctl health --server=false`, BL-102). Default False keeps the full
+    # server-side check; set True only when a post-bootstrap cluster's server-side
+    # checks spuriously block an upgrade. The gate still runs and still HARD-gates.
+    health_client_side_only: bool = False
 
 
 def _broker_gated_context(ctx: ServerContext, host: HostInfo) -> ExecutionContext:
@@ -119,6 +124,8 @@ def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
     params: dict[str, object] = {}
     if args.wipe_mode is not None:
         params["wipe_mode"] = args.wipe_mode
+    if args.health_client_side_only:
+        params["health_client_side_only"] = True
 
     request = adapter.build_request(host, args.action, params, dry_run=args.dry_run)
     approval = (

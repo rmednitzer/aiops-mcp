@@ -15,6 +15,13 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   including the BL-095 stamper verification, passes on cryptography 46.0.7.
 
 ### Added
+- BL-102 (ADR-0031): an opt-in `health_client_side_only` param on `run_action` for
+  the talosctl pre-upgrade health gate. When set it runs `talosctl health
+  --server=false` (client-side checks only) so a post-bootstrap cluster whose
+  server-side checks spuriously fail can still be upgraded; the default keeps the full
+  server-side check. The gate stays HARD and always runs (BL-023); the flag only
+  narrows its scope, is coerced fail-closed (a non-boolean is a HARD audited refusal),
+  and is recorded in the audited request args. Operator decision per ADR-0021.
 - BL-046 fully resolved: the rebinding-aware SSRF egress filter is now wired into a
   live path. The RFC 3161 stamper (BL-095, ADR-0030) is the first server-initiated
   egress consumer; `src/praxis/audit/rfc3161.py::_https_post` resolves and pins through

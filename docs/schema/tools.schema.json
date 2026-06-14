@@ -233,6 +233,11 @@
             "title": "Endpoints",
             "type": "array"
           },
+          "health_client_side_only": {
+            "default": false,
+            "title": "Health Client Side Only",
+            "type": "boolean"
+          },
           "host": {
             "minLength": 1,
             "title": "Host",

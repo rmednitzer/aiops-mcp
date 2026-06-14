@@ -206,6 +206,50 @@ def test_talosctl_upgrade_requires_passing_health_preflight(
     assert "health" in refused.error
 
 
+# --------------------------------------------------------------------- BL-102
+def _record_talosctl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Shim talosctl to record its argv to a marker file and report healthy."""
+    marker = tmp_path / "talosctl-args"
+    _shim(tmp_path / "bin", "talosctl", f'printf "%s\\n" "$@" > "{marker}"\nexit 0', monkeypatch)
+    return marker
+
+
+def test_talosctl_health_default_is_full_server_side(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The default pre-upgrade health probe runs the full check: no --server=false.
+    marker = _record_talosctl(tmp_path, monkeypatch)
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    assert TalosctlAdapter._health_ok(host) is True
+    recorded = marker.read_text()
+    assert "health" in recorded
+    assert "--server=false" not in recorded
+
+
+def test_talosctl_health_client_side_only_passes_server_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # BL-102 opt-in: narrow the probe to client-side checks for a post-bootstrap
+    # cluster whose server-side checks would spuriously block the upgrade.
+    marker = _record_talosctl(tmp_path, monkeypatch)
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    assert TalosctlAdapter._health_ok(host, client_side_only=True) is True
+    assert "--server=false" in marker.read_text()
+
+
+def test_talosctl_health_flag_must_be_boolean() -> None:
+    # A non-boolean health_client_side_only is a HARD audited refusal (the predicate
+    # test raises), never a silent relaxation of the upgrade health gate.
+    host = HostInfo(name="cp", host_type=HostType.TALOS, nodes=("10.0.0.1",))
+    adapter = TalosctlAdapter()
+    params = {"health_client_side_only": "yes"}
+    preds = adapter.extra_preconditions(host, "upgrade", params, dry_run=False)
+    assert len(preds) == 1
+    request = adapter.build_request(host, "upgrade", params, dry_run=False)
+    with pytest.raises(ValueError, match="boolean"):
+        preds[0].test(request)
+
+
 # --------------------------------------------------------------------- BL-024
 def test_runbook_confined_to_configured_root(tmp_path: Path) -> None:
     host = HostInfo(name="axiom", host_type=HostType.UBUNTU)

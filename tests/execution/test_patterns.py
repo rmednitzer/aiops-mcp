@@ -26,11 +26,16 @@ def test_classify_rounds_up() -> None:
 def test_deny_catches_root_wipe_and_forkbomb() -> None:
     assert deny_match("rm -rf /") is not None
     assert deny_match("rm -rf / ") is not None
-    # F-004: root-equivalent spellings are denied too, not merely T3-gated.
+    # F-004 (+ ADR-0039 review): root-equivalent spellings are denied too, not merely
+    # T3-gated, including extra slashes, dot segments, and the -- end-of-options marker.
     assert deny_match("rm -rf //") is not None
+    assert deny_match("rm -rf ///") is not None
     assert deny_match("rm -rf /*") is not None
     assert deny_match("rm -rf /.") is not None
+    assert deny_match("rm -rf /./") is not None
     assert deny_match("rm -r //") is not None
+    assert deny_match("rm -rf -- /") is not None
+    assert deny_match("rm -rf -- //") is not None
     assert deny_match(":(){ :|:& };:") is not None
     assert deny_match("mkfs.ext4 /dev/sda1") is not None
     assert deny_match("dd if=/dev/zero of=/dev/nvme0n1") is not None

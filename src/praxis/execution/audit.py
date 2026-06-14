@@ -67,44 +67,56 @@ def _safe_str(value: object) -> str:
         return "<unserializable>"
 
 
-def _acyclic(value: object, _seen: frozenset[int] = frozenset()) -> object:
-    """A structurally-acyclic copy, replacing any reference cycle with a marker.
+_MAX_ACYCLIC_DEPTH = 64
 
-    Used only as the fallback when ``json.dumps`` reports a circular reference. Not
-    reachable from JSON-RPC args (acyclic) or ``redact_args`` (depth-capped), but the
-    audit logger must still not raise on one (invariant 3, F-001)."""
+
+def _acyclic(value: object, _seen: frozenset[int] = frozenset(), _depth: int = 0) -> object:
+    """A structurally-acyclic, JSON-safe copy: replaces a reference cycle with a marker,
+    bounds depth, and stringifies dict keys (``json`` rejects a non-string key even with a
+    ``default=``).
+
+    Used only as the fallback when ``json.dumps`` reports a cycle, a non-string key, or
+    over-deep nesting. None is reachable from JSON-RPC args (acyclic, string-keyed,
+    depth-bounded by the parser) or ``redact_args`` (depth-capped), but the audit logger
+    must still not raise on one (invariant 3, F-001, ADR-0039)."""
+    if _depth > _MAX_ACYCLIC_DEPTH:
+        return "<truncated>"
     if isinstance(value, dict):
         if id(value) in _seen:
             return "<circular>"
         seen = _seen | {id(value)}
-        return {k: _acyclic(v, seen) for k, v in value.items()}
+        return {_safe_str(k): _acyclic(v, seen, _depth + 1) for k, v in value.items()}
     if isinstance(value, list | tuple):
         if id(value) in _seen:
             return "<circular>"
         seen = _seen | {id(value)}
-        return [_acyclic(item, seen) for item in value]
+        return [_acyclic(item, seen, _depth + 1) for item in value]
     return value
 
 
 def _canonical(payload: dict[str, object]) -> str:
     # default=_safe_str (BL-078, F-001): a non-JSON-native arg value (a Path, an Enum, a
-    # datetime) canonicalizes as its str() form instead of raising. _safe_str contains
-    # even a hostile __str__, and the dumps is wrapped so a circular reference (which json
-    # raises on before default= is consulted) also cannot break the logger: invariant 3
-    # holds for ANY input, not only JSON-native ones. The written line is produced by this
-    # same function, so verification stays consistent.
+    # datetime) canonicalizes as its str() form instead of raising, and _safe_str contains
+    # even a hostile __str__. The dumps is wrapped so a circular reference (ValueError), a
+    # non-string dict key (TypeError), or over-deep nesting (RecursionError) cannot break
+    # the logger either: invariant 3 holds for ANY input, not only JSON-native ones
+    # (ADR-0039). The written line is produced by this same function, so verification
+    # stays consistent.
     try:
         return json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_safe_str
         )
-    except ValueError:  # circular reference (unreachable from JSON args; contained anyway)
-        return json.dumps(
-            _acyclic(payload),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            default=_safe_str,
-        )
+    except (ValueError, TypeError, RecursionError):
+        try:
+            return json.dumps(
+                _acyclic(payload),
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                default=_safe_str,
+            )
+        except (ValueError, TypeError, RecursionError):  # pragma: no cover - last resort
+            return json.dumps({"_unserializable": _safe_str(payload)[:1000]})
 
 
 def compute_entry_hash(payload: dict[str, object]) -> str:

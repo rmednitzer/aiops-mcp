@@ -124,9 +124,40 @@ def test_record_never_raises_on_hostile_str_or_circular_args(tmp_path: Path) -> 
         args={"c": cyclic},
         patterns_version=PATTERNS_VERSION,
     )
+    # ADR-0039 review: a non-string dict key makes json.dumps raise TypeError, which a
+    # default= does not cover (default= handles values, not keys); the fallback must
+    # stringify keys and contain it. (Deep nesting is bounded upstream by the JSON parser
+    # at ingest and by the depth-capped redact_args, so it does not reach record() in the
+    # real flow; _canonical catches RecursionError defensively regardless.)
+    logger.record(
+        tool="t",
+        tier="T0",
+        decision="allowed",
+        args={"k": {("non", "string", "key"): 1}},
+        patterns_version=PATTERNS_VERSION,
+    )
     logger.close()
-    # Both records were written and the chain still verifies (the contained renderings
+    # Every record was written and the chain still verifies (the contained renderings
     # are deterministic, so each line hashes to its stored entry_hash).
     result = verify_chain(log)
     assert result.ok is True, result.reason
-    assert result.count == 2
+    assert result.count == 3
+
+
+def test_acyclic_fallback_bounds_depth_and_stringifies_keys() -> None:
+    # The _canonical fallback (ADR-0039): cycles become a marker, non-string keys are
+    # stringified (json rejects them even with default=), and depth is bounded so the
+    # fallback itself cannot recurse without limit. Its output is always JSON-dumpable.
+    import json
+
+    from praxis.execution.audit import _MAX_ACYCLIC_DEPTH, _acyclic
+
+    cyclic: dict[str, Any] = {}
+    cyclic["self"] = cyclic
+    assert _acyclic(cyclic) == {"self": "<circular>"}
+    assert _acyclic({(1, 2): "v"}) == {"(1, 2)": "v"}
+
+    deep: Any = 1
+    for _ in range(_MAX_ACYCLIC_DEPTH + 10):
+        deep = [deep]
+    json.dumps(_acyclic(deep))  # bounded: terminates in a marker, never raises

@@ -1,0 +1,139 @@
+name: release
+
+# Tag-triggered publish of the praxis container image to GHCR with signed
+# provenance and an SBOM attestation (BL-033, ADR-0035). This is the only
+# workflow that pushes: PR CI (image.yml) build-validates the Dockerfile but
+# never pushes (ADR-0032 Decision 5, least privilege). The pipeline records the
+# immutable digest in the job summary; the operator pins it into the deploy
+# manifests per deploy/RELEASE-CHECKLIST.md. The pipeline never rewrites those
+# files, so the human gate stays on the digest.
+#
+# Untestable in PR CI by construction (it fires only on a v* tag). Every action
+# is pinned by commit SHA (Renovate's github-actions manager maintains them,
+# ADR-0033); review the pins and inputs rather than relying on a CI run.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Least privilege: read the repo, write packages (push the image and the
+# attestation referrers to GHCR), and mint the OIDC token GitHub uses to sign
+# the attestations. No contents:write: the pipeline does not commit the digest
+# back into the deploy manifests; the operator does that deliberately
+# (deploy/RELEASE-CHECKLIST.md), keeping the human gate on the digest.
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Never publish from a fork that somehow runs this workflow.
+    if: github.repository == 'rmednitzer/aiops-mcp'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/rmednitzer/praxis
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags and labels
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.IMAGE }}
+          # No moving `latest`: the deploy manifests pin the immutable digest,
+          # not a tag (ADR-0001). The tags below are human-readable registry
+          # pointers only (the released semver and the source commit).
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=long
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Build and push the image
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Keep the pushed artifact a plain single-arch image so its digest is
+          # the one the operator pins. Provenance and the SBOM are attested out
+          # of band below (GitHub-native, verifiable with `gh attestation
+          # verify`), not embedded as BuildKit attestation manifests.
+          provenance: false
+          sbom: false
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate the image SBOM (CycloneDX)
+        # Scans the pushed image by digest (syft uses the GHCR credentials from
+        # the login step). CycloneDX JSON matches the repo's existing SBOM
+        # choice (the environment SBOM in sbom.yml, BL-088).
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: image.sbom.cdx.json
+
+      - name: Attest the SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: image.sbom.cdx.json
+          push-to-registry: true
+
+      - name: Record the published digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "## praxis image published"
+            echo
+            echo 'Pin by digest, never a tag (ADR-0001). The digest is consumed in two'
+            echo 'forms, in different places (deploy/RELEASE-CHECKLIST.md step 2):'
+            echo
+            echo 'A. Bare digest only, for Helm `image.digest` in'
+            echo '   deploy/helm/praxis/values-prod.yaml (the chart joins it to'
+            echo '   `image.repository`; do not include the repository here):'
+            echo
+            echo '```'
+            echo "${DIGEST}"
+            echo '```'
+            echo
+            echo 'B. Full image reference, for deploy/zarf.yaml and `gh attestation verify`:'
+            echo
+            echo '```'
+            echo "${IMAGE}@${DIGEST}"
+            echo '```'
+            echo
+            echo 'Then verify the signed provenance and SBOM against the published digest:'
+            echo
+            echo '```'
+            echo "gh attestation verify oci://${IMAGE}@${DIGEST} -R ${GITHUB_REPOSITORY}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

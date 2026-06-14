@@ -17,6 +17,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-033 fully resolved (ADR-0035): a tag-triggered `release` workflow
+  (`.github/workflows/release.yml`, `on: push: tags: ['v*']`) publishes the praxis
+  container image to GHCR with a Sigstore-signed SLSA provenance attestation and a
+  CycloneDX image-SBOM attestation, both bound to the image digest and verifiable with
+  one `gh attestation verify oci://...`. It is the sole publisher (PR CI keeps
+  build-validating via `image.yml` and never pushes), runs least privilege
+  (`packages`/`id-token`/`attestations` write, no `contents: write`), never publishes
+  from a fork, uses no moving tags (`flavor: latest=false`; the deploy manifests pin
+  the digest, ADR-0001), and pins every action by commit SHA (Renovate-maintained,
+  ADR-0033). The pipeline records the digest in its job summary; the operator pins it
+  into `values-prod.yaml`/`zarf.yaml` per `deploy/RELEASE-CHECKLIST.md`, so the human
+  gate stays on the digest. The all-zero placeholder digest remains the fail-closed
+  default until the operator's first tagged release. The workflow is untestable in PR
+  CI by construction (tag-triggered); its pins and inputs are reviewed, not CI-proven.
 - Opt-in deploy network hardening (ADR-0034; closes BL-036, BL-087), all default off
   so the install posture is unchanged. A `networkPolicy.namespaceDefaultDeny` Helm
   value (default false) renders an additive namespace-wide default-deny NetworkPolicy
@@ -566,8 +580,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ### Fixed
 - `cryptography` dependency bounds are back in lockstep. The `dev` extra pinned
   `>=46.0.7,<47` while `tsa` (and the committed `requirements-dev.txt` lock) had moved
-  to `>=49,<50` after #53, so `pip install .[dev,tsa]` — or any regeneration of the dev
-  lock — was unsatisfiable; CI missed it because it installs with `--no-deps`. The `dev`
+  to `>=49,<50` after #53, so `pip install .[dev,tsa]` (or any regeneration of the dev
+  lock) was unsatisfiable; CI missed it because it installs with `--no-deps`. The `dev`
   bound is aligned to `>=49,<50` (the lock is already at 49.0.0, so it is unchanged).
 - SBOM workflow (`.github/workflows/sbom.yml`): the CycloneDX generator step failed
   with `cyclonedx-py: error: unrecognized arguments: --outfile`. The

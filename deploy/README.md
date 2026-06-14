@@ -19,9 +19,11 @@ Hardened deployment artifacts for praxis (BL-014).
     off) an additive namespace-wide deny-every-pod baseline, for a namespace praxis
     owns (BL-036, ADR-0034).
   - A digest-pinned image (no tags; ADR-0001 supply-chain posture), built from the
-    repo `Dockerfile` (BL-092, ADR-0032). Set `image.digest` before installing.
-    (v0 gap: the default `image.digest` is an all-zero placeholder that only fails
-    at pull time, until a release publishes a real digest; BL-033.)
+    repo `Dockerfile` (BL-092, ADR-0032) and published by the tag-triggered `release`
+    workflow with a signed provenance and SBOM attestation (BL-033, ADR-0035). Set
+    `image.digest` before installing. (The default `image.digest` is an all-zero
+    placeholder that fails closed at pull time until the operator's first release
+    populates a real digest; see RELEASE-CHECKLIST.md.)
   - An optional hardened `runtimeClassName` for the code-executing plane (default off;
     BL-087, ADR-0034).
   - `values-prod.yaml`: a production overlay (BL-036) that makes the hardened posture
@@ -35,7 +37,9 @@ Hardened deployment artifacts for praxis (BL-014).
 - `Dockerfile` (repo root): a minimal, non-root, multi-stage build (digest-pinned
   `python:3.12-slim-bookworm` base) that installs the default runtime and runs
   `python -m praxis`. Carries governance-as-code OCI labels. Built and smoke-tested
-  in CI by the `image` workflow; never pushed from CI. BL-092, ADR-0032.
+  in CI by the `image` workflow (never pushed); published to GHCR with signed
+  provenance and an SBOM attestation by the tag-triggered `release` workflow, the sole
+  publisher. BL-092 (ADR-0032), BL-033 (ADR-0035).
 - `zarf.yaml` for an airgap package (chart plus the pinned image).
 - `RELEASE-CHECKLIST.md`: the ordered version-bump checklist (gates, image digest,
   chart `version`/`appVersion`, SBOM, tag) so a release never ships an unpinned image
@@ -60,14 +64,17 @@ deny-all by default, BL-051). The ADR-0020 wave scoped the DNS egress to
 `kube-system`, made `egressCIDRs` `{cidr, except}` objects that always excise
 169.254.0.0/16 (cloud metadata and link-local), and added the systemd
 `PrivateUsers`/`ProcSubset=pid`/`RemoveIPC` lockdown plus de-duplicated the base
-unit against the drop-in (BL-087). Still open:
+unit against the drop-in (BL-087). These review gaps are now closed:
 
 - The repo `Dockerfile` (BL-092, ADR-0032) builds the referenced image, validated
-  in CI by the `image` workflow (build plus a non-root import smoke test). The
-  published digest is produced by the release build (RELEASE-CHECKLIST.md); until a
-  release publishes one, the default `image.digest` in `values.yaml`/`zarf.yaml` is
-  an all-zero placeholder that must be set before install (the remaining BL-033
-  element, a real published digest, needs an actual ghcr publish).
+  in CI by the `image` workflow (build plus a non-root import smoke test), and the
+  tag-triggered `release` workflow (BL-033, ADR-0035) publishes it to GHCR with a
+  signed SLSA provenance and a CycloneDX SBOM attestation bound to the digest
+  (`gh attestation verify`-able). The publish mechanism is complete; the default
+  `image.digest` in `values.yaml`/`zarf.yaml` stays an all-zero, fail-closed
+  placeholder until the operator cuts the first `v*` release, which records the real
+  digest for the operator to pin (RELEASE-CHECKLIST.md). That first-release digest
+  population is an operator action, not an open code gap.
 
 The IP-level systemd lockdown (`IPAddressDeny`/`SocketBindDeny`), the sandbox
 `runtimeClassName`, and the namespace-wide default-deny NetworkPolicy are now turnkey

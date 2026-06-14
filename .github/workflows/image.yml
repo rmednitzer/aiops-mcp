@@ -1,9 +1,10 @@
 name: image
 
 # Build the container image to validate the Dockerfile (BL-092, BL-033). Build
-# only, never push: the published image and its digest are produced at release
-# time (deploy/RELEASE-CHECKLIST.md), not on every PR. This keeps the Dockerfile
-# from rotting and gives the deploy manifests a CI-validated, buildable source.
+# only, never push: the published image and its digest are produced by the
+# tag-triggered `release` workflow (release.yml, ADR-0035), not on every PR. This
+# keeps the Dockerfile from rotting and gives the deploy manifests a CI-validated,
+# buildable source.
 
 on:
   pull_request:

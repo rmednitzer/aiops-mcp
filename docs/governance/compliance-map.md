@@ -4,7 +4,8 @@ Maps the project's controls (the nine invariants and the STPA security constrain
 SEC-1..SEC-10) to regulatory frameworks, and onward to the enforcing code. Citations
 use the original-language convention (Art. for EU law). This is a working mapping,
 not legal advice. The authoritative control derivation is
-`docs/stpa/07-security-constraints.md`.
+`docs/stpa/07-security-constraints.md`. Application and transition dates for these
+frameworks are tracked in `docs/governance/regulatory-deadlines.md` (BL-036).
 
 Path-citation convention (BL-060): an enforcement path in the Enforcement column is
 repo-relative when it begins with a top-level directory (`scripts/`, `deploy/`,

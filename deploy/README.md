@@ -20,9 +20,15 @@ Hardened deployment artifacts for praxis (BL-014).
     `image.digest` before installing. (v0 gap: the default `image.digest` is an
     all-zero placeholder that only fails at pull time; BL-033.)
   - An optional hardened `runtimeClassName` for the code-executing plane.
+  - `values-prod.yaml`: a production overlay (BL-036) that makes the hardened posture
+    explicit and marks the operator-supplied values (the image digest, the NetworkPolicy
+    peers and egress) a real deployment must set. It never weakens a default.
 - `systemd/praxis.service` plus `praxis.service.d/hardening.conf` for a host
   install. Verify with `systemd-analyze security praxis.service`.
 - `zarf.yaml` for an airgap package (chart plus the pinned image).
+- `RELEASE-CHECKLIST.md`: the ordered version-bump checklist (gates, image digest,
+  chart `version`/`appVersion`, SBOM, tag) so a release never ships an unpinned image
+  or a stale SBOM (BL-036).
 
 ## Status
 

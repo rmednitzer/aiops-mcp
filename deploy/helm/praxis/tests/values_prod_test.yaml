@@ -1,0 +1,61 @@
+suite: production overlay (values-prod.yaml) holds the hardened posture
+templates:
+  - templates/deployment.yaml
+release:
+  name: praxis
+values:
+  - ../values-prod.yaml
+tests:
+  - it: renders with the production overlay
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+
+  - it: applies the production resource envelope
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "2"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: keeps probes on and restricted output denied
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: mcp-http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 10
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_ALLOW_RESTRICTED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRAXIS_MODE
+            value: guarded
+
+  # The overlay must never weaken the PSA-restricted defaults (CLAUDE.md hard rule).
+  - it: does not weaken the restricted securityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false

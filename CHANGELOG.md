@@ -6,6 +6,19 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Governance-hygiene wave (BL-036, partial): three bundle elements delivered.
+  `docs/governance/regulatory-deadlines.md` records the EU AI Act, NIS2/NISG, CRA,
+  GDPR, and ISO 27001 application/transition dates (ISO 8601), linked from the
+  compliance map, so a "planned" control can be tracked against the obligation it
+  serves. `deploy/helm/praxis/values-prod.yaml` adds a production overlay that makes
+  the hardened posture explicit and marks the operator-supplied values (image digest,
+  NetworkPolicy peers and egress) without weakening any default, with
+  `deploy/RELEASE-CHECKLIST.md` (the ordered version-bump checklist) and a
+  helm-unittest suite asserting the overlay holds the PSA-restricted posture. AGENTS.md
+  gains two security-operating hard rules (untrusted collected data and read/act
+  separation; never log output bodies). The one remaining BL-036 element, a
+  namespace-wide default-deny NetworkPolicy, is deferred for security review rather
+  than preset (a deny-all namespace default can brick co-tenant workloads).
 - CIS-Talos drift baseline implemented (ADR-0028 ratifying ADR-0024, BL-099): the CIS
   Kubernetes benchmark with the Talos-defaults mapping is now drift data. `drift/cis.py`
   adds the vetted `CIS_BASELINE` (kubelet, API-server, controller-manager, scheduler,

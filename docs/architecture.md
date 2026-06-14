@@ -52,9 +52,10 @@ the execution core. Each layer has one responsibility and a stable contract:
   supersession with actor and reason); Postgres + Apache AGE is the production
   backend behind the same Protocol.
 - Collectors and drift (`src/praxis/collectors/`, `src/praxis/drift/`): read-only
-  telemetry (osquery, AIDE, SSH/WinRM probes, talosctl) normalized into fact
-  envelopes, and the observed-versus-desired diff that emits findings. Collected data
-  is untrusted and is only compared, never interpreted as instructions.
+  telemetry (osquery, AIDE, SSH/WinRM probes, talosctl, CIS evidence) normalized into
+  fact envelopes, and the observed-versus-desired diff that emits findings, including
+  the CIS-Talos hardening baseline as desired-state drift data (ADR-0024/0028).
+  Collected data is untrusted and is only compared, never interpreted as instructions.
 - Execution core (`src/praxis/execution/`): the single audited, tier-aware execution
   path (`patterns`, `policy`, `redaction`, `audit`, `contract`, `runner`).
   `patterns.py` is the sole security-review file. Every registered tool, read or
@@ -92,8 +93,8 @@ aiops-mcp/
     execution/             # the vendored, fused, audited execution core
     model/                 # vertices/edges, bitemporal fact types, host_type enum
     store/                 # StoreProtocol + ladder; sqlite (default) + postgres-age
-    collectors/            # osquery, aide, ssh/probe, talos -> facts
-    drift/                 # diff engine, desired-state sources, findings, converge
+    collectors/            # osquery, aide, ssh/probe, talos, cis -> facts
+    drift/                 # diff engine, desired-state sources, cis baseline, findings, converge
     actuation/             # ssh, opentofu, ansible, runbook, talosctl, credentials
     skills/                # manifest, registry, routing-chain dispatcher, eval
     tools/                 # one MCP tool per file: register(registry)

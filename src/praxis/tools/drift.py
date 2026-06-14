@@ -13,6 +13,7 @@ from pydantic import Field
 
 from praxis.context import ServerContext
 from praxis.drift import diff
+from praxis.drift.cis import cis_severity
 from praxis.model.facts import KNOWN_GOOD, OBSERVED
 from praxis.tools._audited import run_audited
 from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
@@ -27,7 +28,9 @@ def _drift_scan(args: DriftScanArgs, ctx: ServerContext) -> str:
         observed = ctx.store.list_active(subject=args.subject, fact_type=OBSERVED)
         ctx.mark_if_observed(observed)  # observed facts are attacker-influenced (SEC-4)
         desired = ctx.store.list_active(subject=args.subject, fact_type=KNOWN_GOOD)
-        findings = diff(observed, desired, flag_unexpected=True)
+        # CIS-aware severity ranks any cis: control's drift CRITICAL and delegates
+        # every other predicate to the engine default unchanged (ADR-0024 dec. 5).
+        findings = diff(observed, desired, flag_unexpected=True, severity_for=cis_severity)
         rows = [
             {
                 "subject": f.subject,

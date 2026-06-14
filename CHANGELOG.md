@@ -6,6 +6,19 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- CIS-Talos drift baseline implemented (ADR-0028 ratifying ADR-0024, BL-099): the CIS
+  Kubernetes benchmark with the Talos-defaults mapping is now drift data. `drift/cis.py`
+  adds the vetted `CIS_BASELINE` (kubelet, API-server, controller-manager, scheduler,
+  and cluster control families), one `normalize_value` applied identically on both
+  sides, the `cis_severity` hook (any `cis:` control ranks CRITICAL), and the
+  `cis_baseline_facts` / `cis_drift` / `seed_cis_baseline` helpers. A read-only
+  `CisCollector` normalizes captured CIS evidence into `OBSERVED` facts and is wired
+  into `ingest_observation`; `drift_scan` now passes `cis_severity`, so a seeded
+  baseline plus ingested evidence reports CIS drift at CRITICAL through the existing
+  audited read tools. `CIS_SUPPRESSED` waives a named baseline control and
+  `TALOS_SATISFIED` documents structurally-guaranteed controls; both are excluded from
+  the active set, so neither the CIS diff nor the generic scan alerts on them. No engine
+  change, no new tool or UCA; the baseline is benchmark-namespaced for additive growth.
 - Empty-host loopback regression test (BL-036 residual): a new
   `test_http_host_empty_defaults_to_loopback_not_open_bind` pins an empty or blank
   `PRAXIS_HTTP_HOST` to the `127.0.0.1` default and asserts the defaulted value
@@ -43,8 +56,8 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   `value` and the CIS documentation in `reason` so the equality diff stays reliable,
   CIS-aware severity supplied through the existing `severity_for` hook (no engine
   change), and explicit, documented `CIS_SUPPRESSED`/`TALOS_SATISFIED` policy sets.
-  Recorded Proposed for ratification; the baseline data and the read-only collector
-  remain open under BL-099. Documentation-only.
+  Recorded Proposed for ratification; ratified and implemented in ADR-0028 (above).
+  Documentation-only at this step.
 - Audit/evidence retention tiers (ADR-0023, BL-035): `PRAXIS_AUDIT_RETENTION_DAYS`
   and `PRAXIS_EVIDENCE_RETENTION_DAYS` (default 365 days; `0` retains indefinitely;
   the anchor follows the evidence tier) bind the declared retention as the single

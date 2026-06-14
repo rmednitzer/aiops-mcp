@@ -103,7 +103,8 @@
               "osquery",
               "aide",
               "probe",
-              "talos"
+              "talos",
+              "cis"
             ],
             "title": "Collector",
             "type": "string"

@@ -6,6 +6,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Non-forgeable checkpoint stamper design (ADR-0029, BL-095; Proposed): the design
+  decision recorded for ratification before implementation. It replaces the forgeable
+  keyless `LocalStamper` with a real RFC 3161 timestamp-authority `Stamper` behind an
+  optional `tsa` extra (`asn1crypto` + `cryptography`), POSTing a DER `TimeStampReq`
+  through the BL-046 SSRF egress resolver and storing an offline-verifiable, fail-closed
+  token; `LocalStamper` stays the default and the core stays dependency-free. Rekor is
+  the considered alternative. Documentation-only; implementation (and the dependency)
+  begin once the approach is ratified.
 - Governance-hygiene wave (BL-036, partial): three bundle elements delivered.
   `docs/governance/regulatory-deadlines.md` records the EU AI Act, NIS2/NISG, CRA,
   GDPR, and ISO 27001 application/transition dates (ISO 8601), linked from the

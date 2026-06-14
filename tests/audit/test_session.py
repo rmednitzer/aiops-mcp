@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from praxis.audit import bind_session, server_binary_hash, session_header
 from praxis.execution.audit import AuditLogger
 
@@ -48,3 +50,12 @@ def test_bind_session_binds_retention_policy(tmp_path: Path) -> None:
     assert first["args"]["evidence_retention_days"] == 0  # 0 = retain indefinitely
     # The provenance fields are still present alongside the retention tiers.
     assert first["args"]["binary_sha256"] == server_binary_hash()
+
+
+def test_bind_session_rejects_provenance_key_collision(tmp_path: Path) -> None:
+    # The session record is the provenance root: a retention key must not shadow a
+    # provenance field. A collision is refused, not silently overwriting the binding.
+    logger = AuditLogger(tmp_path / "audit.jsonl")
+    with pytest.raises(ValueError, match="collide"):
+        bind_session(logger, retention={"binary_sha256": 1})
+    logger.close()

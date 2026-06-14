@@ -63,8 +63,8 @@ class Config(BaseModel):
     # policy is bound into the first session audit record so the retention in force is
     # itself part of the tamper-evident trail (NIS2 Art. 23, ISO 27001 A.8.15). Days;
     # 0 means retain indefinitely. The anchor file follows the evidence tier.
-    audit_retention_days: int = 365
-    evidence_retention_days: int = 365
+    audit_retention_days: int = DEFAULT_RETENTION_DAYS
+    evidence_retention_days: int = DEFAULT_RETENTION_DAYS
     # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
     # the corresponding adapter outright: fail closed.
     playbook_root: str | None = None

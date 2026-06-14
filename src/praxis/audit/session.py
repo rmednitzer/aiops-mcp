@@ -63,6 +63,14 @@ def bind_session(audit: AuditLogger, *, retention: Mapping[str, int] | None = No
         "started_at": header.started_at,
     }
     if retention is not None:
+        # The session record is the provenance root: a retention key must never
+        # shadow a provenance field (binary_sha256, praxis_version, started_at), so a
+        # collision is refused rather than silently overwriting the binding. The real
+        # caller passes only the two retention-day keys, so this cannot fire there; it
+        # guards a future caller against corrupting the trail's root of trust.
+        collisions = sorted(set(retention) & set(args))
+        if collisions:
+            raise ValueError(f"retention keys collide with provenance fields: {collisions}")
         args.update(retention)
     return audit.record(
         tool="praxis",

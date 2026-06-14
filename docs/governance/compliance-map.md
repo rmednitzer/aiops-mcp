@@ -10,7 +10,7 @@ Path-citation convention (BL-060): an enforcement path in the Enforcement column
 repo-relative when it begins with a top-level directory (`scripts/`, `deploy/`,
 `.github/`) or a root file (`pyproject.toml`); every other module path is relative to
 `src/praxis/` (so `execution/audit.py` means `src/praxis/execution/audit.py`). The
-machine-checked projection in `compliance-controls.json` always uses the full
+machine-checked projection in `docs/governance/compliance-controls.json` always uses the full
 repo-relative form, which `scripts/validate_compliance.py` verifies exists.
 
 Honesty note (ADR-0015, 2026-06-08): some rows name a control that is specified or

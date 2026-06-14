@@ -43,7 +43,7 @@ bearer token), so an `httpGet` probe is not appropriate.
 2. Normalise the compliance-map path citations by stating the convention once: an
    enforcement path is repo-relative when it begins with a top-level directory or a
    root file, and is otherwise relative to `src/praxis/`; the machine-checked
-   `compliance-controls.json` always uses the full repo-relative form. This resolves
+   `docs/governance/compliance-controls.json` always uses the full repo-relative form. This resolves
    the implicit-root ambiguity surgically, without rewriting every citation, and
    points readers at the validated catalog for the authoritative form.
 

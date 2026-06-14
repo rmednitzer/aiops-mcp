@@ -26,7 +26,7 @@ class OpenTofuAdapter(ActuationAdapter):
     ) -> list[str]:
         # Workspace selection (`-chdir`) is intentionally NOT wired from params: a raw
         # chdir is an unconfined path into the filesystem, and unlike the runbook/ansible
-        # roots there is no PRAXIS_TOFU_ROOT confinement (F-003, BL-104). `chdir` is not a
+        # roots there is no PRAXIS_TOFU_ROOT confinement (F-003, BL-105). `chdir` is not a
         # RunActionArgs field, so this is unreachable today; re-add it confined through
         # confine_to_root when a workspace-selection feature is actually needed.
         prefix = ["tofu"]

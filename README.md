@@ -8,7 +8,7 @@
 > a deep review (ADR-0015) found that several controls the design treats as
 > load-bearing are specified and partly built yet not fully wired into the running
 > server. Read "Maturity and honest limitations" below and `LIMITATIONS.md` before
-> relying on it. Audit and feature waves: ADR-0011 through ADR-0039; open work is in
+> relying on it. Audit and feature waves: ADR-0011 through ADR-0040; open work is in
 > `docs/backlog.md`. The design reference is `docs/architecture.md`.
 
 ## What it is

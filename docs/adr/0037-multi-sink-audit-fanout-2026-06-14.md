@@ -112,7 +112,7 @@ syslog are the same redacted lines the file holds.
 - BL-101 (request_id/client_id correlation) lands: the richer record flows to all
   sinks unchanged.
 
-## Audit note (2026-06-14, ADR-0039 finding F-005)
+## Audit note (2026-06-14, ADR-0040 finding F-005)
 
 The 2026-06-14 deep audit flagged that `SyslogAuditSink._connect` does not run the
 `PRAXIS_AUDIT_SYSLOG_ADDRESS` destination through the SSRF egress filter, unlike the

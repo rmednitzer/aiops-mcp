@@ -71,7 +71,7 @@ Fix: cap the fallback at 4096 chars with a truncation marker. Test:
 code today (`chdir` is not a `RunActionArgs` field, so it is unreachable via the MCP
 layer), but a latent unconfined path-traversal vector for any future extension.
 Fix: removed the unconfined passthrough. Safe re-add (a `PRAXIS_TOFU_ROOT`-confined
-`chdir`) tracked as BL-104. Test:
+`chdir`) tracked as BL-105. Test:
 `tests/actuation/test_adapters.py::test_opentofu_ignores_unconfined_chdir`.
 
 ## Documented dispositions (no code behaviour change)
@@ -98,17 +98,17 @@ that ADR-0024/0029 carry. Added (the decision body is unchanged; ADRs are immuta
 
 ## Deferred hardening (backlog)
 
-- BL-104 OpenTofu workspace selection via a `PRAXIS_TOFU_ROOT`-confined `chdir` (F-003).
-- BL-105 timing-safe (`secrets.compare_digest`) approval-token comparison before any
+- BL-105 OpenTofu workspace selection via a `PRAXIS_TOFU_ROOT`-confined `chdir` (F-003).
+- BL-106 timing-safe (`secrets.compare_digest`) approval-token comparison before any
   network-accessible submission path; prerequisite of the HTTP transport (BL-012).
-- BL-106 a total-message-byte cap for the stdio reader before a multi-client transport.
-- BL-107 per-pair / per-value caps in `CommandProbeCollector.parse` (untrusted data).
-- BL-108 make `compliance-controls.json` proving-test lists exhaustive vs representative.
+- BL-107 a total-message-byte cap for the stdio reader before a multi-client transport.
+- BL-108 per-pair / per-value caps in `CommandProbeCollector.parse` (untrusted data).
+- BL-109 make `compliance-controls.json` proving-test lists exhaustive vs representative.
 
 ## Lower-severity observations folded into the above or noted only
 
-- Approval-token comparison timing (info): tracked as BL-105.
-- `_drain_line` unbounded per-message iteration (info, single-client stall only): BL-106.
+- Approval-token comparison timing (info): tracked as BL-106.
+- `_drain_line` unbounded per-message iteration (info, single-client stall only): BL-107.
 - Postgres `_SCHEMA` DROP+CREATE trigger window: atomic within the schema transaction and
   never externally observable; left as-is (a comment improvement, not a defect).
 - `LocalStamper` forgeability: already documented (`SECURITY.md`); OS append-only is the

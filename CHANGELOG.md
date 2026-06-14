@@ -341,6 +341,12 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   deferred Postgres schema proposal.
 
 ### Changed
+- CI now also tests on Python 3.14 (matrix `3.12`/`3.13`/`3.14`); the universal
+  hash-locked dev lock already carries cp314 wheels and the full suite passes on 3.14,
+  readying the matrix for the upcoming Renovate python base-image bump.
+- A `deps-consistency` CI job dry-run-resolves the `dev`+`tsa` extras together to catch
+  future `cryptography` bound drift between them (the #57/#62 recurrence); the hashed
+  `--no-deps` install path cannot see it.
 - Consolidated dependency automation on Renovate (ADR-0033). `renovate.json` is
   replaced by a curated `renovate.json5` (best-practices; the `github-actions`,
   `dockerfile`, and `pip-compile` managers; digest pinning; grouped, scheduled PRs).

@@ -62,6 +62,27 @@ service is deliberately out-of-band: remove the sentinel file and restart (or ca
 remains a coarser fallback. The credential broker's `kill_all` also trips the
 shared switch (BL-049, BL-075).
 
+## Audit sinks and stamping
+
+The append-only file at `PRAXIS_AUDIT_PATH` is the authoritative, tamper-evident sink.
+Two opt-in additions are available, both off by default:
+
+- `PRAXIS_AUDIT_SYSLOG_ADDRESS` forwards each (already-redacted) audit line to syslog for
+  SIEM/journald visibility: a Unix socket path (e.g. `/dev/log`) or `host:port` for a
+  remote UDP collector. It is best-effort and fanned out after the authoritative file
+  write, so a down or oversized syslog endpoint never affects the file, the hash chain,
+  or `verify_audit.py` (BL-100, ADR-0037). The destination is operator-trusted
+  configuration; unlike the model-influenced egress paths it is not run through the SSRF
+  filter, so a local SIEM on an RFC1918/Tailscale address works as intended.
+- `PRAXIS_TSA_URL` plus `PRAXIS_TSA_CERT` (the TSA signing certificate, PEM) plus the
+  `tsa` extra switch evidence checkpoints to a non-forgeable RFC 3161 timestamp authority
+  instead of the keyless `LocalStamper` (BL-095, ADR-0030). Selection fails closed at
+  startup if the URL is set without the certificate. Leave both unset to keep the
+  `LocalStamper`, with OS append-only storage (`chattr +a`/WORM) as the required control.
+
+Audit records carry optional `request_id`/`client_id` correlation fields (set per request
+by the transport; BL-101, ADR-0038) so concurrent calls can be tied to their entries.
+
 ## Retention and archival
 
 The audit and evidence retention tiers are declared in config:

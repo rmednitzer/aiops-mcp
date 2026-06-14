@@ -45,6 +45,7 @@ note, supersede a decision with a new ADR; never rewrite an accepted one.
 | [0036](0036-required-security-gates-in-ci-2026-06-14.md) | Required security gates folded into the ci-success aggregate (2026-06-14): CodeQL and dependency-review become reusable-workflow calls invoked by `ci.yml` so the single required `ci-success` check transitively requires them in-repo (not via external branch protection); `if: always()` + a per-gate result check tolerates legitimate skips; fuzz/sbom stay scheduled/publish (BL-052) | Accepted |
 | [0037](0037-multi-sink-audit-fanout-2026-06-14.md) | Multi-sink audit fan-out with per-sink containment (2026-06-14): closes BL-100 by adding a second audit sink (`SyslogAuditSink`, opt-in `PRAXIS_AUDIT_SYSLOG_ADDRESS`, default off) and a `MultiSink` (the `skills/dispatch` fan-out class applied to the audit write side) that contains a per-sink `Exception` so one failing sink cannot silence the others, while `BaseException` propagates; the append-only hash-chained file stays authoritative (written first, directly) and secondaries are best-effort forwards fanned out after it | Accepted |
 | [0038](0038-audit-request-client-correlation-2026-06-14.md) | Audit request/client correlation identifiers (2026-06-14): closes BL-101 with two optional, additive audit fields (`request_id`, `client_id`, inside the hashed payload) threaded ambiently via `contextvars` (`request_scope` set by the transport, read by `run`), so concurrent calls correlate to their entries without timestamp matching and no tool signature changes; the stdio transport binds the JSON-RPC request id, `client_id` awaits a multi-client transport (HTTP, BL-012), and the client-supplied id is length-bounded so it cannot bloat a record | Accepted |
+| [0039](0039-deep-audit-2026-06-14.md) | Deep audit, validation, and adversarial-testing pass (2026-06-14): re-validates the nine invariants and STPA traceability (no critical/high findings; compliance validator 0 violations); remediates six findings in-pass with tests (F-001 audit `_canonical` never-raises; F-006 Anthropic/HF/DigitalOcean redaction; F-007 supersede rowcount race; F-004 `rm -rf //`/`/*` deny; F-008 Talos non-JSON cap; F-003 OpenTofu unconfined `chdir`); documents F-002/F-005/F-009; files BL-104..108; records the pass under `audit/2026-06-14/` | Accepted |
 
 ADRs 0002-0010 were written governance-first, before the code that depends on each,
 and accepted as the basis for that code.
@@ -186,3 +187,11 @@ tool signature changes. The stdio transport binds the JSON-RPC request id; `clie
 stays `None` until a multi-client transport (HTTP, BL-012) sets it. The client-supplied
 id is coerced and truncated to `MAX_ID_LEN` and never raises, so a hostile client cannot
 bloat a record (SEC-9, invariant 3).
+ADR-0039 is the 2026-06-14 deep audit: a re-validation of the nine invariants and STPA
+traceability (no critical/high findings) plus adversarial testing. It remediates six
+findings in-pass, each with a regression test (audit `_canonical` never-raises; redaction
+of Anthropic/HuggingFace/DigitalOcean tokens; the supersede rowcount race on both store
+backends; the `rm -rf //` / `/*` deny miss; the Talos non-JSON cap; the OpenTofu
+unconfined `chdir`), documents three accepted dispositions (F-002 pattern-based redaction,
+F-005 operator-trusted syslog destination, F-009 ADR-0015 ratification note), and files
+BL-104..108 for deferred hardening. The pass is recorded under `audit/2026-06-14/`.

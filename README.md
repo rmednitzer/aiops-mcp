@@ -8,7 +8,7 @@
 > a deep review (ADR-0015) found that several controls the design treats as
 > load-bearing are specified and partly built yet not fully wired into the running
 > server. Read "Maturity and honest limitations" below and `LIMITATIONS.md` before
-> relying on it. Audit waves: ADR-0011 through ADR-0015; open work is in
+> relying on it. Audit and feature waves: ADR-0011 through ADR-0039; open work is in
 > `docs/backlog.md`. The design reference is `docs/architecture.md`.
 
 ## What it is
@@ -70,12 +70,14 @@ honest current state:
   an optional anchored high-water mark (`PRAXIS_ANCHOR_PATH`) that detects
   truncation of log plus evidence together (ADR-0019; BL-076, BL-050). The default
   checkpoint stamper is the keyless `LocalStamper`; a non-forgeable RFC 3161 TSA
-  stamper is available opt-in (`PRAXIS_TSA_URL` plus the `tsa` extra; BL-095,
-  ADR-0030). With the default stamper, OS-level append-only storage remains the
-  required control against an attacker who can rewrite the files. Audit records can
-  also be forwarded best-effort to syslog for SIEM/journald visibility
-  (`PRAXIS_AUDIT_SYSLOG_ADDRESS`, opt-in); the append-only file stays the
-  authoritative, tamper-evident sink (BL-100, ADR-0037).
+  stamper is available opt-in (`PRAXIS_TSA_URL` plus `PRAXIS_TSA_CERT`, the TSA signing
+  certificate in PEM, plus the `tsa` extra; BL-095, ADR-0030). With the default stamper,
+  OS-level append-only storage remains the required control against an attacker who can
+  rewrite the files. Audit records can also be forwarded best-effort to syslog for
+  SIEM/journald visibility (`PRAXIS_AUDIT_SYSLOG_ADDRESS`, opt-in); the append-only file
+  stays the authoritative, tamper-evident sink (BL-100, ADR-0037). Each record carries
+  optional `request_id` / `client_id` correlation fields, set per request by the
+  transport, so concurrent calls can be tied to their audit entries (BL-101, ADR-0038).
 
 These and the rest are tracked as `BL-NNN` in `docs/backlog.md` with severities in
 ADR-0015. `LIMITATIONS.md` is the running list of what is specified but not yet

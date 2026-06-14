@@ -186,6 +186,13 @@ class SyslogAuditSink:
     construction never raises and a daemon that starts later is picked up. The file
     sink stays authoritative: syslog may truncate or drop an oversized datagram, and
     any such failure is contained by ``MultiSink``.
+
+    Trust boundary (F-005): ``address`` is operator-supplied deploy configuration
+    (``PRAXIS_AUDIT_SYSLOG_ADDRESS``), not a model- or attacker-influenced value, so it
+    is deliberately NOT run through the SSRF egress filter the way the RFC 3161 TSA URL
+    is. A local SIEM on an RFC1918 / CGNAT / Tailscale address is the normal case, and
+    filtering private ranges here would break it. The forwarded records are already
+    redacted, so the operator chooses where their own audit copy goes.
     """
 
     name = "syslog"

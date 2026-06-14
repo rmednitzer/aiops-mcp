@@ -75,11 +75,16 @@ the execution core. Each layer has one responsibility and a stable contract:
 - Audit and evidence (`src/praxis/audit/`): the per-entry hash chain plus a periodic
   Merkle root (RFC 6962 domain separation) plus RFC 3161 timestamping (fail-closed
   verify) plus an optional transparency-log anchor. The session header binds the
-  server-binary hash into the trail. The Merkle and RFC 3161 layer is built and
-  verifiable, but the running server does not produce checkpoints in v0 (the default
-  stamper is keyless; the real TSA is unimplemented), so runtime tamper-evidence is
-  the hash chain plus operating-system append-only storage when an audit file is
-  configured (`PRAXIS_AUDIT_PATH`; otherwise audit records go to stderr) (BL-076).
+  server-binary hash into the trail. Since ADR-0019 (BL-076) the running server
+  produces these checkpoints at runtime: a Merkle checkpoint every
+  `PRAXIS_EVIDENCE_EVERY` records and at orderly shutdown, with an optional anchored
+  high-water mark (`PRAXIS_ANCHOR_PATH`). The default stamper is the keyless
+  `LocalStamper`; a non-forgeable RFC 3161 TSA stamper is available opt-in
+  (`PRAXIS_TSA_URL` + `PRAXIS_TSA_CERT` + the `tsa` extra; ADR-0030, BL-095). With the
+  default stamper, operating-system append-only storage (`chattr +a` or WORM) remains
+  the control against an attacker who can rewrite the files; the hash chain is the
+  always-on tamper-evidence when an audit file is configured (`PRAXIS_AUDIT_PATH`;
+  otherwise audit records go to stderr).
 
 ## Repository layout
 

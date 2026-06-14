@@ -255,3 +255,9 @@ def test_select_stamper_builds_rfc3161_with_cert(tmp_path: Path) -> None:
     cert_file.write_bytes(cert_pem)
     stamper = select_stamper(tsa_url="https://tsa.example/tsr", tsa_cert_path=str(cert_file))
     assert isinstance(stamper, Rfc3161Stamper)
+
+
+def test_select_stamper_fails_closed_on_unreadable_cert(tmp_path: Path) -> None:
+    missing = tmp_path / "absent" / "tsa.pem"  # parent does not exist either
+    with pytest.raises(RuntimeError, match="PRAXIS_TSA_CERT"):
+        select_stamper(tsa_url="https://tsa.example/tsr", tsa_cert_path=str(missing))

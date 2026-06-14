@@ -254,35 +254,39 @@ def _https_post(
     ips = resolve_and_assert_egress_allowed(url)
     host = parsed.hostname or ""
     port = parsed.port or 443
+    # Keep the query string in the request target; let http.client set the Host header
+    # (it includes the port for a non-default one). Content-Type/Accept are the TSP types.
+    target = f"{parsed.path or '/'}?{parsed.query}" if parsed.query else (parsed.path or "/")
+    headers = {"Content-Type": _TSP_QUERY, "Accept": _TSP_REPLY, "Content-Length": str(len(body))}
     context = ssl.create_default_context()
 
     class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+        pinned_ip = ""
+
         def connect(self) -> None:
-            sock = socket.create_connection((ips[0], port), timeout)
+            sock = socket.create_connection((self.pinned_ip, port), timeout)
             self.sock = context.wrap_socket(sock, server_hostname=host)
 
-    conn = _PinnedHTTPSConnection(host, port, timeout=timeout)
-    try:
-        conn.request(
-            "POST",
-            parsed.path or "/",
-            body=body,
-            headers={
-                "Host": host,
-                "Content-Type": _TSP_QUERY,
-                "Accept": _TSP_REPLY,
-                "Content-Length": str(len(body)),
-            },
-        )
-        response = conn.getresponse()
-        if response.status != 200:
-            raise StampError(f"TSA HTTP status {response.status}")
-        data = response.read(max_bytes + 1)
-        if len(data) > max_bytes:
-            raise StampError("TSA response exceeded the size bound")
-        return data
-    finally:
-        conn.close()
+    # Try every vetted address in order, so a dead IPv6/IPv4 first answer does not fail
+    # a stamp another vetted address would serve.
+    last_error: OSError | None = None
+    for ip in ips:
+        conn = _PinnedHTTPSConnection(host, port, timeout=timeout)
+        conn.pinned_ip = ip
+        try:
+            conn.request("POST", target, body=body, headers=headers)
+            response = conn.getresponse()
+            if response.status != 200:
+                raise StampError(f"TSA HTTP status {response.status}")
+            data = response.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise StampError("TSA response exceeded the size bound")
+            return data
+        except OSError as exc:
+            last_error = exc
+        finally:
+            conn.close()
+    raise StampError(f"TSA unreachable at any vetted address: {last_error}")
 
 
 def select_stamper(*, tsa_url: str | None, tsa_cert_path: str | None) -> Stamper:
@@ -300,5 +304,8 @@ def select_stamper(*, tsa_url: str | None, tsa_cert_path: str | None) -> Stamper
             "PRAXIS_TSA_URL is set but PRAXIS_TSA_CERT is not: the TSA signing "
             "certificate is required to verify timestamp tokens (BL-095)."
         )
-    cert_pem = Path(tsa_cert_path).read_bytes()
+    try:
+        cert_pem = Path(tsa_cert_path).read_bytes()
+    except OSError as exc:
+        raise RuntimeError(f"PRAXIS_TSA_CERT could not be read ({tsa_cert_path!r}): {exc}") from exc
     return Rfc3161Stamper(tsa_url, cert_pem=cert_pem)

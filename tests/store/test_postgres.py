@@ -150,21 +150,25 @@ def test_concurrent_create_if_absent_yields_one_winner_and_versionconflict() -> 
         try:
             barrier.wait(timeout=15)
             results[name] = store.put_fact_if(_fact(subject, "os", version), expected_version=None)
-        except Exception as exc:  # captured so the assertions below can report it
+        except BaseException as exc:  # noqa: BLE001 - recorded for the assertion
             errors[name] = exc
         finally:
             store.close()
 
+    # daemon=True so a deadlocked/hung worker cannot keep the pytest process alive
+    # after the assertions fail (matches tests/store/test_store_hardening.py).
     threads = [
-        threading.Thread(target=writer, args=("a", "ubuntu-24.04")),
-        threading.Thread(target=writer, args=("b", "ubuntu-26.04")),
+        threading.Thread(target=writer, args=("a", "ubuntu-24.04"), daemon=True),
+        threading.Thread(target=writer, args=("b", "ubuntu-26.04"), daemon=True),
     ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join(timeout=30)
+        # A writer that hangs past the join must fail the test loudly at the join,
+        # not proceed while a worker is still running.
+        assert not thread.is_alive(), "a writer thread did not finish within 30 s"
 
-    assert all(not thread.is_alive() for thread in threads), "a writer thread hung"
     assert len(results) == 1, f"expected one winner: results={results} errors={errors}"
     assert len(errors) == 1, f"expected one loser: results={results} errors={errors}"
     (loser_exc,) = errors.values()

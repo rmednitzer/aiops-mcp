@@ -76,6 +76,26 @@ not implemented (BL-095), so an attacker who can rewrite all three files is outs
 the detectable set. Operating-system append-only storage (`chattr +a` or WORM) on
 those files remains a required deploy control. See ADR-0008, ADR-0015, ADR-0019.
 
+## Retention
+
+The audit and evidence retention tiers are bound in configuration as the single
+source of truth (BL-035): `PRAXIS_AUDIT_RETENTION_DAYS` and
+`PRAXIS_EVIDENCE_RETENTION_DAYS` (both default 365 days; `0` retains indefinitely;
+the anchor file follows the evidence tier). The declared policy is written into the
+first session audit record, so the retention in force is part of the tamper-evident
+trail, not documentation alone (NIS2 Art. 23, ISO 27001 A.8.15).
+
+Enforcement is at the storage layer, not in the server. The trail is append-only by
+construction (the audit hash chain and the evidence and anchor files are never
+rewritten in place; invariant 4, SEC-9, SEC-10), so a tier is applied by time-based
+archival of whole files older than the tier (an archive-then-rotate job, or a WORM
+store with a retention class), never an in-place truncate or a `logrotate`
+`copytruncate`, which would break the chain and the `O_APPEND` owner-only sink.
+Archive a closed audit file together with its `.evidence.jsonl` and anchor sidecars
+so a verifier can still replay a retained window end to end with
+`scripts/verify_audit.py`. A tier of `0` plus operating-system append-only storage
+(`chattr +a` or WORM) is the most conservative posture.
+
 ## Reporting
 
 Until a disclosure channel is published here, report security findings privately

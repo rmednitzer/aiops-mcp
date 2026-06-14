@@ -62,8 +62,10 @@ def build_context(config: Config) -> ServerContext:
         if audit_path
         else AuditLogger()
     )
-    # Bind the server-binary hash into the trail as the first record (ADR-0008).
-    bind_session(audit)
+    # Bind the server-binary hash into the trail as the first record (ADR-0008),
+    # carrying the declared audit/evidence retention tiers (BL-035, ADR-0023) so the
+    # retention in force is itself part of the tamper-evident provenance.
+    bind_session(audit, retention=config.retention_args)
     # Durable kill switch (BL-075), per-session budget (BL-074), and the
     # human-binding approval registry (BL-072), wired from config.
     kill_switch = KillSwitch(

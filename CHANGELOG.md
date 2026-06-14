@@ -17,6 +17,7 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- Second full-pass audit (2026-06-14), recorded as ADR-0039: the `audit/00..03` evidence files are refreshed with fresh command-backed validation on the merged tree (372 passed / 23 skipped, all gates green, 92% coverage, pip-audit clean, `fuzz 200000` clean) and a new executed adversarial battery (SSRF encodings/rebinding, redaction, deny-first policy, approval forgery/replay, audit-chain tamper -- 5/5 controls held). Every 2026-06-12 finding (BL-091/092/093 and the BL-088 items) is confirmed closed and the concurrently-merged #69 (multi-sink) and #71 (correlation) deltas reviewed. One Info/latent forward-looking item is filed as BL-104 (per-session execution-context isolation + atomic approval consume for the future multi-client HTTP transport); no code change.
 - BL-101 resolved (ADR-0038): optional request/client correlation on the audit record.
   `AuditRecord` and `AuditLogger.record` gain two additive fields, `request_id` and
   `client_id` (default None), inside the hashed payload so they are tamper-evident and

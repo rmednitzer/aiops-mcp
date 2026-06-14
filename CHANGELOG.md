@@ -6,6 +6,14 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 ## [Unreleased]
 
 ### Added
+- Empty-host loopback regression test (BL-036 residual): a new
+  `test_http_host_empty_defaults_to_loopback_not_open_bind` pins an empty or blank
+  `PRAXIS_HTTP_HOST` to the `127.0.0.1` default and asserts the defaulted value
+  classifies as loopback, so it can never reach the socket as `""` (an all-interfaces
+  bind) nor be treated as a non-loopback bind the opt-in must gate. The behaviour
+  landed in BL-067; this closes the named test sub-item of BL-036 (the bundle's
+  agent hard-rules, values-prod overlay, namespace default-deny NetworkPolicy, and
+  regulatory-deadline data remain open). Test-only; no source change.
 - Helm chart unit tests gated in CI (ADR-0027, BL-032): three helm-unittest suites
   under `deploy/helm/praxis/tests/` assert the chart's load-bearing posture, the
   PSA-restricted pod/container `securityContext`, digest pinning (and the empty-digest

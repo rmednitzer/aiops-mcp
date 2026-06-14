@@ -61,12 +61,46 @@ jobs:
       - name: Resolve dev+tsa extras together (no install)
         run: python -m pip install --dry-run '.[dev,tsa]'
 
-  # Aggregate gate: branch protection requires this single check, which depends on
-  # the full matrix and the helm chart tests. The security workflows (codeql,
-  # dependency-review, sbom, fuzz) run alongside and are required via branch
-  # protection.
+  # CodeQL and dependency-review are folded into the required ci-success aggregate
+  # (BL-052) by calling them as reusable workflows, so the single required check
+  # transitively requires them in-repo -- not via external branch-protection config.
+  # CodeQL also runs standalone on the weekly schedule (full scan); fuzz (scheduled,
+  # expensive) and sbom (push/release publish) deliberately stay out of the per-PR gate.
+  codeql:
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    uses: ./.github/workflows/codeql.yml
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/dependency-review.yml
+
+  # Aggregate gate: the ruleset requires only this check, which transitively requires
+  # the test matrix, the helm tests, the dependency-consistency guard, and the CodeQL +
+  # dependency-review security gates. `if: always()` with an explicit result check lets
+  # it run when a gate is legitimately skipped (dependency-review on push) while still
+  # failing on any failed or cancelled gate.
   ci-success:
-    needs: [check, helm-test, deps-consistency]
+    needs: [check, helm-test, deps-consistency, codeql, dependency-review]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ci-success required checks passed"
+      - name: Require all gates to have passed
+        run: |
+          for r in \
+            "${{ needs.check.result }}" \
+            "${{ needs.helm-test.result }}" \
+            "${{ needs.deps-consistency.result }}" \
+            "${{ needs.codeql.result }}" \
+            "${{ needs.dependency-review.result }}"; do
+            echo "gate result: $r"
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "::error::a required gate did not pass ($r)"
+              exit 1
+            fi
+          done
+          echo "ci-success: all required gates passed"

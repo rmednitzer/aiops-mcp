@@ -4,9 +4,10 @@ Socket-level tests exercise the transport mechanics (bearer auth, the session li
 the body cap, method/route handling) against a real ``HTTPServer`` on an ephemeral
 loopback port, run in a background thread. They deliberately use only the store-free
 methods (initialize / tools/list / error paths): the single-connection SQLite store is
-same-thread in production (``serve`` runs serve_forever in the calling thread), so a
-store-touching call is exercised in-thread by the isolation tests below, not across the
-test's server thread.
+same-thread in production (``serve`` runs serve_forever in the calling thread, and the
+v1 server is single-threaded), so the store-touching dispatch is exercised in-thread by
+``test_session_dispatch_touches_shared_store`` (the real production execution path), not
+across the test's server thread.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -31,6 +32,7 @@ from praxis.http_server import (
     build_http_server,
     session_context,
 )
+from praxis.model.facts import OBSERVED, Fact
 from praxis.server import build_context, build_registry, mcp_handle
 
 # --- unit: consent-ceiling parsing ---
@@ -106,6 +108,44 @@ def test_session_manager_create_get_and_evict(tmp_path: Path) -> None:
         for _ in range(5):
             manager.create(None)
         assert manager.count() <= 3
+    finally:
+        base.execution.audit.close()
+
+
+def test_session_dispatch_touches_shared_store(tmp_path: Path) -> None:
+    # A store-touching tools/call driven through the REAL dispatch against a per-session
+    # context, in-thread. This is the production execution path: the v1 HTTP server is
+    # single-threaded and the single-connection SQLite store is same-thread, so the
+    # request runs in the serving thread exactly as here. Proves the wired path end to
+    # end (dispatch -> request_scope -> run -> classify -> the SHARED store) and that the
+    # store is shared across isolated sessions: one session writes, another reads it back.
+    config = _base(tmp_path)
+    base = build_context(config)
+    registry = build_registry()
+    try:
+        writer = session_context(base, config, ceiling=None)
+        reader = session_context(base, config, ceiling=None)
+        writer.store.put_fact(
+            Fact(
+                subject="host:axiom",
+                predicate="os_version",
+                fact_type=OBSERVED,
+                value={"version": "24.04"},
+                t_valid="2026-06-07T00:00:00.000000Z",
+                actor="test",
+            )
+        )
+        resp = mcp_handle(
+            {"id": 3, "method": "tools/call", "params": {"name": "query_facts", "arguments": {}}},
+            registry,
+            reader,
+            client_id="session-xyz",
+        )
+        assert resp is not None
+        result = cast(dict[str, Any], resp["result"])
+        assert result["isError"] is False
+        body = json.loads(result["content"][0]["text"])
+        assert body["count"] == 1  # the shared store is reachable through the session dispatch
     finally:
         base.execution.audit.close()
 

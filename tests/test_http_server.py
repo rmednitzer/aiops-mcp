@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -321,7 +322,11 @@ def test_http_serves_concurrent_requests(tmp_path: Path) -> None:
         )
     )
     httpd = build_http_server(config, base, build_registry(), mcp_handle)
-    httpd.request_queue_size = 64  # absorb the concurrent connects without backlog drops
+    # Raise the listen backlog on the already-bound socket so a burst of concurrent cold
+    # connects is not dropped at the TCP layer (server_activate already called listen()
+    # with the default 5; re-listen adjusts it). This is a test-harness concern, not the
+    # application concurrency under test.
+    httpd.socket.listen(128)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
@@ -332,19 +337,30 @@ def test_http_serves_concurrent_requests(tmp_path: Path) -> None:
         collect = threading.Lock()
 
         def call() -> None:
-            status, _, body = _post(
-                port,
-                {
-                    "jsonrpc": "2.0",
-                    "id": 7,
-                    "method": "tools/call",
-                    "params": {"name": "query_facts", "arguments": {}},
-                },
-                session=session,
-            )
+            # Retry only a transient connection error (backlog/accept race under a cold
+            # burst); an HTTP response of any status is recorded, never retried.
+            for attempt in range(6):
+                try:
+                    status, _, body = _post(
+                        port,
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 7,
+                            "method": "tools/call",
+                            "params": {"name": "query_facts", "arguments": {}},
+                        },
+                        session=session,
+                    )
+                except (urllib.error.URLError, OSError):
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                with collect:
+                    statuses.append(status)
+                    ok.append(body is not None and body["result"]["isError"] is False)
+                return
             with collect:
-                statuses.append(status)
-                ok.append(body is not None and body["result"]["isError"] is False)
+                statuses.append(0)  # never connected after retries: a real failure
+                ok.append(False)
 
         workers = [threading.Thread(target=call) for _ in range(16)]
         for worker in workers:

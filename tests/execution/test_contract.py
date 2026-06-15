@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 
 import pytest
 
@@ -112,6 +113,61 @@ def test_pending_approvals_are_bounded() -> None:
             tier=Tier.T2,
             patterns_version=3,
         )
+
+
+def test_approval_consume_is_atomic_under_concurrency() -> None:
+    # BL-104: two concurrent requests presenting the same nonce must not both succeed.
+    # The check-and-burn is atomic (one lock), so exactly one consumes; the other is
+    # refused. Without the lock the validate-then-pop would let both pass validation.
+    registry = ApprovalRegistry()
+    token = registry.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    approval = Approval(action_id="a1", token=token)
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
+    record_lock = threading.Lock()
+
+    def attempt() -> None:
+        barrier.wait(timeout=5)
+        try:
+            registry.consume(
+                approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3
+            )
+            result = "ok"
+        except ApprovalError:
+            result = "refused"
+        with record_lock:
+            outcomes.append(result)
+
+    threads = [threading.Thread(target=attempt, daemon=True) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "a consume thread hung"
+    assert sorted(outcomes) == ["ok", "refused"], outcomes
+
+
+def test_nonce_is_isolated_to_its_registry() -> None:
+    # Per-session isolation (BL-104): each HTTP session has its own registry, so a nonce
+    # minted in one session cannot be consumed by another.
+    owner = ApprovalRegistry()
+    other = ApprovalRegistry()
+    token = owner.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    approval = Approval(action_id="a1", token=token)
+    with pytest.raises(ApprovalError, match="not minted"):
+        other.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    # The cross-registry attempt did not burn it: the owning registry still consumes it.
+    owner.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+
+
+def test_non_ascii_token_is_refused_not_raised() -> None:
+    # The constant-time comparison (BL-106) runs on bytes, so a hostile non-ASCII token
+    # is cleanly refused rather than raising a TypeError out of the audited path.
+    registry = ApprovalRegistry()
+    registry.mint(action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
+    approval = Approval(action_id="a1", token="tøken-ünicode")
+    with pytest.raises(ApprovalError, match="not minted"):
+        registry.consume(approval, action_id="a1", target="axiom", tier=Tier.T2, patterns_version=3)
 
 
 def test_budget_record_spend_never_raises_on_ceiling() -> None:

@@ -12,7 +12,7 @@ import praxis
 from praxis.config import CONFIG, Config, TransportError
 from praxis.context import ServerContext
 from praxis.model.facts import OBSERVED, Fact
-from praxis.server import StdioServer, build_context, build_registry
+from praxis.server import StdioServer, build_context, build_registry, mcp_call
 from praxis.tools import REGISTERED_TOOLS
 
 
@@ -116,7 +116,9 @@ def test_tool_error_text_is_redacted(tmp_path: Path, monkeypatch: pytest.MonkeyP
         raise RuntimeError("connect failed password=supersecretvalue")
 
     monkeypatch.setattr(server.registry, "call", boom)
-    resp = cast(dict[str, Any], server._call({"name": "query_facts", "arguments": {}}))
+    resp = cast(
+        dict[str, Any], mcp_call({"name": "query_facts", "arguments": {}}, server.registry, ctx)
+    )
     assert resp["isError"] is True
     text = resp["content"][0]["text"]
     assert "supersecretvalue" not in text
@@ -128,7 +130,7 @@ def test_tool_error_with_broken_str_does_not_raise(
 ) -> None:
     # A hostile/broken __str__ on an exception escaping the registry must not raise
     # out of _call and break the JSON-RPC loop; it is contained (BL-044, server path).
-    server, _ = _server(tmp_path)
+    server, ctx = _server(tmp_path)
 
     class Hostile(Exception):
         def __str__(self) -> str:
@@ -138,7 +140,9 @@ def test_tool_error_with_broken_str_does_not_raise(
         raise Hostile
 
     monkeypatch.setattr(server.registry, "call", boom)
-    resp = cast(dict[str, Any], server._call({"name": "query_facts", "arguments": {}}))
+    resp = cast(
+        dict[str, Any], mcp_call({"name": "query_facts", "arguments": {}}, server.registry, ctx)
+    )
     assert resp["isError"] is True
     text = resp["content"][0]["text"]
     assert "Hostile" in text

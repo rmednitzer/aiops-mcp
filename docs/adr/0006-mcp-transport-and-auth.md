@@ -68,3 +68,17 @@ consent ceiling is not. This note records the gap without rewriting the decision
 (ADRs are immutable). Building the registry is a prerequisite for the multi-operator
 deployment named in the revisit triggers. This audit note, plus the known-gaps
 entry in `LIMITATIONS.md`, is the canonical record of the gap.
+
+## Audit note (2026-06-14, ADR-0041)
+
+Decision 4 (the per-client consent ceiling) is now built, as part of the multi-client
+HTTP transport (ADR-0041). Each session records a consent ceiling (declared via the
+`initialize` `consentCeiling` param); an action classified above it is denied in the
+single audited path (`run` step 3a), so a session cannot exceed its recorded consent.
+Decisions 1-3 (stdio default; the HTTP token plus non-loopback opt-in plus SSRF egress
+filter) and Decision 5 (annotations) were already implemented; the HTTP serving loop
+those guards fronted is also delivered now (ADR-0041). The remaining nuance: with a
+single shared bearer token every session is the same operator, so distinct per-client
+ceilings await per-client tokens (the multi-operator revisit trigger above); the registry
+and the in-path enforcement themselves are delivered. This note records the closure
+without rewriting the decision.

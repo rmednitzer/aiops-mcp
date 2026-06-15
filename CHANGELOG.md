@@ -32,6 +32,23 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-012 multi-client HTTP transport (ADR-0041): the HTTP serving loop that was staged
+  behind the always-enforced transport guard is now delivered (`src/praxis/http_server.py`),
+  opt-in via `PRAXIS_TRANSPORT=http` and still default-closed (token + non-loopback opt-in
+  + SSRF egress, ADR-0006). Stdlib `http.server` only (no new dependency). `initialize`
+  mints an `Mcp-Session-Id` and a per-session `ServerContext` that shares the one audit
+  hash chain, the store, and the global kill switch but has its own trifecta taint latch,
+  approval registry, budget, and consent ceiling, so one client cannot taint another or
+  race another's approval (BL-104). Every request carries `Authorization: Bearer` compared
+  in constant time (BL-106) and a Content-Length-capped body (BL-107); a session may pin a
+  per-client tier ceiling via an `initialize` `consentCeiling` param, enforced in the
+  audited path (ADR-0006 Decision 4 / BL-045). `ApprovalRegistry` is now lock-guarded with
+  an atomic check-and-burn and constant-time, byte-based token matching. The minted
+  approval nonce still surfaces on the server console (never in the HTTP response), so the
+  human-binding gate holds over HTTP. Single-threaded in v1 (the SQLite store is one
+  connection); concurrent serving over a thread-safe store is tracked as BL-110. Covered by
+  `tests/test_http_server.py` and the approval/consent tests in
+  `tests/execution/test_contract.py` and `tests/execution/test_runner.py`.
 - Second full-pass audit (2026-06-14), recorded as ADR-0039: the `audit/00..03` evidence files are refreshed with fresh command-backed validation on the merged tree (372 passed / 23 skipped, all gates green, 92% coverage, pip-audit clean, `fuzz 200000` clean) and a new executed adversarial battery (SSRF encodings/rebinding, redaction, deny-first policy, approval forgery/replay, audit-chain tamper -- 5/5 controls held). Every 2026-06-12 finding (BL-091/092/093 and the BL-088 items) is confirmed closed and the concurrently-merged #69 (multi-sink) and #71 (correlation) deltas reviewed. One Info/latent forward-looking item is filed as BL-104 (per-session execution-context isolation + atomic approval consume for the future multi-client HTTP transport); no code change.
 - BL-101 resolved (ADR-0038): optional request/client correlation on the audit record.
   `AuditRecord` and `AuditLogger.record` gain two additive fields, `request_id` and

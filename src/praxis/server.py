@@ -14,7 +14,7 @@ import json
 import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TextIO
+from typing import Protocol, TextIO
 
 from praxis import __version__
 from praxis.actuation.credentials import CredentialBroker
@@ -118,6 +118,78 @@ def build_registry() -> ToolRegistry:
     return registry
 
 
+class _Dispatch(Protocol):
+    """The transport-agnostic MCP dispatch signature (``mcp_handle``); the HTTP
+    transport takes it as a parameter so it never imports this module at runtime."""
+
+    def __call__(
+        self,
+        message: Mapping[str, object],
+        registry: ToolRegistry,
+        ctx: ServerContext,
+        *,
+        client_id: str | None = None,
+    ) -> dict[str, object] | None: ...
+
+
+def mcp_handle(
+    message: Mapping[str, object],
+    registry: ToolRegistry,
+    ctx: ServerContext,
+    *,
+    client_id: str | None = None,
+) -> dict[str, object] | None:
+    """Dispatch one JSON-RPC message against the registry and context.
+
+    Transport-agnostic: the stdio loop and the HTTP transport both call this, the
+    latter with a per-session ``ctx`` and the session id as ``client_id``. A message
+    with NO ``id`` member is a notification: it is never dispatched (a ``tools/call``
+    whose caller cannot receive the result must not silently actuate, BL-056) and
+    returns None.
+    """
+    method = message.get("method")
+    mid = message.get("id")
+    if "id" not in message:
+        return None
+    if method == "initialize":
+        result: dict[str, object] = {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {"tools": {}},
+            "serverInfo": _SERVER_INFO,
+        }
+    elif method == "tools/list":
+        result = {"tools": [spec.to_mcp() for spec in registry.specs()]}
+    elif method == "tools/call":
+        # Bind the JSON-RPC request id, and the session id as client_id on a
+        # multi-client transport, as audit correlation for this call (BL-101, ADR-0038).
+        with request_scope(request_id=mid, client_id=client_id):
+            result = mcp_call(message.get("params"), registry, ctx)
+    else:
+        return _error(mid, -32601, f"method not found: {method!r}")
+    return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+
+def mcp_call(params: object, registry: ToolRegistry, ctx: ServerContext) -> dict[str, object]:
+    """Run one ``tools/call`` against the registry. Errors are bounded, never a raw
+    traceback to the client (invariant 1)."""
+    if not isinstance(params, Mapping):
+        return _tool_error("missing params")
+    name = params.get("name")
+    if not isinstance(name, str):
+        return _tool_error("missing tool name")
+    raw_args = params.get("arguments")
+    args: dict[str, object] = (
+        {str(k): v for k, v in raw_args.items()} if isinstance(raw_args, Mapping) else {}
+    )
+    try:
+        text = registry.call(name, args, ctx)
+    except Exception as exc:  # noqa: BLE001 - bounded; never a raw traceback to the client
+        # Reuse the audited path's container: redacts, bounds, and survives a
+        # hostile/broken __str__ so dispatch never raises out of the transport loop.
+        return _tool_error(bounded_error(exc))
+    return {"content": [{"type": "text", "text": text}], "isError": False}
+
+
 class StdioServer:
     """A minimal JSON-RPC 2.0 server over newline-delimited stdio messages."""
 
@@ -126,51 +198,9 @@ class StdioServer:
         self.ctx = ctx
 
     def handle(self, message: Mapping[str, object]) -> dict[str, object] | None:
-        method = message.get("method")
-        mid = message.get("id")
-        # A JSON-RPC notification is a message with NO ``id`` member (not merely a
-        # null id) and never receives a response (BL-056). It is also never
-        # DISPATCHED here: a tools/call whose caller cannot receive the result
-        # must not silently consume approvals or actuate (fail closed). The only
-        # notifications MCP defines for this server are no-ops anyway.
-        if "id" not in message:
-            return None
-        if method == "initialize":
-            result: dict[str, object] = {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {"tools": {}},
-                "serverInfo": _SERVER_INFO,
-            }
-        elif method == "tools/list":
-            result = {"tools": [spec.to_mcp() for spec in self.registry.specs()]}
-        elif method == "tools/call":
-            # Bind the JSON-RPC request id as the audit correlation id for this call
-            # (BL-101, ADR-0038), so its audit entries carry the request_id. client_id
-            # stays None for the single-client stdio transport; a multi-client transport
-            # (HTTP, BL-012) sets it via request_scope.
-            with request_scope(request_id=mid):
-                result = self._call(message.get("params"))
-        else:
-            return _error(mid, -32601, f"method not found: {method!r}")
-        return {"jsonrpc": "2.0", "id": mid, "result": result}
-
-    def _call(self, params: object) -> dict[str, object]:
-        if not isinstance(params, Mapping):
-            return _tool_error("missing params")
-        name = params.get("name")
-        if not isinstance(name, str):
-            return _tool_error("missing tool name")
-        raw_args = params.get("arguments")
-        args: dict[str, object] = (
-            {str(k): v for k, v in raw_args.items()} if isinstance(raw_args, Mapping) else {}
-        )
-        try:
-            text = self.registry.call(name, args, self.ctx)
-        except Exception as exc:  # noqa: BLE001 - bounded; never a raw traceback to the client
-            # Reuse the audited path's container: redacts, bounds, and survives a
-            # hostile/broken __str__ so _call never raises out of the JSON-RPC loop.
-            return _tool_error(bounded_error(exc))
-        return {"content": [{"type": "text", "text": text}], "isError": False}
+        # stdio is single-client, so client_id stays None (the audit correlation id
+        # is just the JSON-RPC request id); the HTTP transport passes its session id.
+        return mcp_handle(message, self.registry, self.ctx)
 
     def serve(self, stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:
         source = stdin if stdin is not None else sys.stdin
@@ -240,10 +270,13 @@ def serve(config: Config | None = None) -> None:
         if cfg.transport == "stdio":
             StdioServer(registry, ctx).serve()
             return
-        raise NotImplementedError(
-            "HTTP transport serving is staged; the transport guard (token + non-loopback "
-            "opt-in + SSRF egress filter) is enforced before any bind. Use stdio for v0."
-        )
+        # HTTP: the guard above (token + non-loopback opt-in + SSRF egress filter) has
+        # passed. Lazy import keeps the stdlib HTTP machinery off the stdio default path
+        # (BL-012, ADR-0041).
+        from praxis.http_server import serve_http
+
+        serve_http(cfg, ctx, registry, mcp_handle)
+        return
     finally:
         # Cover the audit tail with a final checkpoint at orderly shutdown
         # (BL-076): verify_evidence requires full coverage at rest. An uncovered

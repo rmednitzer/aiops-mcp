@@ -37,8 +37,12 @@ wave that closed them); `LIMITATIONS.md` records what remains open.
    autonomous caller cannot self-approve (ADR-0016, BL-072).
 7. stdio by default; HTTP requires a bearer token AND an explicit non-loopback
    opt-in AND an SSRF egress filter (block link-local and RFC1918); no token
-   passthrough. (The per-client consent registry named in ADR-0006 Decision 4 is
-   specified but not yet built in v0; see `LIMITATIONS.md` and ADR-0012.)
+   passthrough. The HTTP serving loop is delivered (ADR-0041): an `Mcp-Session-Id`
+   session lifecycle, per-session isolation (each session has its own trifecta taint
+   latch and approval registry), constant-time token comparison, a request-body cap,
+   and the per-client consent ceiling that ADR-0006 Decision 4 specified (a session
+   cannot exceed its recorded tier ceiling). The v1 server is single-threaded
+   (concurrent serving is BL-110).
 8. Lethal-trifecta containment; read tools separable from act tools; human gate
    between observation and actuation, enforced inside the single audited path
    (ADR-0016, BL-083): once the session has taken in untrusted content, including

@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance helm-test ci-success lock
+.PHONY: check lint format type-check test coverage schema schema-check eval validate-compliance helm-test ci-success lock docs docs-serve docs-lock
 
 check: lint type-check test
 
@@ -55,3 +55,14 @@ ci-success: check schema-check eval validate-compliance coverage
 # so the Renovate pip-compile manager maintains the lock (ADR-0033).
 lock:
 > uv pip compile pyproject.toml --extra dev --generate-hashes --universal --output-file requirements-dev.txt
+
+# Documentation site (MkDocs Material). The same toolchain CI uses to publish Pages.
+docs:
+> mkdocs build --strict
+
+docs-serve:
+> mkdocs serve
+
+# Regenerate the hash-locked docs requirements (mirrors `lock`; Renovate maintains it).
+docs-lock:
+> uv pip compile pyproject.toml --extra docs --generate-hashes --universal --output-file requirements-docs.txt

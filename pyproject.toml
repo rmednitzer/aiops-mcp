@@ -36,6 +36,10 @@ postgres = ["psycopg[binary]>=3.2,<4"]  # production store backend (BL-006)
 # for the TSP/CMS ASN.1 models, cryptography for the signature/cert verification. Not
 # in the execution core; selected only when the operator opts in with praxis[tsa].
 tsa = ["asn1crypto>=1.5,<2", "cryptography>=49,<50"]
+# Documentation-site toolchain: renders docs/ to a GitHub Pages site
+# (.github/workflows/pages.yml). Docs/CI only, never imported by the package or the
+# execution core (ADR-0001/0014); hash-locked into requirements-docs.txt like the dev lock.
+docs = ["mkdocs-material>=9.6,<10"]
 # http = []                             # streamable-HTTP transport (BL-012)
 
 [project.scripts]

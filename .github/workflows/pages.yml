@@ -1,0 +1,63 @@
+name: pages
+
+# Build the MkDocs Material documentation site and publish it to GitHub Pages.
+# Least-privilege default; only the deploy job is granted the Pages write scopes.
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One Pages deploy at a time; never cancel an in-flight deploy mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      # Hash-locked install (BL-088): the docs toolchain is the exact, reviewed set,
+      # not whatever PyPI resolves on the day. Renovate maintains requirements-docs.txt.
+      - name: Install docs toolchain (hash-locked)
+        run: python -m pip install --require-hashes -r requirements-docs.txt
+      # --strict turns broken links and other warnings into errors, so a docs PR that
+      # breaks the site fails review rather than shipping a broken page.
+      - name: Build site (strict)
+        run: mkdocs build --strict
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Only this job carries the Pages publish scopes (and the OIDC token deploy-pages
+    # exchanges); the build job stays contents:read.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # enablement:true lets the first run turn on Pages with "GitHub Actions" as the
+      # source; if org/repo policy blocks that, enable it once in Settings -> Pages.
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          enablement: true
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

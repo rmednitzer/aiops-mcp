@@ -4,6 +4,8 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rmednitzer/aiops-mcp)
 
+Documentation site (rendered from `docs/`): <https://rmednitzer.github.io/aiops-mcp/>
+
 > Status: v0, stdio default with an opt-in HTTP transport, single-operator, in
 > iterative security hardening.
 > `make ci-success` is green (ruff + mypy strict + pytest + the schema-drift guard +

@@ -18,3 +18,5 @@ config/inventory.yaml
 *.sqlite
 *.sqlite3
 .env
+# MkDocs build output; the docs site is published by .github/workflows/pages.yml.
+site/

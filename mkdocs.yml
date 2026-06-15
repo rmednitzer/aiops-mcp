@@ -49,7 +49,7 @@ markdown_extensions:
 plugins:
   - search
 
-# The 42 ADRs are reachable from the Decisions index (adr/README.md) which links each;
+# The 43 ADRs are reachable from the Decisions index (adr/README.md) which links each;
 # keeping them out of the top-level menu avoids a 42-entry nav while still building and
 # serving every page. New ADRs (adr/0NNN-*.md) are covered by this glob automatically.
 not_in_nav: |

@@ -38,13 +38,18 @@ bitemporal/append-only invariants. stdio remains the default and the simplest de
 - Capability isolation for actuation subprocesses (container/seccomp) is an
   out-of-tree extension point at v0.
 - Multi-operator/multi-tenant authorization is not a v0 goal; the default posture
-  is single-operator with scoped credentials.
+  is single-operator with scoped credentials. A detailed future-expansion study
+  (per-principal OAuth 2.1 resource-server identity, principal-keyed consent and
+  roles, optional policy-as-code, JIT dynamic secrets, and SPIFFE workload identity),
+  grounded in the MCP authorization spec and NIST SP 800-207/800-162, is recorded in
+  `docs/roadmap/iam-access-and-secrets-expansion.md` (exploratory, not a commitment).
 - Windows actuation depth (beyond observation) is staged after the Linux and
   Talos paths.
-- The per-client consent ceiling named in ADR-0006 (Decision 4) is specified but
-  not implemented in v0 (ADR-0012, BL-045). The transport guard, SSRF filter,
-  token requirement, and non-loopback opt-in are in place; the consent registry
-  is not.
+- The per-client consent ceiling named in ADR-0006 (Decision 4) is now delivered
+  (ADR-0041): a session pins a tier ceiling, enforced in the single audited path.
+  Because the HTTP transport uses one shared bearer token, every session is the same
+  operator, so distinct per-principal ceilings await per-client tokens (the
+  multi-operator expansion in `docs/roadmap/iam-access-and-secrets-expansion.md`).
 - The running server produces Merkle checkpoints (every `PRAXIS_EVIDENCE_EVERY`
   records, default 64, and at orderly shutdown) plus an optional anchored
   high-water mark (`PRAXIS_ANCHOR_PATH`) when an audit file is configured

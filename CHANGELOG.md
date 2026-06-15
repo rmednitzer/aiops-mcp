@@ -32,6 +32,23 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Documentation
+- Documentation-currency and consistency audit pass (2026-06-15), following the ADR-0043
+  merge. STPA brought in line with the merged ADR-0043 (which states the planned UCAs are
+  pre-staged): `docs/stpa/05-ucas.md` gains the `act_kubectl` (UCA-29, UCA-30) and
+  `act_helm` (UCA-31) `[planned]` rows, `docs/stpa/07-security-constraints.md` maps them
+  under SEC-2 (approval and pipeline order) and SEC-5 (host_type gate plus the
+  `exec`-plugin/unscoped-kubeconfig refusal), and the coverage prose moves from UCA-1..28
+  to UCA-1..31; the compliance gate (`make validate-compliance`) stays green. `README.md`'s
+  status blurb no longer claims the backlog is fully resolved (it names BL-111 as the one
+  open, forward-looking item). `LIMITATIONS.md` gains a Kubernetes/Helm actuation gap, and
+  the `praxis.actuation` package docstring notes kubectl/helm are staged behind the ADR-0043
+  scoped-kubeconfig contract. `mkdocs.yml`'s ADR-count comment moves 42 to 43, and a
+  `BL-106/106` typo in `audit/2026-06-14/02-report.md` is corrected to `BL-106/107`. The
+  living docs and code comments were otherwise verified current (43 ADRs, six registered
+  tools, HTTP delivered, the HostType enum unchanged); immutable ADR bodies and dated
+  `audit/` snapshots are left intact as point-in-time records. Validation: `make ci-success`
+  (ruff + mypy strict + pytest + schema-drift + eval + compliance + coverage) and
+  `mkdocs --strict` green. No code behavior change.
 - ADR-0043 (Proposed): the Kubernetes actuation credential contract. Records the dividing
   line for whether `kubectl`/`helm` can become first-class audited actuators or must stay
   bastion-host skills, decided by the credential model (invariants 8 and 9). A first-class

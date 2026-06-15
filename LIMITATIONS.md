@@ -45,6 +45,14 @@ bitemporal/append-only invariants. stdio remains the default and the simplest de
   `docs/roadmap/iam-access-and-secrets-expansion.md` (exploratory, not a commitment).
 - Windows actuation depth (beyond observation) is staged after the Linux and
   Talos paths.
+- Kubernetes/Helm actuation is not built. praxis touches Kubernetes today only at the
+  Talos control-plane layer (`talosctl`, including `upgrade-k8s`/`kubeconfig`), and the
+  classifier scores `kubectl` mutators at T2 if run through the free-form shell path.
+  A first-class `kubectl`/`helm` adapter is admissible only under the ADR-0043
+  scoped-static-kubeconfig credential contract (RBAC-scoped non-admin kubeconfig,
+  `exec`-plugin kubeconfigs refused, context pinned from trusted inventory); otherwise
+  Kubernetes/Helm stays a bastion-host skill. ArgoCD is kept out of actuation (it
+  overlaps the human-gated drift engine). Tracked as BL-111.
 - The per-client consent ceiling named in ADR-0006 (Decision 4) is now delivered
   (ADR-0041): a session pins a tier ceiling, enforced in the single audited path.
   Because the HTTP transport uses one shared bearer token, every session is the same

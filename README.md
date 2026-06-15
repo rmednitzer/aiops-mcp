@@ -96,6 +96,9 @@ delivered.
 
 ## Quickstart
 
+For a complete, task-oriented walkthrough of running the server and using every tool, see
+the [how-to guide](docs/guide.md) (also on the docs site).
+
 `praxis` is self-contained: the default path is the SQLite store over stdio with no
 external services.
 

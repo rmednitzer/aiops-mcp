@@ -57,6 +57,7 @@ not_in_nav: |
 
 nav:
   - Home: index.md
+  - How-to guide: guide.md
   - Architecture: architecture.md
   - Decisions (ADRs): adr/README.md
   - Safety and security (STPA):

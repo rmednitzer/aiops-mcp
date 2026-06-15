@@ -5,10 +5,11 @@ one of its functions safely. It is task-oriented; for the design rationale see
 [Architecture](architecture.md), and for the day-to-day operator loop see the
 [operate runbook](runbooks/operate.md).
 
-`praxis` exposes six MCP tools over JSON-RPC 2.0: four reads (`query_facts`,
-`fact_history`, `drift_scan`, and the observation `ingest_observation`), one tier-gated
-actuator (`run_action`), and one control tool (`emergency_stop`). Everything you do goes
-through one audited execution path.
+`praxis` exposes six MCP tools over JSON-RPC 2.0: three read-only tools (`query_facts`,
+`fact_history`, `drift_scan`), one observation-ingest tool (`ingest_observation`) that
+writes facts to the model (it changes no host), one tier-gated actuator (`run_action`),
+and one control tool (`emergency_stop`). Everything you do goes through one audited
+execution path.
 
 ## 1. The mental model (read this first)
 
@@ -110,7 +111,11 @@ required field, or a wrong type is rejected at the boundary (no coercion) with
 `isError: true` and a bounded message. The examples below show only the `arguments`
 object for brevity.
 
-## 4. The read tools
+## 4. Reading and ingesting fleet state
+
+The first three tools are read-only (`readOnlyHint: true`). `ingest_observation` is not a
+read: it writes observed facts to the model (`readOnlyHint: false`), though it touches no
+host. All four run through the audited path.
 
 ### query_facts (T0, read-only)
 
@@ -170,7 +175,7 @@ session untrusted (arming the trifecta latch).
 |---|---|---|---|
 | `collector` | enum | yes | One of `osquery`, `aide`, `probe`, `talos`, `cis`. |
 | `subject` | string | yes | The subject the telemetry describes, e.g. `host:axiom`. |
-| `raw` | string | yes | The raw tool output you captured (max 4 MiB). |
+| `raw` | string | yes | The raw tool output you captured. Bounded at 4,194,304 characters (4 * 1024 * 1024); the cap is on characters, not bytes, so non-ASCII input may exceed 4 MiB on the wire. |
 | `predicate` | string | no | The predicate to record under (defaults to the collector name; ignored by `cis`, which reads each control's benchmark from the payload). |
 
 ```json
@@ -196,7 +201,7 @@ the trifecta gate, and the optional credential-scope gate.
 | Argument | Type | Required | Meaning |
 |---|---|---|---|
 | `adapter` | enum | yes | `ssh`, `ansible`, `opentofu`, `runbook`, or `talosctl`. |
-| `host` | string | yes | The target host name (must begin alphanumeric). |
+| `host` | string | yes | The target host name. Where it is passed to a wrapped CLI (the `ssh` target, which is `ssh_alias` or `host`, and the `ansible` `--limit` host), the effective target must begin with an alphanumeric (option-injection guard); adapters that do not put it in argv (`runbook`, `opentofu`) do not apply that check. |
 | `host_type` | enum | yes | `ubuntu`, `talos`, `windows`, or `cloud`. Must match the adapter (you cannot SSH a Talos host). |
 | `action` | string | yes | The command, playbook path, runbook id, or talosctl verb. |
 | `dry_run` | bool | no (default `true`) | Preview vs execute. |

@@ -49,10 +49,10 @@ Hardened deployment artifacts for praxis (BL-014).
 
 The container/Helm/systemd run target the streamable-HTTP transport, which is
 opt-in and fails closed without a token and the non-loopback acknowledgement
-(ADR-0006). HTTP serving itself is staged behind the enforced transport guard (see
-`LIMITATIONS.md`); the default, fully working deployment is stdio on a workstation
-(`python -m praxis`). These manifests encode the production hardening posture so it
-is reviewable now and ready when HTTP serving lands.
+(ADR-0006). HTTP serving is delivered (ADR-0041) and serves concurrently (a
+`ThreadingHTTPServer` over a thread-safe store, ADR-0042); the default, simplest
+deployment remains stdio on a workstation (`python -m praxis`). These manifests
+encode the production hardening posture for the HTTP run target.
 
 ## Known hardening gaps (tracked)
 

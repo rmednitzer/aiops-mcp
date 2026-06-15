@@ -33,14 +33,18 @@ The surface is layered: MCP tools, then skills, then services (the collectors, t
 drift engine, the actuation adapters, and the evidence layer), then the store and
 the execution core. Each layer has one responsibility and a stable contract:
 
-- MCP server surface (`src/praxis/server.py`, `src/praxis/tools/`): stdio is the v0
-  transport. A streamable-HTTP transport is staged behind an enforced guard (a bearer
-  token plus an explicit non-loopback opt-in plus the SSRF egress filter); the server
-  validates that guard and fails closed on an unsafe HTTP bind, but HTTP serving
-  itself is not yet implemented (it raises `NotImplementedError`), so v0 serves stdio
-  only. Tools are grouped state/query (read), drift (read), skills (read), and
-  actuation (tier-gated), each carrying accurate `readOnly`/`destructive`
-  annotations. The registry is transport-agnostic.
+- MCP server surface (`src/praxis/server.py`, `src/praxis/tools/`): stdio is the
+  default transport, a self-contained newline-delimited JSON-RPC 2.0 loop. An opt-in
+  streamable-HTTP transport sits behind an enforced guard (a bearer token plus an
+  explicit non-loopback opt-in plus the SSRF egress filter); the server validates that
+  guard and fails closed on an unsafe HTTP bind. HTTP serving is delivered (ADR-0041)
+  and serves concurrently (a `ThreadingHTTPServer` over a thread-safe store, ADR-0042);
+  its loop lives in `src/praxis/http_server.py`. Both transports share the
+  transport-agnostic `mcp_handle` dispatch and one tool registry. The six registered
+  tools group into state/query reads (`query_facts`, `fact_history`), observation
+  ingest (`ingest_observation`, an append-only write), a drift read (`drift_scan`),
+  tier-gated actuation (`run_action`), and an emergency-stop control (`emergency_stop`),
+  each carrying accurate `readOnly`/`destructive` annotations.
 - Skills (`src/praxis/skills/`): a manifest plus a registry plus a routing-chain
   dispatcher. Host-knowledge skills ("what is") and tool skills ("how to operate").
   Untrusted bundles load inert (`allow_contract=False`); a dispatch P@1/MRR eval gate

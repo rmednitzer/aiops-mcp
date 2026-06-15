@@ -9,7 +9,7 @@ store (SQLite default, Postgres+AGE optional), collectors, drift engine, actuati
 adapters, skills engine, tamper-evident audit, and the MCP stdio surface are built
 and tested; `make ci-success` is green and each of the nine invariants has a passing
 test. Hardening proceeds through the audit and feature waves (ADR-0011 through
-ADR-0040). The ADR-0016 wave delivered the human-binding approval gate
+ADR-0042). The ADR-0016 wave delivered the human-binding approval gate
 (server-minted, single-use, TTL-bound nonces surfaced out-of-band), the T2 floor for
 free-form shell, in-path trifecta containment, audited reads and ingest, and the
 budget, kill-switch actuator, and credential-broker wiring. Several items once listed
@@ -73,6 +73,6 @@ bitemporal/append-only invariants. stdio remains the default and the simplest de
 - The credential broker enforces scopes only once the operator issues a grant,
   and grants are in-process (no MCP grant tool, no persistence); zero grants is
   the single-operator default with no scope gate.
-- The skill and collector READS outside the five registered tools (the skills
-  dispatcher's internal reads) do not individually write audit records; the five
+- The skill and collector READS outside the six registered tools (the skills
+  dispatcher's internal reads) do not individually write audit records; the six
   MCP tools all route through the single audited path since ADR-0016.

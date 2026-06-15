@@ -53,7 +53,7 @@ pin sub-steps below are therefore done after the tag fires (step 4).
       image and its signed provenance and SBOM attestations to GHCR. Return to step 2 to
       capture and pin the published digest, then commit the pinned manifests.
 
-## 5. Deploy verification (when HTTP serving lands, BL-012)
+## 5. Deploy verification (HTTP transport, BL-012/ADR-0041)
 
 - [ ] In a staging namespace, `helm install` with `values-prod.yaml` and a real digest;
       confirm the pod reaches Ready (the probes, BL-060) and the NetworkPolicy admits

@@ -31,6 +31,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   #62). The suite, including the BL-095 stamper verification, passes on cryptography
   49.0.0.
 
+### Documentation
+- Documentation-currency pass: brought the prose and code comments into line with the
+  delivered state after ADR-0041/0042, the six registered tools, and the fully resolved
+  backlog. `docs/architecture.md` now describes HTTP serving as delivered (ADR-0041) and
+  concurrent (`ThreadingHTTPServer` over a thread-safe store, ADR-0042) and lists the
+  correct six-tool grouping, replacing the stale "staged, raises `NotImplementedError`,
+  serves stdio only" text and a nonexistent "skills (read)" MCP group. `README.md`'s
+  status blurb drops the pre-ADR-0016 "specified but not yet wired" framing and the
+  "open work in `docs/backlog.md`" claim (the backlog is fully resolved).
+  `deploy/README.md` and `deploy/RELEASE-CHECKLIST.md` no longer describe HTTP serving as
+  pending. `LIMITATIONS.md` corrects the wave range to ADR-0042 and "the five registered
+  tools" to six. The `praxis.server` and `praxis.tools` module docstrings match the
+  current transport and tool surface. No code behavior change.
+
 ### Added
 - A complete how-to guide (`docs/guide.md`, in the docs-site nav): a task-oriented walk
   through running the server, the MCP protocol surface (`initialize` / `tools/list` /

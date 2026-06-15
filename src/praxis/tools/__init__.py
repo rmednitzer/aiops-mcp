@@ -1,5 +1,6 @@
-"""The MCP tool surface (BL-012). Read tools and one tier-gated act tool, each in
-its own module with accurate readOnly/destructive annotations (ADR-0006).
+"""The MCP tool surface (BL-012). The read tools, an observation-ingest tool, one
+tier-gated act tool, and an emergency-stop control, each in its own module with
+accurate readOnly/destructive annotations (ADR-0006).
 """
 
 from __future__ import annotations

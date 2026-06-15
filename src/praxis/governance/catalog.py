@@ -63,6 +63,10 @@ class ComplianceCatalog(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, title="ComplianceCatalog")
 
     version: str = Field(min_length=1)
+    # A catalog-level note. Used to record that ``proving_tests`` lists at least one
+    # representative test per control (validator rule R9), not the exhaustive set; the
+    # full per-constraint test enumeration lives in the STPA 07 tables (BL-109).
+    notes: str = ""
     # framework id (the prefix used in citations, e.g. "NIS2") -> full legal name.
     frameworks: dict[str, str] = Field(min_length=1)
     # control id ("SEC-1".."SEC-10", "CTL-001"...) -> control.

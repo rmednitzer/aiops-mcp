@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from praxis.execution.contract import Approval, Contract, Predicate, Severity
 from praxis.execution.patterns import Tier
@@ -98,26 +98,32 @@ def scrubbed_env() -> dict[str, str]:
     return env
 
 
-def confine_to_root(action: str, *, root: str | None, kind: str) -> str:
+def confine_to_root(
+    action: str, *, root: str | None, kind: str, require: Literal["file", "dir"] = "file"
+) -> str:
     """Resolve ``action`` to a real path inside the configured root, or refuse.
 
     Playbooks and runbooks execute from an operator-configured directory only
-    (BL-024, BL-081). Fail closed: with no root configured the adapter refuses
-    outright. Resolution follows symlinks, so a link escaping the root is refused
-    the same as a ``..`` traversal. The file must exist: a typo is an operator
-    error surfaced here, not at the wrapped tool's exit status.
+    (BL-024, BL-081); an OpenTofu workspace ``-chdir`` is confined the same way
+    (BL-105). Fail closed: with no root configured the adapter refuses outright.
+    Resolution follows symlinks, so a link escaping the root is refused the same as a
+    ``..`` traversal. The target must exist (``require="file"`` for a playbook/runbook,
+    ``require="dir"`` for a tofu workspace): a typo is an operator error surfaced here,
+    not at the wrapped tool's exit status. ``require`` is a ``Literal`` so a mistyped mode
+    is a static (mypy) error, not a silent fall-through to the file check.
     """
     if root is None:
         raise ValueError(
             f"no {kind} root configured; set PRAXIS_{kind.upper()}_ROOT to the "
-            f"directory {kind}s may run from (BL-024/BL-081: fail closed)"
+            f"directory {kind} actuation is confined to (BL-024/BL-081/BL-105: fail closed)"
         )
     base = Path(root).resolve()
     raw = Path(action)
     candidate = (raw if raw.is_absolute() else base / raw).resolve()
     if not candidate.is_relative_to(base):
         raise ValueError(f"{kind} path escapes the configured {kind} root: {action!r}")
-    if not candidate.is_file():
+    exists = candidate.is_dir() if require == "dir" else candidate.is_file()
+    if not exists:
         raise ValueError(f"{kind} not found under the configured {kind} root: {action!r}")
     return str(candidate)
 

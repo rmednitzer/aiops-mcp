@@ -120,22 +120,28 @@ class BudgetTracker:
         self.actions = 0
         self.usd = 0.0
         self.wall_seconds = 0.0
+        # A per-session budget is shared by every request in that session; under the
+        # threaded HTTP transport (ADR-0042) two concurrent same-session requests could
+        # otherwise read-modify-write the counters and let one slip past the ceiling.
+        # Serialise the check-and-charge so the ceiling is exact (BL-110, BL-074).
+        self._lock = threading.Lock()
 
     def charge(self, *, actions: int = 1, usd: float = 0.0, wall_seconds: float = 0.0) -> None:
         if actions < 0:
             raise BudgetError(f"actions charge must be non-negative, got {actions!r}")
         _finite_nonneg(usd, "usd charge")
         _finite_nonneg(wall_seconds, "wall_seconds charge")
-        new_actions = self.actions + actions
-        new_usd = self.usd + usd
-        new_wall = self.wall_seconds + wall_seconds
-        if self.max_actions is not None and new_actions > self.max_actions:
-            raise BudgetError(f"action budget exceeded: {new_actions} > {self.max_actions}")
-        if self.max_usd is not None and new_usd > self.max_usd:
-            raise BudgetError(f"usd budget exceeded: {new_usd} > {self.max_usd}")
-        if self.max_wall_seconds is not None and new_wall > self.max_wall_seconds:
-            raise BudgetError(f"wall budget exceeded: {new_wall} > {self.max_wall_seconds}")
-        self.actions, self.usd, self.wall_seconds = new_actions, new_usd, new_wall
+        with self._lock:
+            new_actions = self.actions + actions
+            new_usd = self.usd + usd
+            new_wall = self.wall_seconds + wall_seconds
+            if self.max_actions is not None and new_actions > self.max_actions:
+                raise BudgetError(f"action budget exceeded: {new_actions} > {self.max_actions}")
+            if self.max_usd is not None and new_usd > self.max_usd:
+                raise BudgetError(f"usd budget exceeded: {new_usd} > {self.max_usd}")
+            if self.max_wall_seconds is not None and new_wall > self.max_wall_seconds:
+                raise BudgetError(f"wall budget exceeded: {new_wall} > {self.max_wall_seconds}")
+            self.actions, self.usd, self.wall_seconds = new_actions, new_usd, new_wall
 
     def record_spend(self, *, usd: float = 0.0, wall_seconds: float = 0.0) -> None:
         """Record spend that has already happened (post-execute accounting).
@@ -144,8 +150,11 @@ class BudgetTracker:
         the honest move is to record the overspend, which makes the NEXT
         ``charge`` fail its ceiling check (BL-074).
         """
-        self.usd += _finite_nonneg(usd, "usd charge")
-        self.wall_seconds += _finite_nonneg(wall_seconds, "wall_seconds charge")
+        clean_usd = _finite_nonneg(usd, "usd charge")
+        clean_wall = _finite_nonneg(wall_seconds, "wall_seconds charge")
+        with self._lock:
+            self.usd += clean_usd
+            self.wall_seconds += clean_wall
 
 
 class ApprovalError(Exception):

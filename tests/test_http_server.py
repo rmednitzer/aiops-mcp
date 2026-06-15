@@ -1,19 +1,18 @@
 """Multi-client HTTP transport (BL-012, ADR-0041; SEC-7, invariants 6/7/8).
 
 Socket-level tests exercise the transport mechanics (bearer auth, the session lifecycle,
-the body cap, method/route handling) against a real ``HTTPServer`` on an ephemeral
-loopback port, run in a background thread. They deliberately use only the store-free
-methods (initialize / tools/list / error paths): the single-connection SQLite store is
-same-thread in production (``serve`` runs serve_forever in the calling thread, and the
-v1 server is single-threaded), so the store-touching dispatch is exercised in-thread by
-``test_session_dispatch_touches_shared_store`` (the real production execution path), not
-across the test's server thread.
+the body cap, method/route handling) against a real ``ThreadingHTTPServer`` on an
+ephemeral loopback port, run in a background thread. Since ADR-0042 the server is
+threaded over a thread-safe store, so ``test_http_serves_concurrent_requests`` drives
+many store-touching calls in parallel; ``test_session_dispatch_touches_shared_store``
+covers the same path in-thread for a focused assertion.
 """
 
 from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -139,11 +138,10 @@ def test_session_manager_get_expires_idle_session(tmp_path: Path) -> None:
 
 def test_session_dispatch_touches_shared_store(tmp_path: Path) -> None:
     # A store-touching tools/call driven through the REAL dispatch against a per-session
-    # context, in-thread. This is the production execution path: the v1 HTTP server is
-    # single-threaded and the single-connection SQLite store is same-thread, so the
-    # request runs in the serving thread exactly as here. Proves the wired path end to
-    # end (dispatch -> request_scope -> run -> classify -> the SHARED store) and that the
-    # store is shared across isolated sessions: one session writes, another reads it back.
+    # context, in-thread, for a focused assertion (the threaded server is covered by
+    # test_http_serves_concurrent_requests). Proves the wired path end to end (dispatch ->
+    # request_scope -> run -> classify -> the SHARED store) and that the store is shared
+    # across isolated sessions: one session writes, another reads it back.
     config = _base(tmp_path)
     base = build_context(config)
     registry = build_registry()
@@ -305,3 +303,74 @@ def test_http_unknown_session_after_token_is_404(tmp_path: Path) -> None:
             port, {"jsonrpc": "2.0", "id": 9, "method": "tools/list"}, session="forged-session-id"
         )
         assert status == 404
+
+
+def test_http_serves_concurrent_requests(tmp_path: Path) -> None:
+    # BL-110, ADR-0042: a ThreadingHTTPServer serves requests in parallel over a
+    # thread-safe store. Fire many concurrent store-touching calls on one session and
+    # assert all succeed: no cross-thread store error, no corruption, one shared chain.
+    config = _base(tmp_path)
+    base = build_context(config)
+    base.store.put_fact(
+        Fact(
+            subject="host:axiom",
+            predicate="os_version",
+            fact_type=OBSERVED,
+            value={"version": "24.04"},
+            t_valid="2026-06-07T00:00:00.000000Z",
+            actor="test",
+        )
+    )
+    httpd = build_http_server(config, base, build_registry(), mcp_handle)
+    # Raise the listen backlog on the already-bound socket so a burst of concurrent cold
+    # connects is not dropped at the TCP layer (server_activate already called listen()
+    # with the default 5; re-listen adjusts it). This is a test-harness concern, not the
+    # application concurrency under test.
+    httpd.socket.listen(128)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = int(httpd.server_address[1])
+        session = _init(port)
+        statuses: list[int] = []
+        ok: list[bool] = []
+        collect = threading.Lock()
+
+        def call() -> None:
+            # Retry only a transient connection error (backlog/accept race under a cold
+            # burst); an HTTP response of any status is recorded, never retried.
+            for attempt in range(6):
+                try:
+                    status, _, body = _post(
+                        port,
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 7,
+                            "method": "tools/call",
+                            "params": {"name": "query_facts", "arguments": {}},
+                        },
+                        session=session,
+                    )
+                except (urllib.error.URLError, OSError):
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                with collect:
+                    statuses.append(status)
+                    ok.append(body is not None and body["result"]["isError"] is False)
+                return
+            with collect:
+                statuses.append(0)  # never connected after retries: a real failure
+                ok.append(False)
+
+        workers = [threading.Thread(target=call) for _ in range(16)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join()
+        assert statuses == [200] * 16
+        assert all(ok)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+        base.execution.audit.close()

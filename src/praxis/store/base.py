@@ -8,10 +8,36 @@ intentionally has no ``delete``: facts are append-only (ADR-0003; SEC-10).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Protocol, runtime_checkable
+import functools
+from collections.abc import Callable, Sequence
+from typing import Any, Concatenate, Protocol, cast, runtime_checkable
 
 from praxis.model.facts import Capability, Edge, Fact
+
+
+def synchronized[**P, R](
+    method: Callable[Concatenate[Any, P], R],
+) -> Callable[Concatenate[Any, P], R]:
+    """Serialise a store method on the instance's ``_lock`` (BL-110, ADR-0042).
+
+    A single shared store connection (one ``sqlite3`` / ``psycopg`` connection) is not
+    safe for concurrent use across threads, so the multi-threaded HTTP transport
+    serialises every connection-touching method on a per-instance re-entrant lock.
+    ``RLock`` so a method that calls another locked method on the same instance
+    (``put_fact`` -> ``get_active``) re-enters on the same thread. The slow work the
+    threaded server parallelises (actuation subprocesses, network I/O) runs outside any
+    store method, so serialising the fast store operations costs no actuation
+    concurrency while keeping the bitemporal/append-only invariants intact.
+    """
+
+    @functools.wraps(method)
+    def wrapper(self: Any, *args: P.args, **kwargs: P.kwargs) -> R:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    # functools.wraps yields a _Wrapped type whose named ``self`` arg mypy will not unify
+    # with the positional ``Any`` here; the call signature is identical, so cast back.
+    return cast("Callable[Concatenate[Any, P], R]", wrapper)
 
 
 @runtime_checkable

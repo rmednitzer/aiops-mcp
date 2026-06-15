@@ -19,13 +19,14 @@ traversal is a tracked follow-up; edges use the same table model as SQLite.
 from __future__ import annotations
 
 import json
+import threading
 import uuid
 from collections.abc import Mapping
 from typing import Any
 
 from praxis.clock import utc_now_iso
 from praxis.model.facts import Capability, Edge, Fact
-from praxis.store.base import VersionConflict
+from praxis.store.base import VersionConflict, synchronized
 
 # Per-table functions: facts and edges have different identity columns, so a single
 # shared function would leave the per-table identity columns unguarded. The
@@ -179,6 +180,11 @@ class PostgresStore:
             raise RuntimeError(
                 "PostgresStore requires the 'postgres' extra: pip install 'praxis[postgres]'"
             ) from exc
+        # A psycopg connection is not safe for concurrent use across threads, so the
+        # threaded HTTP transport (ADR-0042) serialises every method on this RLock via
+        # @synchronized; the cross-instance CAS guarantees (FOR UPDATE, the unique seq
+        # index) are unchanged and still cover multiple connections (BL-110).
+        self._lock = threading.RLock()
         self._conn: Any = psycopg.connect(dsn, autocommit=True, row_factory=dict_row)
         # Captured for the compare-and-set create path: a concurrent create that wins
         # the race trips the partial unique index, which we translate to a
@@ -188,6 +194,7 @@ class PostgresStore:
             for statement in _SCHEMA:
                 self._conn.execute(statement)
 
+    @synchronized
     def put_fact(self, fact: Fact) -> Fact:
         if not fact.actor:
             raise ValueError("put_fact requires a non-empty actor (write provenance)")
@@ -201,6 +208,7 @@ class PostgresStore:
             raise RuntimeError("invariant violated: just-inserted fact is not active")
         return stored
 
+    @synchronized
     def put_fact_if(self, fact: Fact, *, expected_version: str | None) -> Fact:
         """Version-gated supersede (``VersionedStore``; BL-027, ADR-0021).
 
@@ -281,6 +289,7 @@ class PostgresStore:
             ),
         )
 
+    @synchronized
     def supersede(
         self, subject: str, predicate: str, fact_type: str, *, actor: str, reason: str
     ) -> Fact | None:
@@ -306,6 +315,7 @@ class PostgresStore:
         ).fetchone()
         return _row_to_fact(row) if row is not None else None
 
+    @synchronized
     def get_active(self, subject: str, predicate: str, fact_type: str) -> Fact | None:
         row = self._conn.execute(
             "SELECT * FROM facts WHERE subject = %s AND predicate = %s AND fact_type = %s "
@@ -314,6 +324,7 @@ class PostgresStore:
         ).fetchone()
         return _row_to_fact(row) if row is not None else None
 
+    @synchronized
     def list_active(
         self, *, subject: str | None = None, fact_type: str | None = None
     ) -> list[Fact]:
@@ -329,6 +340,7 @@ class PostgresStore:
         rows = self._conn.execute(sql, params).fetchall()
         return [_row_to_fact(row) for row in rows]
 
+    @synchronized
     def history(
         self, subject: str, predicate: str | None = None, fact_type: str | None = None
     ) -> list[Fact]:
@@ -344,6 +356,7 @@ class PostgresStore:
         rows = self._conn.execute(sql, params).fetchall()
         return [_row_to_fact(row) for row in rows]
 
+    @synchronized
     def put_edge(self, edge: Edge) -> Edge:
         if not edge.actor:
             raise ValueError("put_edge requires a non-empty actor")
@@ -378,6 +391,7 @@ class PostgresStore:
             raise RuntimeError("invariant violated: just-inserted edge is not active")
         return stored
 
+    @synchronized
     def edges_from(self, subject: str, relation: str | None = None) -> list[Edge]:
         clauses = ["subject = %s", "t_invalid IS NULL", "t_superseded IS NULL"]
         params: list[object] = [subject]
@@ -399,6 +413,7 @@ class PostgresStore:
     def capabilities(self) -> frozenset[Capability]:
         return frozenset({Capability.GRAPH, Capability.COMPARE_AND_SET})
 
+    @synchronized
     def close(self) -> None:
         self._conn.close()
 

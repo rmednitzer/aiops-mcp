@@ -179,6 +179,35 @@ def test_budget_record_spend_never_raises_on_ceiling() -> None:
         budget.charge(actions=1)
 
 
+def test_budget_charge_is_atomic_under_concurrency() -> None:
+    # BL-110: a per-session budget is shared by concurrent same-session requests under
+    # the threaded HTTP transport. The check-and-charge is locked, so EXACTLY max_actions
+    # charges succeed; without it a read-modify-write race would let extras slip past.
+    tracker = BudgetTracker(max_actions=50)
+    successes = 0
+    count_lock = threading.Lock()
+    barrier = threading.Barrier(20)
+
+    def worker() -> None:
+        nonlocal successes
+        barrier.wait()
+        for _ in range(10):
+            try:
+                tracker.charge(actions=1)
+            except BudgetError:
+                continue
+            with count_lock:
+                successes += 1
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert tracker.actions == 50
+    assert successes == 50  # never more than the ceiling, despite 200 attempts
+
+
 def test_predicate_hard_and_soft() -> None:
     contract = Contract[int](
         preconditions=[

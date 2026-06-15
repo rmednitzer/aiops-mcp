@@ -81,6 +81,19 @@ def test_probe_parses_key_value() -> None:
     assert facts[0].value["PRETTY"] == "Ubuntu 24.04"
 
 
+def test_probe_caps_pair_count_and_value_length() -> None:
+    # BL-108: a hostile probe could emit a huge number of pairs or an enormous value
+    # within the 4 MiB output ceiling. Both are bounded, truncated silently (the
+    # never-raises collector contract), as defense-in-depth for untrusted data.
+    collector = CommandProbeCollector("probe")
+    pairs = "\n".join(f"k{i}=v{i}" for i in range(collector._MAX_PAIRS + 500))
+    value = collector.parse(pairs, subject="host:axiom")[0].value
+    assert len(value) == collector._MAX_PAIRS  # excess pairs dropped
+
+    long_value = collector.parse(f"big={'x' * 50_000}", subject="host:axiom")[0].value
+    assert len(str(long_value["big"])) == collector._MAX_VALUE_LEN  # value truncated
+
+
 def test_talos_parses_json_list() -> None:
     facts = TalosCollector("members").parse('[{"id": "cp-1"}, {"id": "cp-2"}]', subject="host:k8s")
     assert facts[0].value["count"] == 2

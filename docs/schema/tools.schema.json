@@ -272,6 +272,18 @@
             "default": null,
             "title": "Ssh Alias"
           },
+          "tofu_chdir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tofu Chdir"
+          },
           "wipe_mode": {
             "anyOf": [
               {

@@ -32,6 +32,12 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Documentation
+- Fixed a GitHub Pages rendering bug on the Backlog page (2026-06-15). The `BL-NNN`
+  resolution/audit notes were written as `<!-- ... -->` HTML comments interleaved between
+  table rows; a block-level comment terminates a Markdown table, so MkDocs (python-markdown)
+  rendered only the first dozen rows as a table and the remaining ~99 rows as a wall of raw
+  `| ... |` text. The notes are relocated below the table (still hidden HTML comments, content
+  unchanged) so the table renders as one contiguous table. No `BL` rows or note text were lost.
 - Documentation-currency and consistency audit pass (2026-06-15), following the ADR-0043
   merge. STPA brought in line with the merged ADR-0043 (which states the planned UCAs are
   pre-staged): `docs/stpa/05-ucas.md` gains the `act_kubectl` (UCA-29, UCA-30) and

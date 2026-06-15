@@ -60,4 +60,4 @@ typo). ADR README index and prose extended for ADR-0040.
 The remediations and documentation updates ship in one change with ADR-0040 and these
 artifacts. The posture is unchanged where it was already strong and strictly improved
 where the six findings were closed. Next periodic pass: re-run this method; the open BL
-items (especially BL-106/106) gate the HTTP transport.
+items (especially BL-106/107) gate the HTTP transport.

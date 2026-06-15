@@ -24,6 +24,8 @@ that action. The covering constraint is in `07-security-constraints.md`.
 | `act_talos` against wrong host | UCA-11 SSH path selected for a Talos host -> H-5 | n/a | n/a | n/a |
 | `act_redfish` (OOB power/boot) [planned] | UCA-12 power/boot change without approval -> H-1 | n/a | UCA-13 power action mistimed (during write) -> H-6 | n/a |
 | `act_cloud` (cloud API) [planned] | UCA-14 mutate cloud resource without approval / SSRF egress check -> H-1, H-7 | n/a | n/a | n/a |
+| `act_kubectl` (kubectl on kubernetes) [planned] | UCA-29 apply/delete/scale without DRY_RUN + approval, or against the deny list -> H-1, H-6 | n/a | UCA-30 act with an `exec`-plugin or admin (unscoped) kubeconfig, or against a non-kubernetes host_type -> H-1, H-5 | n/a |
+| `act_helm` (helm releases on kubernetes) [planned] | UCA-31 install/upgrade/uninstall a release without DRY_RUN + approval -> H-1, H-6 | n/a | n/a | n/a |
 
 ## Convergence and state control actions
 
@@ -53,9 +55,13 @@ read that returns observed facts arms the session untrusted latch, and the inges
 arms it on the path itself (UCA-27/28). Read feedback is treated as untrusted
 (SC-4). The skills dispatcher's internal reads remain outside the per-call audit.
 
-Planned control actions (ADR-0022, BL-089): `act_redfish` (UCA-12, UCA-13) and
-`act_cloud` (UCA-14) have no adapter in this version; their rows are marked
-`[planned]` and kept here so the UCA is registered before the code lands. Every
-UCA-1..28 maps to a covering SEC constraint in `07-security-constraints.md`, with
-the planned-adapter UCAs flagged there too; the flags clear when the adapters
+Planned control actions: `act_redfish` (UCA-12, UCA-13) and `act_cloud` (UCA-14)
+from ADR-0022/BL-089, and `act_kubectl` (UCA-29, UCA-30) and `act_helm` (UCA-31)
+from ADR-0043/BL-111, have no adapter in this version; their rows are marked
+`[planned]` and kept here so the UCA is registered before the code lands. The
+`kubernetes` host_type the `act_kubectl`/`act_helm` rows target is itself planned
+(ADR-0043): a first-class adapter is admissible only under that ADR's
+scoped-static-kubeconfig contract, otherwise kubectl/helm stay a bastion-host skill.
+Every UCA-1..31 maps to a covering SEC constraint in `07-security-constraints.md`,
+with the planned-adapter UCAs flagged there too; the flags clear when the adapters
 are implemented and route through the single audited path.

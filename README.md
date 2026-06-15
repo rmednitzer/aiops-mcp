@@ -9,12 +9,13 @@ Documentation site (rendered from `docs/`): <https://rmednitzer.github.io/aiops-
 > Status: v0, stdio default with an opt-in HTTP transport, single-operator, in
 > iterative security hardening.
 > `make ci-success` is green (ruff + mypy strict + pytest + the schema-drift guard +
-> the dispatch eval gate) and each of the nine invariants has a passing test, but
-> a deep review (ADR-0015) found that several controls the design treats as
-> load-bearing are specified and partly built yet not fully wired into the running
-> server. Read "Maturity and honest limitations" below and `LIMITATIONS.md` before
-> relying on it. Audit and feature waves: ADR-0011 through ADR-0042; open work is in
-> `docs/backlog.md`. The design reference is `docs/architecture.md`.
+> the dispatch eval gate) and each of the nine invariants has a passing test. The deep
+> review (ADR-0015) found that several load-bearing controls were specified but not yet
+> wired into the running server; the ADR-0016 enforcement wave and the waves through
+> ADR-0042 closed those findings, and the backlog (`docs/backlog.md`) is now fully
+> resolved. Read "Maturity and honest limitations" below and `LIMITATIONS.md` for the
+> known remaining boundaries before relying on it. The design reference is
+> `docs/architecture.md`.
 
 ## What it is
 

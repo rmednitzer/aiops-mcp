@@ -4,8 +4,9 @@ Assembles the store, the executor, and the ServerContext, enforces the transport
 guard (fails closed on an unsafe HTTP bind), and serves the tool registry. The
 stdio transport is a self-contained, newline-delimited JSON-RPC 2.0 loop
 (initialize / tools/list / tools/call), so the default deployment needs no
-third-party server and exposes no network surface. HTTP serving is staged behind
-the (enforced) guard; see LIMITATIONS.
+third-party server and exposes no network surface. The opt-in HTTP transport is
+delivered (ADR-0041) and serves concurrently (ADR-0042); both transports share the
+``mcp_handle`` dispatch, and the HTTP serving loop lives in ``praxis.http_server``.
 """
 
 from __future__ import annotations

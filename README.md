@@ -1,6 +1,8 @@
-# aiops-mcp
+# AIOps-MCP
 
 **praxis**, the unified AI-operations MCP.
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rmednitzer/aiops-mcp)
 
 > Status: v0, stdio default with an opt-in HTTP transport, single-operator, in
 > iterative security hardening.

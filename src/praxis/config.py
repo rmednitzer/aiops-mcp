@@ -118,6 +118,19 @@ def _truthy(value: str | None) -> bool:
     return value is not None and value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _root_or_none(value: str | None) -> str | None:
+    """A confinement root from the environment: empty or whitespace-only means UNSET.
+
+    An actuation confinement root (PRAXIS_PLAYBOOK_ROOT/RUNBOOK_ROOT/TOFU_ROOT) must
+    fail closed when not configured. A bare `PRAXIS_*_ROOT=""` would otherwise resolve
+    to the current working directory and silently widen confinement, so an empty or
+    whitespace value is normalised to None (refuse outright), matching the unset case
+    (BL-024/BL-081/BL-105). Whitespace is stripped, as for the HTTP host (BL-067)."""
+    if value is None:
+        return None
+    return value.strip() or None
+
+
 def _safe_int(value: str | None, default: int) -> int:
     """Parse an int, falling back to ``default`` so import-time config never raises.
 
@@ -191,9 +204,9 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         ),
         tsa_url=get("TSA_URL"),
         tsa_cert_path=get("TSA_CERT"),
-        playbook_root=get("PLAYBOOK_ROOT"),
-        runbook_root=get("RUNBOOK_ROOT"),
-        tofu_root=get("TOFU_ROOT"),
+        playbook_root=_root_or_none(get("PLAYBOOK_ROOT")),
+        runbook_root=_root_or_none(get("RUNBOOK_ROOT")),
+        tofu_root=_root_or_none(get("TOFU_ROOT")),
         kill_switch_path=get("KILL_SWITCH_PATH"),
         max_actions=positive_or_none("MAX_ACTIONS"),
         max_wall_seconds=positive_or_none("MAX_WALL_SECONDS"),

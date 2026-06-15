@@ -83,6 +83,23 @@ def test_http_host_empty_defaults_to_loopback_not_open_bind() -> None:
     )
 
 
+def test_confinement_roots_empty_or_blank_are_unset() -> None:
+    # BL-105 review: a confinement root must fail closed when not configured. A bare
+    # PRAXIS_*_ROOT="" (or whitespace) would otherwise resolve to the cwd and silently
+    # widen confinement, so it normalises to None (the unset/refuse case), and a real
+    # value is whitespace-stripped (matching the HTTP host, BL-067).
+    blank = load_config(
+        {"PRAXIS_PLAYBOOK_ROOT": "", "PRAXIS_RUNBOOK_ROOT": "  ", "PRAXIS_TOFU_ROOT": "\n"}
+    )
+    assert blank.playbook_root is None
+    assert blank.runbook_root is None
+    assert blank.tofu_root is None
+    unset = load_config({})
+    assert unset.tofu_root is None
+    set_cfg = load_config({"PRAXIS_TOFU_ROOT": "  /srv/workspaces\n"})
+    assert set_cfg.tofu_root == "/srv/workspaces"
+
+
 def test_http_rejects_out_of_range_port() -> None:
     with pytest.raises(TransportError):
         validate_transport(Config(transport="http", http_token="t", http_port=70000))

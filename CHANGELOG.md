@@ -32,6 +32,15 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- A complete how-to guide (`docs/guide.md`, in the docs-site nav): a task-oriented walk
+  through running the server, the MCP protocol surface (`initialize` / `tools/list` /
+  `tools/call`), and every one of the six tools (`query_facts`, `fact_history`,
+  `drift_scan`, `ingest_observation`, `run_action`, `emergency_stop`) with argument tables
+  and request/response examples drawn from the actual validated schemas. Covers the mental
+  model (tiers, modes, the DRY_RUN to approve to execute flow, the trifecta latch, the
+  audit), end-to-end observe and actuate workflows, the common refusals, the HTTP transport
+  (auth, sessions, consent ceiling), a `PRAXIS_*` configuration reference, and audit
+  verification.
 - Documentation site (MkDocs Material) published to GitHub Pages by a new
   `.github/workflows/pages.yml`. The site renders `docs/` (architecture, the 42 ADRs via
   their index, the STPA hazard analysis, the governance/compliance map, the runbooks, the

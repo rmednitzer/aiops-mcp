@@ -32,6 +32,17 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- Future-expansion roadmap for IAM, access control, and secrets
+  (`docs/roadmap/iam-access-and-secrets-expansion.md`): an exploratory, standards-grounded
+  study (MCP 2025-11-25 authorization, NIST SP 800-207 PDP/PEP, NIST SP 800-162 ABAC/RBAC,
+  SPIFFE/SPIRE, Vault dynamic secrets, OPA/Cedar) of a per-principal identity and policy
+  layer, should praxis ever move beyond its single-operator target. It records the value
+  verdict (net-negative for single-operator today; high value on a multi-operator trigger),
+  the non-negotiable constraints (identity sits above the existing gates, default-closed,
+  dependency-free core, no IdP/secret store in-tree, authz never consumes collected facts),
+  a five-phase additive plan, and an adversarial analysis. Not a decision; promoted to an ADR
+  plus backlog only on trigger. Linked from `LIMITATIONS.md`, whose stale "consent ceiling
+  not implemented" gap is corrected (delivered in ADR-0041).
 - BL-110 concurrent HTTP serving (ADR-0042): the HTTP transport now serves each request
   on its own thread (`ThreadingHTTPServer` with `daemon_threads`), so a slow actuation on
   one client no longer blocks the others. Every store method serialises on a per-instance

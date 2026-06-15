@@ -79,10 +79,12 @@ class Config(BaseModel):
     # append-only storage as the documented control (SECURITY.md, ADR-0019).
     tsa_url: str | None = None
     tsa_cert_path: str | None = None
-    # Confinement roots for path-based actuation (BL-024, BL-081). None refuses
-    # the corresponding adapter outright: fail closed.
+    # Confinement roots for path-based actuation (BL-024, BL-081, BL-105). None refuses
+    # the corresponding capability outright: fail closed. tofu_root confines an OpenTofu
+    # workspace `-chdir`; with it unset, supplying a chdir is refused.
     playbook_root: str | None = None
     runbook_root: str | None = None
+    tofu_root: str | None = None
     # Durable kill-switch sentinel file (BL-075). When set, a trip writes the
     # file, the switch reads as tripped while the file exists, and the stop
     # survives a restart. Restore by removing the file out-of-band.
@@ -191,6 +193,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         tsa_cert_path=get("TSA_CERT"),
         playbook_root=get("PLAYBOOK_ROOT"),
         runbook_root=get("RUNBOOK_ROOT"),
+        tofu_root=get("TOFU_ROOT"),
         kill_switch_path=get("KILL_SWITCH_PATH"),
         max_actions=positive_or_none("MAX_ACTIONS"),
         max_wall_seconds=positive_or_none("MAX_WALL_SECONDS"),

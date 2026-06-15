@@ -121,6 +121,7 @@ Since ADR-0041 the HTTP serving loop is delivered (`PRAXIS_TRANSPORT=http`):
 - Approval is unchanged over HTTP: a T2+ or trifecta-gated action needs a minted
   nonce, and the nonce is surfaced on the SERVER CONSOLE (never in the HTTP
   response), so the operator reads it out-of-band and supplies it on the real run.
-- The v1 server is single-threaded (one request at a time); a slow actuation blocks
-  other clients. Concurrent serving is tracked as BL-110. There is no SSE stream;
-  the transport is JSON-RPC over POST.
+- Serving is concurrent (ADR-0042, BL-110): a `ThreadingHTTPServer` runs each request on
+  its own thread over a store that serialises on a per-instance lock, so a slow actuation
+  on one client no longer blocks the others while the append-only/bitemporal invariants
+  hold. There is no SSE stream; the transport is JSON-RPC over POST.

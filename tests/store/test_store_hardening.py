@@ -43,6 +43,38 @@ def test_pre_existing_store_file_is_repermissioned(tmp_path: Path) -> None:
     store.close()
 
 
+def test_store_is_thread_safe_for_concurrent_writes(tmp_path: Path) -> None:
+    # BL-110: the threaded HTTP transport shares one store across handler threads.
+    # check_same_thread=False plus the @synchronized RLock make concurrent use safe:
+    # every write from 10 threads lands, with no cross-thread error and no seq collision.
+    store = SqliteStore(tmp_path / "praxis.db")
+    barrier = threading.Barrier(10)
+
+    def writer(worker: int) -> None:
+        barrier.wait()
+        for i in range(20):
+            store.put_fact(
+                Fact(
+                    subject=f"host:h{worker}",
+                    predicate=f"p{i}",
+                    fact_type=OBSERVED,
+                    value={"i": i},
+                    t_valid="2026-06-10T00:00:00.000000Z",
+                    actor="test",
+                )
+            )
+
+    threads = [threading.Thread(target=writer, args=(n,)) for n in range(10)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(store.list_active()) == 10 * 20  # all distinct-key writes present
+    seqs = [row["seq"] for row in store._conn.execute("SELECT seq FROM facts").fetchall()]
+    assert len(seqs) == len(set(seqs)) == 200  # unique seqs: no lost or corrupted write
+    store.close()
+
+
 def test_seq_is_unique_across_two_store_instances(tmp_path: Path) -> None:
     # BL-068: the seq is computed inside the INSERT and is unique at the storage
     # layer, so two store instances on one file cannot interleave duplicate seqs.

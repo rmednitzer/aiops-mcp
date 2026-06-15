@@ -1,5 +1,6 @@
 {
   "version": "1",
+  "notes": "Each control's proving_tests lists at least one representative test (validator rule R9 requires one per implemented control); it is not the exhaustive set. The full per-constraint test enumeration is in docs/stpa/07-security-constraints.md (BL-109).",
   "frameworks": {
     "EU AI Act": "Regulation (EU) 2024/1689 (Artificial Intelligence Act)",
     "NIS2": "Directive (EU) 2022/2555 (NIS2) and NISG 2026 (Austrian transposition)",

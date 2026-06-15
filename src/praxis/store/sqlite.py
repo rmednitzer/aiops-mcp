@@ -15,6 +15,7 @@ import json
 import math
 import os
 import sqlite3
+import threading
 import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from praxis.clock import utc_now_iso
 from praxis.model.facts import Capability, Edge, Fact
-from praxis.store.base import VersionConflict
+from praxis.store.base import VersionConflict, synchronized
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS facts (
@@ -171,7 +172,11 @@ class SqliteStore:
         self.path = str(path)
         if self.path != ":memory:":
             _precreate_owner_only(self.path)
-        self._conn = sqlite3.connect(self.path)
+        # check_same_thread=False lets the threaded HTTP transport (ADR-0042) use the one
+        # connection from any handler thread; the @synchronized RLock serialises every
+        # access, which is the documented-safe single-connection pattern (BL-110).
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         # Wait on a held write lock rather than failing fast, so a compare-and-set
@@ -183,6 +188,7 @@ class SqliteStore:
         self._conn.commit()
 
     # ------------------------------------------------------------------ facts
+    @synchronized
     def put_fact(self, fact: Fact) -> Fact:
         if not fact.actor:
             raise ValueError("put_fact requires a non-empty actor (write provenance)")
@@ -196,6 +202,7 @@ class SqliteStore:
             raise RuntimeError("invariant violated: just-inserted fact is not active")
         return stored
 
+    @synchronized
     def put_fact_if(self, fact: Fact, *, expected_version: str | None) -> Fact:
         """Version-gated supersede (``VersionedStore``; BL-027, ADR-0021).
 
@@ -272,6 +279,7 @@ class SqliteStore:
             ),
         )
 
+    @synchronized
     def supersede(
         self, subject: str, predicate: str, fact_type: str, *, actor: str, reason: str
     ) -> Fact | None:
@@ -301,6 +309,7 @@ class SqliteStore:
         ).fetchone()
         return _row_to_fact(row) if row is not None else None
 
+    @synchronized
     def get_active(self, subject: str, predicate: str, fact_type: str) -> Fact | None:
         row = self._conn.execute(
             "SELECT * FROM facts WHERE subject = ? AND predicate = ? AND fact_type = ? "
@@ -309,6 +318,7 @@ class SqliteStore:
         ).fetchone()
         return _row_to_fact(row) if row is not None else None
 
+    @synchronized
     def list_active(
         self, *, subject: str | None = None, fact_type: str | None = None
     ) -> list[Fact]:
@@ -324,6 +334,7 @@ class SqliteStore:
         rows = self._conn.execute(sql, params).fetchall()
         return [_row_to_fact(row) for row in rows]
 
+    @synchronized
     def history(
         self, subject: str, predicate: str | None = None, fact_type: str | None = None
     ) -> list[Fact]:
@@ -340,6 +351,7 @@ class SqliteStore:
         return [_row_to_fact(row) for row in rows]
 
     # ------------------------------------------------------------------ edges
+    @synchronized
     def put_edge(self, edge: Edge) -> Edge:
         if not edge.actor:
             raise ValueError("put_edge requires a non-empty actor")
@@ -377,6 +389,7 @@ class SqliteStore:
             raise RuntimeError("invariant violated: just-inserted edge is not active")
         return stored
 
+    @synchronized
     def edges_from(self, subject: str, relation: str | None = None) -> list[Edge]:
         clauses = ["subject = ?", "t_invalid IS NULL", "t_superseded IS NULL"]
         params: list[object] = [subject]
@@ -396,6 +409,7 @@ class SqliteStore:
         return _row_to_edge(row) if row is not None else None
 
     # ------------------------------------------------------------- embeddings
+    @synchronized
     def upsert_embedding(self, fact_id: str, vector: Sequence[float]) -> None:
         with self._conn:
             self._conn.execute(
@@ -404,6 +418,7 @@ class SqliteStore:
                 (fact_id, json.dumps(list(vector))),
             )
 
+    @synchronized
     def similar(self, vector: Sequence[float], *, k: int = 10) -> list[tuple[str, float]]:
         query = [float(x) for x in vector]
         if not _all_finite(query):
@@ -425,6 +440,7 @@ class SqliteStore:
     def capabilities(self) -> frozenset[Capability]:
         return frozenset({Capability.VECTOR, Capability.COMPARE_AND_SET})
 
+    @synchronized
     def close(self) -> None:
         self._conn.close()
 

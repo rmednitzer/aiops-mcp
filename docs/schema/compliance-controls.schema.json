@@ -121,6 +121,11 @@
       "title": "Frameworks",
       "type": "object"
     },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
     "version": {
       "minLength": 1,
       "title": "Version",

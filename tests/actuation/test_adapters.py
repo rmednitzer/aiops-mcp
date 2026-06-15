@@ -172,15 +172,44 @@ def test_opentofu_dry_run_is_a_full_plan() -> None:
     assert real == ["tofu", "apply", "-auto-approve"]
 
 
-def test_opentofu_ignores_unconfined_chdir() -> None:
-    # F-003: a raw chdir would be an unconfined path into the filesystem; build_argv must
-    # not emit a -chdir flag even if a chdir param is supplied (it is not wired pending a
-    # PRAXIS_TOFU_ROOT confinement, BL-105).
+def test_opentofu_confines_chdir_to_the_tofu_root(tmp_path: Path) -> None:
+    # BL-105: -chdir workspace selection is re-added, confined to PRAXIS_TOFU_ROOT
+    # (the unconfined passthrough was removed as F-003). No root -> a chdir is refused
+    # (fail closed); an escaping, missing, or non-directory target is refused; a real
+    # directory under the root is emitted as the global -chdir flag before the verb.
     from praxis.actuation.opentofu import OpenTofuAdapter
 
-    adapter = OpenTofuAdapter()
     host = HostInfo(name="cloud", host_type=HostType.CLOUD)
-    for dry in (True, False):
-        argv = adapter.build_argv(host, "apply", {"chdir": "/etc"}, dry_run=dry)
-        assert not any(token.startswith("-chdir") for token in argv), argv
-        assert "/etc" not in argv
+
+    # No chdir requested: unchanged, with or without a configured root.
+    assert OpenTofuAdapter().build_argv(host, "apply", {}, dry_run=True) == ["tofu", "plan"]
+
+    # A chdir with no configured root is refused outright (fail closed).
+    with pytest.raises(ValueError, match="no tofu root configured"):
+        OpenTofuAdapter().build_argv(host, "apply", {"chdir": "live"}, dry_run=True)
+
+    root = tmp_path / "workspaces"
+    (root / "live").mkdir(parents=True)
+    (root / "afile").write_text("x", encoding="utf-8")
+    adapter = OpenTofuAdapter(tofu_root=str(root))
+
+    with pytest.raises(ValueError, match="escapes"):
+        adapter.build_argv(host, "apply", {"chdir": "../../etc"}, dry_run=True)
+    with pytest.raises(ValueError, match="not found"):
+        adapter.build_argv(host, "apply", {"chdir": "missing"}, dry_run=True)
+    # -chdir takes a directory: a regular file under the root is refused.
+    with pytest.raises(ValueError, match="not found"):
+        adapter.build_argv(host, "apply", {"chdir": "afile"}, dry_run=True)
+
+    expected = str((root / "live").resolve())
+    assert adapter.build_argv(host, "apply", {"chdir": "live"}, dry_run=True) == [
+        "tofu",
+        f"-chdir={expected}",
+        "plan",
+    ]
+    assert adapter.build_argv(host, "apply", {"chdir": "live"}, dry_run=False) == [
+        "tofu",
+        f"-chdir={expected}",
+        "apply",
+        "-auto-approve",
+    ]

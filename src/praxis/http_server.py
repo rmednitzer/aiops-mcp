@@ -5,13 +5,16 @@ enforced the three separately-failing guards (a bearer token, an explicit non-lo
 opt-in, and the SSRF egress filter on server-initiated requests; ADR-0006). This module
 adds the serving loop the guard was staged in front of.
 
-Design (ADR-0041):
+Design (ADR-0041, ADR-0042):
 - Stdlib ``http.server`` only; no third-party web framework (dependency posture,
-  ADR-0001/0014). A single ``HTTPServer`` (single-threaded) serves requests one at a
-  time, so the single-connection SQLite store is never touched from two threads; per
-  session ISOLATION is still full (each session has its own taint latch, approval
-  registry, budget, and consent ceiling). Concurrent serving over a thread-safe store is
-  a tracked follow-up (BL-110).
+  ADR-0001/0014). A ``ThreadingHTTPServer`` serves each request on its own thread
+  (ADR-0042, BL-110), so a slow actuation on one client does not block the others.
+  Every shared component is thread-safe: the store serialises on a per-instance lock
+  (@synchronized), the audit hash chain and the evidence scheduler each hold their own
+  lock, and the session manager, approval registries, and budgets are lock-guarded. Per
+  session ISOLATION is full (each session has its own taint latch, approval registry,
+  budget, and consent ceiling), so one client's taint or pending nonce can never affect
+  another.
 - Sessions: ``initialize`` mints an ``Mcp-Session-Id`` and a per-session
   ``ServerContext`` sharing the global parts (the one audit hash chain, the store, the
   global kill switch, the credential broker) but with fresh per-session state. Every
@@ -31,7 +34,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TYPE_CHECKING, cast
 
 from praxis.config import Config
@@ -186,8 +189,19 @@ def _bearer_ok(header: str | None, token: str) -> bool:
     )
 
 
-class _McpHTTPServer(HTTPServer):
-    """An ``HTTPServer`` carrying the shared dispatch state for the handler."""
+class _McpHTTPServer(ThreadingHTTPServer):
+    """A ``ThreadingHTTPServer`` carrying the shared dispatch state for the handler.
+
+    Threaded so a slow actuation on one client does not block the others (ADR-0042,
+    BL-110): each request runs on its own thread. Every shared component is thread-safe
+    by construction: the store serialises on its lock (@synchronized), the audit hash
+    chain and the evidence scheduler each hold their own lock, the session manager and
+    each session's approval registry and budget are lock-guarded, and per-session
+    isolation keeps one client's taint or nonce off another. ``daemon_threads`` so a
+    worker never blocks process shutdown.
+    """
+
+    daemon_threads = True
 
     def __init__(
         self,

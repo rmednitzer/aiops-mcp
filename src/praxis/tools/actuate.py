@@ -36,7 +36,7 @@ from praxis.tools.registry import ToolArgs, ToolRegistry, tool_spec
 _ADAPTERS: dict[str, ActuationAdapter] = {
     "ssh": SSHAdapter(),
     "ansible": AnsibleAdapter(playbook_root=CONFIG.playbook_root),
-    "opentofu": OpenTofuAdapter(),
+    "opentofu": OpenTofuAdapter(tofu_root=CONFIG.tofu_root),
     "talosctl": TalosctlAdapter(),
     "runbook": RunbookAdapter(runbook_root=CONFIG.runbook_root),
 }
@@ -73,6 +73,10 @@ class RunActionArgs(ToolArgs):
     # server-side check; set True only when a post-bootstrap cluster's server-side
     # checks spuriously block an upgrade. The gate still runs and still HARD-gates.
     health_client_side_only: bool = False
+    # OpenTofu workspace selection (`tofu -chdir=<dir>`, BL-105). Confined to
+    # PRAXIS_TOFU_ROOT; supplying it with no root configured is refused (fail closed).
+    # None keeps tofu running in its default working directory.
+    tofu_chdir: str | None = None
 
 
 def _broker_gated_context(ctx: ServerContext, host: HostInfo) -> ExecutionContext:
@@ -126,6 +130,8 @@ def _run_action(args: RunActionArgs, ctx: ServerContext) -> str:
         params["wipe_mode"] = args.wipe_mode
     if args.health_client_side_only:
         params["health_client_side_only"] = True
+    if args.tofu_chdir is not None:
+        params["chdir"] = args.tofu_chdir
 
     request = adapter.build_request(host, args.action, params, dry_run=args.dry_run)
     approval = (

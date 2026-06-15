@@ -9,7 +9,7 @@
 > a deep review (ADR-0015) found that several controls the design treats as
 > load-bearing are specified and partly built yet not fully wired into the running
 > server. Read "Maturity and honest limitations" below and `LIMITATIONS.md` before
-> relying on it. Audit and feature waves: ADR-0011 through ADR-0040; open work is in
+> relying on it. Audit and feature waves: ADR-0011 through ADR-0042; open work is in
 > `docs/backlog.md`. The design reference is `docs/architecture.md`.
 
 ## What it is
@@ -59,8 +59,9 @@ honest current state:
   trifecta taint latch, approval nonces, budget, and consent ceiling), constant-time
   bearer-token auth, a request-body cap, and a per-client consent ceiling. It stays
   default-closed (token + non-loopback opt-in + SSRF egress, ADR-0006); stdio is still
-  the default. The v1 HTTP server is single-threaded (requests serialised); concurrent
-  serving over a thread-safe store is tracked (BL-110).
+  the default. Serving is concurrent (ADR-0042, BL-110): a `ThreadingHTTPServer` over a
+  store that serialises on a per-instance lock, so a slow actuation does not block other
+  clients while the bitemporal/append-only invariants hold.
 - The human-approval gate is human-binding (ADR-0016, BL-072): a gated dry run
   mints a server-generated, single-use, TTL-bound token surfaced on the operator
   console, out-of-band from the MCP channel. The token never appears in a tool

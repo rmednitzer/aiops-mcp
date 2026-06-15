@@ -41,8 +41,10 @@ wave that closed them); `LIMITATIONS.md` records what remains open.
    session lifecycle, per-session isolation (each session has its own trifecta taint
    latch and approval registry), constant-time token comparison, a request-body cap,
    and the per-client consent ceiling that ADR-0006 Decision 4 specified (a session
-   cannot exceed its recorded tier ceiling). The v1 server is single-threaded
-   (concurrent serving is BL-110).
+   cannot exceed its recorded tier ceiling). Serving is concurrent (ADR-0042, BL-110): a
+   `ThreadingHTTPServer` runs each request on its own thread over a store that serialises
+   on a per-instance lock, so a slow actuation does not block other clients and the
+   bitemporal/append-only invariants hold.
 8. Lethal-trifecta containment; read tools separable from act tools; human gate
    between observation and actuation, enforced inside the single audited path
    (ADR-0016, BL-083): once the session has taken in untrusted content, including

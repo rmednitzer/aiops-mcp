@@ -32,6 +32,29 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- BL-110 concurrent HTTP serving (ADR-0042): the HTTP transport now serves each request
+  on its own thread (`ThreadingHTTPServer` with `daemon_threads`), so a slow actuation on
+  one client no longer blocks the others. Every store method serialises on a per-instance
+  re-entrant lock (a `synchronized` decorator in `store/base.py` over `SqliteStore`, opened
+  `check_same_thread=False`, and `PostgresStore`), and the `BudgetTracker` check-and-charge
+  is atomic, so the bitemporal/append-only invariants and the per-session budget hold under
+  concurrency; the audit hash chain and the evidence scheduler were already lock-guarded,
+  and the taint latch and kill switch stay lock-free (monotonic, fail-safe). Per-instance
+  locking keeps the BL-103 two-instance compare-and-set test exercising real cross-connection
+  concurrency. Covered by new concurrency tests in `tests/store/test_store_hardening.py`,
+  `tests/execution/test_contract.py`, and `tests/test_http_server.py`.
+- BL-105 OpenTofu workspace `-chdir`, confined (ADR-0040): the OpenTofu adapter re-adds
+  `tofu -chdir=<dir>`, confined to `PRAXIS_TOFU_ROOT` (the `tofu_chdir` `run_action` arg),
+  the same fail-closed pattern as the ansible/runbook roots; `confine_to_root` gains an
+  additive `require="dir"` mode. A chdir with no root, an escaping path, or a missing or
+  non-directory target is refused. The unconfined passthrough removed as F-003 is now a
+  safe, opt-in capability.
+- BL-108 per-pair/per-value caps in `CommandProbeCollector.parse` (ADR-0040): the parser
+  bounds the pair count and per key/value length (silent truncation, never-raises),
+  defense-in-depth against a hostile probe within the 4 MiB output ceiling (invariant 8).
+- BL-109 compliance-catalog note (ADR-0040): an additive optional `notes` field on the
+  catalog records that `proving_tests` lists at least one representative test per control
+  (validator rule R9), not the exhaustive set, which the STPA 07 tables enumerate.
 - BL-012 multi-client HTTP transport (ADR-0041): the HTTP serving loop that was staged
   behind the always-enforced transport guard is now delivered (`src/praxis/http_server.py`),
   opt-in via `PRAXIS_TRANSPORT=http` and still default-closed (token + non-loopback opt-in

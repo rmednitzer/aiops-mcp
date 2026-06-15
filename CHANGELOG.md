@@ -32,6 +32,19 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Added
+- Documentation site (MkDocs Material) published to GitHub Pages by a new
+  `.github/workflows/pages.yml`. The site renders `docs/` (architecture, the 42 ADRs via
+  their index, the STPA hazard analysis, the governance/compliance map, the runbooks, the
+  roadmap, and the backlog) with search and light/dark themes, from a new `docs/index.md`
+  landing page and `mkdocs.yml`. The toolchain is a docs-only `docs` extra, hash-locked in
+  `requirements-docs.txt` (Renovate-maintained, like the dev lock) and installed only in the
+  Pages CI job, so the package and the dependency-free execution core are unchanged
+  (ADR-0001/0014). The workflow is least-privilege (only the deploy job holds `pages: write`
+  + `id-token: write`), pins every action by commit SHA, builds `--strict` (PRs validate the
+  build without deploying), and serializes deploys with a `pages` concurrency group. Local
+  build/preview via `make docs` / `make docs-serve`. Publishing requires GitHub Pages with
+  the "GitHub Actions" source (the first run auto-enables it via `configure-pages`, or set it
+  once in Settings -> Pages).
 - Future-expansion roadmap for IAM, access control, and secrets
   (`docs/roadmap/iam-access-and-secrets-expansion.md`): an exploratory, standards-grounded
   study (MCP 2025-11-25 authorization, NIST SP 800-207 PDP/PEP, NIST SP 800-162 ABAC/RBAC,

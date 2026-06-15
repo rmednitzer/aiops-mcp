@@ -1,0 +1,80 @@
+site_name: praxis
+site_description: >-
+  Unified AI-operations MCP: a bitemporal fleet model, a drift engine, and a tiered,
+  audited actuator. Security-first, single-operator-operable, EU-sovereign.
+site_url: https://rmednitzer.github.io/aiops-mcp/
+repo_url: https://github.com/rmednitzer/aiops-mcp
+repo_name: rmednitzer/aiops-mcp
+copyright: Apache-2.0. See LICENSE and NOTICE in the repository.
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+# The 42 ADRs are reachable from the Decisions index (adr/README.md) which links each;
+# keeping them out of the top-level menu avoids a 42-entry nav while still building and
+# serving every page. New ADRs (adr/0NNN-*.md) are covered by this glob automatically.
+not_in_nav: |
+  /adr/0*.md
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Decisions (ADRs): adr/README.md
+  - Safety and security (STPA):
+      - Overview: stpa/README.md
+      - Losses: stpa/01-losses.md
+      - Hazards: stpa/02-hazards.md
+      - System constraints: stpa/03-system-constraints.md
+      - Control structure: stpa/04-control-structure.md
+      - Unsafe control actions: stpa/05-ucas.md
+      - Loss scenarios: stpa/06-loss-scenarios.md
+      - Security constraints: stpa/07-security-constraints.md
+  - Governance:
+      - Compliance map: governance/compliance-map.md
+      - Regulatory deadlines: governance/regulatory-deadlines.md
+  - Runbooks:
+      - Operate: runbooks/operate.md
+      - Self-audit: runbooks/self-audit.md
+  - Roadmap:
+      - IAM, access, and secrets: roadmap/iam-access-and-secrets-expansion.md
+  - Backlog: backlog.md
+  - Migration note: migration-import-prototype.md

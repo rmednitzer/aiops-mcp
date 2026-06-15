@@ -12,8 +12,8 @@
     'rmednitzer',
   ],
   // Single dependency-automation tool for the repo (ADR-0033). Renovate owns
-  // GitHub Actions, the Dockerfile base image, and the uv-compiled hashed dev
-  // lock, and raises the security (vulnerability) PRs. Dependabot version
+  // GitHub Actions, the Dockerfile base image, and the uv-compiled hashed dev and
+  // docs locks, and raises the security (vulnerability) PRs. Dependabot version
   // updates were never configured (no .github/dependabot.yml); Dependabot
   // security updates are turned off at the repo setting so the two bots no
   // longer raise duplicate PRs (the #54/#55 cryptography pair). This
@@ -25,14 +25,15 @@
     'pip-compile',
   ],
   'pip-compile': {
-    // requirements-dev.txt records `uv pip compile ... --output-file
-    // requirements-dev.txt`; Renovate replays it to regenerate a universal,
+    // requirements-dev.txt and requirements-docs.txt each record `uv pip compile ...
+    // --output-file <file>`; Renovate replays the header to regenerate a universal,
     // fully-hashed lock. The long-form --output-file is required: Renovate's uv
     // option allowlist rejects the short -o and would skip the lock (the cause
     // of the incomplete #55 that needed #57). pip-compile needs uv in the
     // Renovate runtime (present in the Mend-hosted app).
     managerFilePatterns: [
       '/(^|/)requirements-dev\\.txt$/',
+      '/(^|/)requirements-docs\\.txt$/',
     ],
   },
   pinDigests: true,

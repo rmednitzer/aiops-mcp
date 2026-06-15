@@ -32,6 +32,20 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   49.0.0.
 
 ### Documentation
+- ADR-0043 (Proposed): the Kubernetes actuation credential contract. Records the dividing
+  line for whether `kubectl`/`helm` can become first-class audited actuators or must stay
+  bastion-host skills, decided by the credential model (invariants 8 and 9). A first-class
+  adapter is admissible only under a scoped-static-kubeconfig contract: an RBAC-scoped,
+  non-admin kubeconfig referenced out of band via the already-allowlisted `KUBECONFIG`; a
+  new `HostType.KUBERNETES` carrying the kubeconfig path and context pinned from trusted
+  inventory (`confine_to_root` paths); `exec`-stanza (cloud/OIDC) kubeconfigs refused
+  fail-closed because they need ambient credentials `scrubbed_env()` strips and run an
+  arbitrary per-call subprocess; a verb allowlist with native `--dry-run`; the SEC-5
+  host_type gate; and pre-staged `act_kubectl`/`act_helm` UCAs. Cloud/`exec`-auth clusters
+  stay a bastion skill; ArgoCD is kept out of actuation (it overlaps the human-gated drift
+  engine, ADR-0007). The ADR builds nothing: with no KUBERNETES host and no adapter
+  registered the default posture and dependency set are unchanged. Indexed in
+  `docs/adr/README.md`; implementation tracked as BL-111.
 - Documentation-currency pass: brought the prose and code comments into line with the
   delivered state after ADR-0041/0042, the six registered tools, and the fully resolved
   backlog. `docs/architecture.md` now describes HTTP serving as delivered (ADR-0041) and

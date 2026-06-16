@@ -19,5 +19,14 @@ jobs:
           # an interpreter the ci.yml test matrix covers, not a newer one the suite
           # never sees (BL-088).
           python-version: "3.14"
+      # The harness imports praxis from src/, which since the BL-061 manifest/merkle/
+      # evidence sweep pulls in the pydantic-backed skill manifest (manifest.py), so it
+      # needs the runtime dependency present. Install the same hash-locked, reviewed set
+      # ci.yml uses (BL-088) rather than letting pip resolve on the day; `--no-deps` for
+      # the package keeps the install to that exact set.
+      - name: Install dev dependencies (hash-locked)
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install -e . --no-deps
       - name: Fuzz the classification, policy, and redaction surfaces
         run: python scripts/fuzz.py 200000

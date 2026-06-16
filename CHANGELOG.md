@@ -82,6 +82,17 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
   tools" to six. The `praxis.server` and `praxis.tools` module docstrings match the
   current transport and tool surface. No code behavior change.
 
+### Fixed
+- The nightly `fuzz` workflow (`.github/workflows/fuzz.yml`) was failing at import since the
+  BL-061 sweep added a manifest fuzz stage: the harness imports `praxis.skills.manifest`,
+  which loads the pydantic-backed `SkillManifest`, but the job set up Python and ran
+  `scripts/fuzz.py` without ever installing the project's runtime dependency, so every
+  scheduled run after the change aborted with `ModuleNotFoundError: No module named
+  'pydantic'` before fuzzing a single case (runs 6-9, 2026-06-13 onward). The job now
+  installs the same hash-locked, reviewed dependency set `ci.yml` uses (BL-088) before the
+  run, restoring the security-surface fuzz gate. No change to the harness or the fuzzed
+  invariants.
+
 ### Added
 - A complete how-to guide (`docs/guide.md`, in the docs-site nav): a task-oriented walk
   through running the server, the MCP protocol surface (`initialize` / `tools/list` /

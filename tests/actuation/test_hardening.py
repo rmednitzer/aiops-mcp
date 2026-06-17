@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
 import time
 from pathlib import Path
 
@@ -292,6 +293,31 @@ def test_scrubbed_env_overrides_empty_path(monkeypatch: pytest.MonkeyPatch) -> N
     env = scrubbed_env()
     assert env["PATH"]
     assert "/usr/bin" in env["PATH"]
+
+
+def test_run_subprocess_nonzero_exit_is_failure_without_output_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # BL-112: a wrapped tool that exits non-zero must not be treated as a successful
+    # actuation, and stdout/stderr bodies must not be copied into the exception that
+    # the audited runner records as an error.
+    _shim(
+        tmp_path / "bin",
+        "failtool",
+        'echo "stdout-secret"\necho "stderr-secret" >&2\nexit 17',
+        monkeypatch,
+    )
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        run_subprocess(["failtool"], preview=False)
+    message = str(excinfo.value)
+    assert excinfo.value.returncode == 17
+    assert excinfo.value.cmd == "failtool"
+    assert excinfo.value.output is None
+    assert excinfo.value.stderr is None
+    assert "returned non-zero exit status 17" in message
+    assert "failtool" in message
+    assert "stdout-secret" not in message
+    assert "stderr-secret" not in message
 
 
 def test_run_subprocess_kills_process_group_on_timeout(

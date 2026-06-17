@@ -32,6 +32,7 @@ from praxis.model.facts import HostType
 
 _DEFAULT_TIMEOUT_S = 120
 
+
 # A host/target must begin with an alphanumeric so it can never be parsed as a
 # CLI option by the wrapped tool (a leading-dash value like ``-oProxyCommand=...``
 # is an option-injection vector even with a list argv, because the tool itself
@@ -150,11 +151,14 @@ def run_subprocess(argv: list[str], *, preview: bool, timeout_s: int = _DEFAULT_
     """Run a wrapped tool, or return a non-executing preview under dry-run.
 
     Output is returned for the executor to hash and truncate; it is never logged as
-    a body (SEC-9). A missing binary raises, which the executor turns into a bounded
-    error. The child runs in its own session (``start_new_session=True``) with stdin
-    detached from the server's stdio transport (``stdin=DEVNULL``) so it can neither
-    read the MCP wire protocol nor block on a prompt; on timeout the whole process
-    group is killed (BL-021).
+    a body (SEC-9). A non-zero child exit raises ``CalledProcessError``
+    without embedding stdout/stderr, so failed actuation cannot be audited as
+    successful and output bodies still do not enter error strings (BL-112). A
+    missing binary raises, which the executor
+    turns into a bounded error. The child runs in its own session
+    (``start_new_session=True``) with stdin detached from the server's stdio
+    transport (``stdin=DEVNULL``) so it can neither read the MCP wire protocol nor
+    block on a prompt; on timeout the whole process group is killed (BL-021).
     """
     if preview:
         return f"DRY_RUN preview (not executed): {' '.join(argv)}"
@@ -178,8 +182,10 @@ def run_subprocess(argv: list[str], *, preview: bool, timeout_s: int = _DEFAULT_
             proc.communicate(timeout=5)
         except (subprocess.TimeoutExpired, OSError):
             pass
-        # A bounded, argv-free message: the executor wraps it as a bounded error.
+        # A bounded, output-free message: the executor wraps it as a bounded error.
         raise TimeoutError(f"actuation timed out after {timeout_s}s: {argv[0]}") from None
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, argv[0])
     return (stdout or "") + (stderr or "")
 
 

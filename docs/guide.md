@@ -353,6 +353,7 @@ All configuration is `PRAXIS_`-prefixed and bound once at import. Defaults are s
 | `PRAXIS_HTTP_TOKEN` | unset | Required bearer token for HTTP. |
 | `PRAXIS_HTTP_HOST` / `PRAXIS_HTTP_PORT` | `127.0.0.1` / `8765` | HTTP bind. |
 | `PRAXIS_HTTP_ALLOW_ANY` | unset | `yes-i-understand-the-risk` to allow a non-loopback bind. |
+| `PRAXIS_ALLOW_RESTRICTED` | `true` on stdio, `false` on HTTP | Whether `query_facts`/`fact_history` return facts classified `restricted`. Default-denied over HTTP; set `true` to include them. |
 | `PRAXIS_APPROVAL_TTL_SECONDS` | `600` | Approval nonce lifetime. |
 | `PRAXIS_MAX_ACTIONS` / `PRAXIS_MAX_WALL_SECONDS` | unset | Per-session budget ceilings. |
 | `PRAXIS_KILL_SWITCH_PATH` | unset | Durable kill-switch sentinel file. |

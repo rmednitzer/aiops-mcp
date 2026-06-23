@@ -63,10 +63,15 @@ deferred dates inline (marked `deferred; statutory date was ...`) plus a note th
 deferral is provisional and the original dates remain in force until the OJ publishes.
 The re-confirmation against the OJ is filed as BL-113.
 
-Internal consistency was re-confirmed: the `PRAXIS_`-prefixed configuration surface,
-the ADR index, the backlog state (111 resolved, BL-111 the single open forward-looking
-item), and the hard-coded counts in the docs all matched the code, with the ADR count
-and the `mkdocs.yml` comment advanced to 44 for this ADR.
+Internal consistency was re-confirmed: the ADR index and the hard-coded counts in the
+docs matched the code, with the ADR count and the `mkdocs.yml` comment advanced to 44
+for this ADR. The backlog held 111 resolved items with BL-111 the only open one before
+this pass; this pass files BL-113 (the AI Act re-confirmation), so two items are now
+open, and the README status blurb is updated to name both. One pre-existing
+documentation gap was closed in the same pass: `PRAXIS_ALLOW_RESTRICTED` (read by
+`config.py`, default `true` on stdio and `false` over HTTP, gating whether
+restricted-classification tool output is returned) was undocumented; it is added to the
+configuration table in `docs/guide.md`.
 
 ## Consequences
 

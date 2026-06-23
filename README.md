@@ -12,9 +12,11 @@ Documentation site (rendered from `docs/`): <https://rmednitzer.github.io/aiops-
 > the dispatch eval gate) and each of the nine invariants has a passing test. The deep
 > review (ADR-0015) found that several load-bearing controls were specified but not yet
 > wired into the running server; the ADR-0016 enforcement wave and the waves through
-> ADR-0042 closed those findings. The implemented backlog is resolved; the one open item
-> is the forward-looking BL-111 (first-class kubectl/helm actuation, gated on the
-> ADR-0043 credential contract; nothing built yet). Read "Maturity and honest
+> ADR-0042 closed those findings. The implemented backlog is resolved; the two open items
+> are both forward-looking: BL-111 (first-class kubectl/helm actuation, gated on the
+> ADR-0043 credential contract; nothing built yet) and BL-113 (re-confirm the EU AI Act
+> high-risk dates against the Official Journal once the Digital Omnibus publishes,
+> ADR-0044). Read "Maturity and honest
 > limitations" below and `LIMITATIONS.md` for the
 > known remaining boundaries before relying on it. The design reference is
 > `docs/architecture.md`.

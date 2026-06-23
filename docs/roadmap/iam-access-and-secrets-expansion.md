@@ -277,8 +277,8 @@ this document is the record and `LIMITATIONS.md` points to it.
 
 Trusted public sources used and cross-checked for this study (accessed 2026-06-15):
 
-- Model Context Protocol, Authorization (2025-11-25): https://modelcontextprotocol.io/specification/draft/basic/authorization
-- Model Context Protocol, Security Best Practices: https://modelcontextprotocol.io/specification/draft/basic/security_best_practices
+- Model Context Protocol, Authorization (2025-11-25): https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
+- Model Context Protocol, Security Best Practices (2025-11-25): https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices
 - OAuth 2.1 (IETF draft): https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13
 - RFC 9728, OAuth 2.0 Protected Resource Metadata: https://datatracker.ietf.org/doc/html/rfc9728
 - RFC 8707, Resource Indicators for OAuth 2.0: https://www.rfc-editor.org/rfc/rfc8707.html

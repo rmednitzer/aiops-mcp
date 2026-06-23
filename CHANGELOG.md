@@ -5,6 +5,23 @@ Changelog; the project uses semantic versioning once it reaches a tagged release
 
 ## [Unreleased]
 
+### Documentation
+- Distillation and external-source validation pass (2026-06-23, ADR-0044). Re-derived the
+  system from the code and governance spine and validated the load-bearing external claims
+  against their trusted sources. Confirmed current: the MCP protocol version `2025-11-25`
+  (`server.py`, `guide.md`, roadmap) is the latest stable revision and its dated spec URLs
+  are live; the RFC 6962 Merkle domain separation in `audit/merkle.py` is correct; and the
+  CRA dates (reporting 2026-09-11, main 2027-12-11). One drift corrected: the EU AI Act
+  high-risk application dates in `docs/governance/regulatory-deadlines.md` now carry the
+  Digital Omnibus on AI deferral (Annex III 2026-08-02 -> 2027-12-02; Annex I 2027-08-02 ->
+  2028-08-02), provisionally agreed 2026-05-07 and flagged provisional pending Official
+  Journal publication (the statutory dates remain in force until then; re-confirmation
+  filed as BL-113). The roadmap MCP spec references moved from the rolling `/draft/` path to
+  the dated `2025-11-25` stable path. Added a regulatory-currency step to the periodic
+  self-audit runbook. ADR count and the `mkdocs.yml` comment advance to 44. Validation:
+  `make ci-success` (ruff + mypy strict + pytest + schema-drift + eval + compliance +
+  coverage) and `mkdocs build --strict` green. No code behaviour change.
+
 ### Security
 - Deep audit, validation, and adversarial-testing pass (ADR-0040, the parallel deeper
   pass alongside the ADR-0039 refresh; recorded under `audit/2026-06-14/`). No critical or

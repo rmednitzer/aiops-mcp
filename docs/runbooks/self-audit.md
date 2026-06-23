@@ -66,3 +66,13 @@ load-bearing property, not a flake.
 - Confirm the kill switch works: call `emergency_stop`, verify the denial of a
   follow-up call and the audit records, then restore out-of-band (remove the
   `PRAXIS_KILL_SWITCH_PATH` sentinel and restart) (ADR-0016, BL-075).
+
+## 6. Regulatory and external-source currency
+
+- Re-confirm the dates in `docs/governance/regulatory-deadlines.md` against the
+  Official Journal of the European Union (and the Austrian Federal Law Gazette);
+  amendment packages move them (for example the Digital Omnibus on AI deferred the
+  AI Act high-risk dates, ADR-0044/BL-113). Update any date that has been published
+  or superseded, and close any tracking item the publication resolves.
+- Re-confirm the MCP protocol version (`MCP_PROTOCOL_VERSION` in `server.py`) is the
+  current stable specification revision; a new revision is an ADR-0044 revisit trigger.

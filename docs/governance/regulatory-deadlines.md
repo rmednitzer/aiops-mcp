@@ -16,8 +16,8 @@ serves applies. The "Relevant project controls" column names where to look.
 | EU AI Act, Regulation (EU) 2024/1689 | Entry into force | 2024-08-01 | compliance-map "EU AI Act" rows |
 | EU AI Act | Prohibited practices (Chapter II) apply | 2025-02-02 | n/a (praxis defines no prohibited-practice system) |
 | EU AI Act | GPAI model obligations apply | 2025-08-02 | n/a (praxis ships no GPAI model) |
-| EU AI Act | High-risk obligations (Annex III) apply | 2026-08-02 | Art. 12 logging (`execution/audit.py`), Art. 14 oversight (`execution/runner.py`) |
-| EU AI Act | High-risk obligations (Annex I products) apply | 2027-08-02 | as above |
+| EU AI Act | High-risk obligations (Annex III stand-alone) apply | 2027-12-02 (deferred; statutory date was 2026-08-02) | Art. 12 logging (`execution/audit.py`), Art. 14 oversight (`execution/runner.py`) |
+| EU AI Act | High-risk obligations (Annex I products) apply | 2028-08-02 (deferred; statutory date was 2027-08-02) | as above |
 | NIS2, Directive (EU) 2022/2555 | Member-State transposition deadline | 2024-10-17 | compliance-map "NIS2" rows |
 | NIS2 | Measures apply in transposing States | 2024-10-18 | SEC-8 least privilege/kill switch; SEC-2/SEC-9 audit evidence |
 | NISG 2026 (Austria) | National NIS2 transposition (in progress) | 2026 | as NIS2; expected 2026, tracked because Austria missed the 2024-10-17 deadline |
@@ -38,3 +38,16 @@ serves applies. The "Relevant project controls" column names where to look.
 - The AI Act high-risk dates are the two staggered application dates (Annex III systems,
   then Annex I regulated products); the earlier prohibited-practice and GPAI dates are
   listed for completeness even though praxis triggers neither.
+- The high-risk dates above carry the deferral agreed in the Digital Omnibus on AI, a
+  targeted amendment package to Regulation (EU) 2024/1689. The co-legislators reached a
+  provisional agreement on 2026-05-07: Annex III stand-alone high-risk obligations move
+  from 2026-08-02 to 2027-12-02 (16 months), and Annex I product-embedded high-risk
+  obligations move from 2027-08-02 to 2028-08-02 (12 months). As of this writing
+  (2026-06) the package is politically agreed but not yet formally adopted or published
+  in the Official Journal; formal adoption is expected before the 2026-08-02 statutory
+  date it supersedes. Treat the deferred dates as provisional and re-confirm both the
+  dates and the in-force status against the Official Journal once it publishes
+  (tracked as BL-113; the original statutory dates remain in force until then). The same
+  package adds two prohibited practices under Art. 5 (AI-generated non-consensual
+  intimate imagery and CSAM); praxis defines no such system, so its prohibited-practice
+  disposition is unchanged.

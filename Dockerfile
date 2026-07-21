@@ -12,7 +12,7 @@
 # deploy/RELEASE-CHECKLIST.md.
 
 # python:3.12-slim-bookworm
-FROM python:3.12-slim-bookworm@sha256:76d4b7b6305788c6b4c6a19d6a22a3921bf802e9af4d5e1e5bd771208dba74bf AS builder
+FROM python:3.12-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -27,7 +27,7 @@ RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir .
 
 # python:3.12-slim-bookworm
-FROM python:3.12-slim-bookworm@sha256:76d4b7b6305788c6b4c6a19d6a22a3921bf802e9af4d5e1e5bd771208dba74bf AS runtime
+FROM python:3.12-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS runtime
 
 # Governance-as-code labels (BL-033): provenance and the base pin, plus the ADR/
 # backlog pointers so the deployed bytes carry their own traceability.

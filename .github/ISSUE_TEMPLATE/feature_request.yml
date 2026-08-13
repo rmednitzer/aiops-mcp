@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest an idea or enhancement
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Work items are tracked as `BL-NNN` in
+        [`docs/backlog.md`](https://github.com/rmednitzer/aiops-mcp/blob/main/docs/backlog.md).
+        Please check whether the idea is already there before filing.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem would this solve? What is the use case?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or capability you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you considered, if any.
+    validations:
+      required: false
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Effect on the nine invariants
+      description: >-
+        Does this touch the audited execution path, tier classification, the
+        audit record shape, fact immutability, host_type gating, the approval
+        gate, transport posture, trifecta containment, or privilege scope? If
+        so, say which and how. "None" is a fine answer.
+      placeholder: None.
+    validations:
+      required: true
+  - type: checkboxes
+    id: stability
+    attributes:
+      label: Additive stability
+      description: >-
+        Once an L1 surface is set (StoreProtocol, the fused `run` entry point,
+        the audit record shape, the skill manifest), it is extended additively.
+        Removing or changing an L1 signature is a breaking change needing a new
+        ADR.
+      options:
+        - label: >-
+            This can be built additively (new optional parameters, new modules,
+            new Protocols beside the existing ones), or I have explained below
+            why it cannot.
+          required: false

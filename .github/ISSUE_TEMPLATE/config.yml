@@ -1,0 +1,16 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/rmednitzer/aiops-mcp/security/advisories/new
+    about: >-
+      Report privately, not as a public issue. praxis executes privileged
+      operations across a host fleet, so anything touching the nine invariants
+      belongs here first.
+  - name: Security model and hazard analysis
+    url: https://github.com/rmednitzer/aiops-mcp/blob/main/SECURITY.md
+    about: >-
+      The nine invariants and the threat model. The authoritative hazard
+      analysis lives in docs/stpa/.
+  - name: Known gaps and limitations
+    url: https://github.com/rmednitzer/aiops-mcp/blob/main/LIMITATIONS.md
+    about: Check whether the behavior you found is already recorded as a known gap.

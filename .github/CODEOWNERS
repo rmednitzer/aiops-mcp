@@ -1,0 +1,43 @@
+# CODEOWNERS, automatic reviewer assignment.
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customizations/customizing-your-repository/about-code-owners
+#
+# Lines are matched in order; the last matching pattern wins.
+
+* @rmednitzer
+
+# The nine invariants are load-bearing. Each path below carries at least one of
+# them, so a change here is a change to the security posture, not just to code.
+
+# Invariant 1: single audited execution path. Invariant 3: audit records store
+# output_sha256 and output_len, never bodies; append-only hash chain.
+/src/praxis/execution/   @rmednitzer
+/src/praxis/audit/       @rmednitzer
+
+# Invariant 2: tiered authority T0-T3. Invariant 6: DRY_RUN, then approval,
+# then execute. Invariant 9: least privilege.
+/src/praxis/governance/  @rmednitzer
+/src/praxis/actuation/   @rmednitzer
+
+# Invariant 4: bitemporal, append-only state facts; deletion blocked at the
+# store.
+/src/praxis/store/       @rmednitzer
+/src/praxis/model/       @rmednitzer
+
+# Invariant 7: stdio by default; HTTP needs token, non-loopback opt-in, and the
+# SSRF egress filter.
+/src/praxis/http_server.py  @rmednitzer
+/src/praxis/_ssrf.py        @rmednitzer
+/src/praxis/config.py       @rmednitzer
+
+# Governance traceability. ADRs are immutable, STPA items are the source of
+# safety and security requirements, and every state-changing tool maps to at
+# least one Unsafe Control Action.
+/docs/adr/         @rmednitzer
+/docs/stpa/        @rmednitzer
+/docs/governance/  @rmednitzer
+
+# Supply chain and release surface.
+/.github/workflows/  @rmednitzer
+/Dockerfile          @rmednitzer
+/pyproject.toml      @rmednitzer
+/SECURITY.md         @rmednitzer
